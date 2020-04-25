@@ -35,3 +35,8 @@
 .idea
 .DS_Store
 
+
+# Alibaba-SRS
+janus
+janus-objs
+

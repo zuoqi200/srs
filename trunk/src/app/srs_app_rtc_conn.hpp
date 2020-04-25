@@ -51,6 +51,7 @@ class SrsSharedPtrMessage;
 class SrsSource;
 class SrsRtpPacket2;
 class ISrsUdpSender;
+class SrsJanusServer;
 
 const uint8_t kSR   = 200;
 const uint8_t kRR   = 201;
@@ -352,6 +353,8 @@ private:
 private:
     std::map<std::string, SrsRtcSession*> map_username_session; // key: username(local_ufrag + ":" + remote_ufrag)
     std::map<std::string, SrsRtcSession*> map_id_session; // key: peerip(ip + ":" + port)
+private:
+    SrsJanusServer* janus;
 public:
     SrsRtcServer();
     virtual ~SrsRtcServer();
