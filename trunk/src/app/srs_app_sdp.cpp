@@ -143,7 +143,7 @@ srs_error_t SrsSessionInfo::encode(std::ostringstream& os)
     if (! ice_options_.empty()) {
         os << "a=ice-options:" << ice_options_ << kCRLF;
     } else {
-		// @see: https://webrtcglossary.com/trickle-ice/
+        // @see: https://webrtcglossary.com/trickle-ice/
         // Trickle ICE is an optimization of the ICE specification for NAT traversal.
         os << "a=ice-options:trickle" << kCRLF;
     }
@@ -225,7 +225,10 @@ srs_error_t SrsMediaPayloadType::encode(std::ostringstream& os)
     }
 
     if (! format_specific_param_.empty()) {
-        os << "a=fmtp:" << payload_type_ << " " << format_specific_param_ << kCRLF;
+        os << "a=fmtp:" << payload_type_ << " " << format_specific_param_
+           // TODO: FIXME: Remove the test code bellow.
+           // << ";x-google-max-bitrate=6000;x-google-min-bitrate=5100;x-google-start-bitrate=5000"
+           << kCRLF;
     }
 
     return err;
@@ -359,7 +362,7 @@ srs_error_t SrsMediaDesc::encode(std::ostringstream& os)
 
     int foundation = 0;
     int component_id = 1; /* RTP */
-	for (std::vector<SrsCandidate>::iterator iter = candidates_.begin(); iter != candidates_.end(); ++iter) {
+    for (std::vector<SrsCandidate>::iterator iter = candidates_.begin(); iter != candidates_.end(); ++iter) {
         // @see: https://tools.ietf.org/html/draft-ietf-ice-rfc5245bis-00#section-4.2
         uint32_t priority = (1<<24)*(126) + (1<<8)*(65535) + (1)*(256 - component_id);
 
@@ -369,6 +372,8 @@ srs_error_t SrsMediaDesc::encode(std::ostringstream& os)
            << iter->ip_ << " " << iter->port_
            << " typ " << iter->type_ 
            << " generation 0" << kCRLF;
+
+        srs_trace("local SDP candidate line=%s", os.str().c_str());
     }
 
     return err;
@@ -419,7 +424,7 @@ srs_error_t SrsMediaDesc::parse_attribute(const std::string& content)
         sendrecv_ = true;
     } else if (attribute == "inactive") {
         inactive_ = true;
-	} else {
+    } else {
         return session_info_.parse_attribute(attribute, value);
     }
 
@@ -649,7 +654,7 @@ srs_error_t SrsSdp::parse(const std::string& sdp_str)
     std::istringstream is(sdp_str);
     std::string line;
     while (getline(is, line)) {
-        srs_trace("%s", line.c_str());
+        srs_verbose("%s", line.c_str());
         if (line.size() < 2 || line[1] != '=') {
             return srs_error_new(ERROR_RTC_SDP_DECODE, "invalid sdp line=%s", line.c_str());
         }
@@ -751,7 +756,7 @@ void SrsSdp::add_candidate(const std::string& ip, const int& port, const std::st
     candidate.type_ = type;
 
     for (std::vector<SrsMediaDesc>::iterator iter = media_descs_.begin(); iter != media_descs_.end(); ++iter) {
-    	iter->candidates_.push_back(candidate);
+        iter->candidates_.push_back(candidate);
     }
 }
 

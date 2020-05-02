@@ -43,12 +43,12 @@ private:
     SrsDtls();
     virtual ~SrsDtls();
 public:
-    srs_error_t init(const SrsRequest& req);
+    srs_error_t init(SrsRequest* r);
 public:
     static SrsDtls* instance();
-    SSL_CTX* get_dtls_ctx() { return dtls_ctx; }
+    SSL_CTX* get_dtls_ctx();
 public:
-    std::string get_fingerprint() const { return fingerprint; }
+    std::string get_fingerprint() const;
 };
 
 #endif

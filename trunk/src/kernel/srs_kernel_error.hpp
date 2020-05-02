@@ -347,9 +347,11 @@
 #define ERROR_RTC_RTCP_CHECK                5016
 #define ERROR_RTC_SOURCE_CHECK              5017
 #define ERROR_RTC_SDP_EXCHANGE              5018
-#define ERROR_RTC_JANUS_INVALID_PARAMETER   5019
-#define ERROR_RTC_JANUS_NO_SESSION          5020
-#define ERROR_RTC_JANUS_NO_CALL             5021
+#define ERROR_RTC_API_BODY                  5019
+#define ERROR_RTC_SOURCE_BUSY               5020
+#define ERROR_RTC_JANUS_INVALID_PARAMETER   5100
+#define ERROR_RTC_JANUS_NO_SESSION          5101
+#define ERROR_RTC_JANUS_NO_CALL             5102
 
 ///////////////////////////////////////////////////////
 // GB28181 API error.
