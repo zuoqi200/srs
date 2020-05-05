@@ -37,6 +37,8 @@ class SrsJsonObject;
 class SrsJanusServer;
 class SrsJanusSession;
 class SrsJanusCall;
+class SrsRequest;
+class SrsSdp;
 
 struct SrsJanusMessage
 {
@@ -57,8 +59,12 @@ struct SrsJanusMessage
     uint64_t sender;
     std::string plugin;
     std::string videoroom;
+    // For video-room, joined.
     uint64_t feed_id;
     uint32_t private_id;
+    // For video-room, configured.
+    std::string jsep_type;
+    std::string jsep_sdp;
 
     SrsJanusMessage() {
         session_id = sender = feed_id = 0;
@@ -76,7 +82,7 @@ public:
 public:
     virtual srs_error_t serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage* r);
 private:
-    virtual srs_error_t do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, SrsJsonObject* res);
+    srs_error_t do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, SrsJsonObject* res);
 };
 
 class SrsJanusServer
@@ -88,14 +94,20 @@ public:
     SrsJanusServer(SrsRtcServer* r);
     virtual ~SrsJanusServer();
 public:
-    virtual srs_error_t listen_api();
+    srs_error_t listen_api();
 public:
-    virtual srs_error_t create(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
-    virtual SrsJanusSession* fetch(uint64_t sid);
+    srs_error_t create(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
+    SrsJanusSession* fetch(uint64_t sid);
+    SrsRtcServer* server();
 };
 
 class SrsJanusSession
 {
+public:
+    std::string appid;
+    std::string channel;
+    std::string userid;
+    std::string sessionid;
 private:
     SrsJanusServer* janus;
     std::map<uint64_t, SrsJanusCall*> calls;
@@ -107,24 +119,32 @@ public:
     SrsJanusSession(SrsJanusServer* j);
     virtual ~SrsJanusSession();
 public:
-    virtual srs_error_t polling(SrsJsonObject* req, SrsJsonObject* res);
-    virtual void enqueue(SrsJanusMessage* msg);
+    srs_error_t polling(SrsJsonObject* req, SrsJsonObject* res);
+    void enqueue(SrsJanusMessage* msg);
 public:
-    virtual srs_error_t attach(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
-    virtual SrsJanusCall* fetch(uint64_t sid);
+    srs_error_t attach(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
+    SrsJanusCall* fetch(uint64_t sid);
+    SrsRtcServer* server();
 };
 
 class SrsJanusCall
 {
 private:
+    SrsRtcServer* server_;
     SrsJanusSession* session;
 public:
+    std::string callid;
     uint64_t id;
 public:
     SrsJanusCall(SrsJanusSession* s);
     virtual ~SrsJanusCall();
 public:
-    virtual srs_error_t message(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
+    srs_error_t message(SrsJsonObject* req, SrsJanusMessage* msg);
+    srs_error_t trickle(SrsJsonObject* req, SrsJanusMessage* msg);
+private:
+    srs_error_t on_join_message(SrsJsonObject* req, SrsJanusMessage* msg);
+    srs_error_t on_configure_message(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg);
+    srs_error_t exchange_sdp(SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp);
 };
 
 #endif
