@@ -27,6 +27,7 @@
 #include <srs_core.hpp>
 
 #include <srs_http_stack.hpp>
+#include <srs_rtmp_stack.hpp>
 
 #include <map>
 #include <string>
@@ -39,6 +40,7 @@ class SrsJanusSession;
 class SrsJanusCall;
 class SrsRequest;
 class SrsSdp;
+class SrsRtcSession;
 
 struct SrsJanusMessage
 {
@@ -65,6 +67,8 @@ struct SrsJanusMessage
     // For video-room, configured.
     std::string jsep_type;
     std::string jsep_sdp;
+    // For subscriber, the display of publisher.
+    std::string display;
 
     SrsJanusMessage() {
         session_id = sender = feed_id = 0;
@@ -75,7 +79,7 @@ struct SrsJanusMessage
 class SrsGoApiRtcJanus : public ISrsHttpHandler
 {
 private:
-    SrsJanusServer* janus;
+    SrsJanusServer* janus_;
 public:
     SrsGoApiRtcJanus(SrsJanusServer* j);
     virtual ~SrsGoApiRtcJanus();
@@ -88,8 +92,10 @@ private:
 class SrsJanusServer
 {
 private:
-    SrsRtcServer* rtc;
-    std::map<uint64_t, SrsJanusSession*> sessions;
+    std::map<uint64_t, SrsJanusSession*> sessions_;
+    std::map<std::string, SrsJanusCall*> publishers_;
+public:
+    SrsRtcServer* rtc_;
 public:
     SrsJanusServer(SrsRtcServer* r);
     virtual ~SrsJanusServer();
@@ -98,23 +104,24 @@ public:
 public:
     srs_error_t create(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
     SrsJanusSession* fetch(uint64_t sid);
-    SrsRtcServer* server();
+    void set_callee(SrsJanusCall* call);
+    SrsJanusCall* callee(std::string appid, std::string channel, uint64_t feed_id);
 };
 
 class SrsJanusSession
 {
 public:
-    std::string appid;
-    std::string channel;
-    std::string userid;
-    std::string sessionid;
+    std::string appid_;
+    std::string channel_;
+    std::string userid_;
+    std::string sessionid_;
 private:
-    SrsJanusServer* janus;
-    std::map<uint64_t, SrsJanusCall*> calls;
-    std::vector<SrsJanusMessage*> msgs;
+    std::map<uint64_t, SrsJanusCall*> calls_;
+    std::vector<SrsJanusMessage*> msgs_;
 public:
-    uint64_t id;
-    int cid;
+    SrsJanusServer* janus_;
+    uint64_t id_;
+    int cid_;
 public:
     SrsJanusSession(SrsJanusServer* j);
     virtual ~SrsJanusSession();
@@ -124,17 +131,22 @@ public:
 public:
     srs_error_t attach(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
     SrsJanusCall* fetch(uint64_t sid);
-    SrsRtcServer* server();
 };
 
 class SrsJanusCall
 {
 private:
-    SrsRtcServer* server_;
-    SrsJanusSession* session;
+    bool publisher_;
+    // TODO: FIXME: For subscriber, should free session if no answer.
+    SrsRtcSession* rtc_session_;
+    SrsRequest request;
+    static uint32_t ssrc_num;
 public:
-    std::string callid;
-    uint64_t id;
+    SrsJanusSession* session_;
+    std::string callid_;
+    uint64_t id_;
+    uint64_t feed_id_;
+    std::string display_;
 public:
     SrsJanusCall(SrsJanusSession* s);
     virtual ~SrsJanusCall();
@@ -143,8 +155,11 @@ public:
     srs_error_t trickle(SrsJsonObject* req, SrsJanusMessage* msg);
 private:
     srs_error_t on_join_message(SrsJsonObject* req, SrsJanusMessage* msg);
-    srs_error_t on_configure_message(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg);
-    srs_error_t exchange_sdp(SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp);
+    srs_error_t on_join_as_subscriber(SrsJsonObject* req, SrsJanusMessage* msg);
+    srs_error_t subscirber_build_offer(SrsRequest* req, SrsJanusCall* callee, SrsSdp& local_sdp);
+    srs_error_t on_start_subscriber(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg);
+    srs_error_t on_configure_publisher(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg);
+    srs_error_t publisher_exchange_sdp(SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp);
 };
 
 #endif

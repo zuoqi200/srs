@@ -23,6 +23,7 @@
 
 #include <srs_app_janus.hpp>
 
+#include <unistd.h>
 #include <string>
 using namespace std;
 
@@ -33,6 +34,7 @@ using namespace std;
 #include <srs_core_autofree.hpp>
 #include <srs_service_st.hpp>
 #include <srs_app_config.hpp>
+#include <srs_app_rtc_conn.hpp>
 
 // When API error, limit the request by sleep for a while.
 srs_utime_t API_ERROR_LIMIT = 3 * SRS_UTIME_SECONDS;
@@ -46,7 +48,7 @@ extern srs_error_t srs_api_response_code(ISrsHttpResponseWriter* w, ISrsHttpMess
 
 SrsGoApiRtcJanus::SrsGoApiRtcJanus(SrsJanusServer* j)
 {
-    janus = j;
+    janus_ = j;
 }
 
 SrsGoApiRtcJanus::~SrsGoApiRtcJanus()
@@ -101,14 +103,14 @@ srs_error_t SrsGoApiRtcJanus::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpM
 
     SrsJanusSession* session = NULL;
     if (janus_session_id || janus_handler_id) {
-        session = janus->fetch(janus_session_id);
+        session = janus_->fetch(janus_session_id);
         if (!session) {
             srs_usleep(API_ERROR_LIMIT);
             return srs_error_new(ERROR_RTC_JANUS_NO_SESSION, "no session id=%" PRId64, janus_session_id);
         }
 
         // Switch to the session.
-        _srs_context->set_id(session->cid);
+        _srs_context->set_id(session->cid_);
     }
 
     SrsJanusCall* call = NULL;
@@ -189,7 +191,7 @@ srs_error_t SrsGoApiRtcJanus::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpM
     }
 
     if (req_msg.janus == "create") {
-        if ((err = janus->create(req, &req_msg, res)) != srs_success) {
+        if ((err = janus_->create(req, &req_msg, res)) != srs_success) {
             return srs_error_wrap(err, "body %s", req_json.c_str());
         }
     } else if (req_msg.janus == "attach") {
@@ -206,7 +208,7 @@ srs_error_t SrsGoApiRtcJanus::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpM
 
         // TODO: FIXME: Maybe we should response error.
         res->set("janus", SrsJsonAny::str("ack"));
-        res->set("session", SrsJsonAny::integer(session->id));
+        res->set("session", SrsJsonAny::integer(session->id_));
 
         if ((err = call->message(req, &req_msg)) != srs_success) {
             return srs_error_wrap(err, "body %s", req_json.c_str());
@@ -218,7 +220,7 @@ srs_error_t SrsGoApiRtcJanus::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpM
 
         // TODO: FIXME: Maybe we should response error.
         res->set("janus", SrsJsonAny::str("ack"));
-        res->set("session", SrsJsonAny::integer(session->id));
+        res->set("session", SrsJsonAny::integer(session->id_));
 
         if ((err = call->trickle(req, &req_msg)) != srs_success) {
             return srs_error_wrap(err, "body %s", req_json.c_str());
@@ -233,13 +235,13 @@ srs_error_t SrsGoApiRtcJanus::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpM
 
 SrsJanusServer::SrsJanusServer(SrsRtcServer* r)
 {
-    rtc = r;
+    rtc_ = r;
 }
 
 SrsJanusServer::~SrsJanusServer()
 {
     map<uint64_t, SrsJanusSession*>::iterator it;
-    for (it = sessions.begin(); it != sessions.end(); ++it) {
+    for (it = sessions_.begin(); it != sessions_.end(); ++it) {
         SrsJanusSession* session = it->second;
         srs_freep(session);
     }
@@ -313,60 +315,72 @@ srs_error_t SrsJanusServer::create(SrsJsonObject* req, SrsJanusMessage* msg, Srs
 
     // Process message.
     SrsJanusSession* session = new SrsJanusSession(this);
-    session->appid = appid;
-    session->channel = channel;
-    session->userid = userid;
-    session->sessionid = session_id;
+    session->appid_ = appid;
+    session->channel_ = channel;
+    session->userid_ = userid;
+    session->sessionid_ = session_id;
 
     // Switch to the session.
-    _srs_context->set_id(session->cid);
+    _srs_context->set_id(session->cid_);
 
     do {
-        srs_random_generate((char*)&session->id, 8);
-        session->id &= 0x7fffffffffffffffLL;
-    } while (sessions.find(session->id) != sessions.end());
+        srs_random_generate((char*)&session->id_, 8);
+        session->id_ &= 0x7fffffffffffffffLL;
+    } while (sessions_.find(session->id_) != sessions_.end());
 
-    sessions[session->id] = session;
+    // TODO: FIXME: Cleanup sessions.
+    sessions_[session->id_] = session;
 
     // Set response data.
     SrsJsonObject* data = SrsJsonAny::object();
     res->set("data", data);
 
-    data->set("id", SrsJsonAny::integer((int64_t)session->id));
+    data->set("id", SrsJsonAny::integer((int64_t)session->id_));
 
     srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, appid=%s, channel=%s, userid=%s, session_id=%s, unified=%d, web=%s, profile=%s, session=%" PRId64,
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
-        appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), need_unified, websdk.c_str(), profile.c_str(), session->id);
+        appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), need_unified, websdk.c_str(), profile.c_str(), session->id_);
 
     return err;
 }
 
 SrsJanusSession* SrsJanusServer::fetch(uint64_t sid)
 {
-    map<uint64_t, SrsJanusSession*>::iterator it = sessions.find(sid);
-    if (it == sessions.end()) {
+    map<uint64_t, SrsJanusSession*>::iterator it = sessions_.find(sid);
+    if (it == sessions_.end()) {
         return NULL;
     }
     return it->second;
 }
 
-SrsRtcServer* SrsJanusServer::server()
+void SrsJanusServer::set_callee(SrsJanusCall* call)
 {
-    return rtc;
+    string ucid = call->session_->appid_ + "/" + call->session_->channel_ + "/" + srs_int2str(call->feed_id_);
+    publishers_[ucid] = call;
+}
+
+SrsJanusCall* SrsJanusServer::callee(string appid, string channel, uint64_t feed_id)
+{
+    string ucid = appid + "/" + channel + "/" + srs_int2str(feed_id);
+    map<string, SrsJanusCall*>::iterator it = publishers_.find(ucid);
+    if (it == publishers_.end()) {
+        return NULL;
+    }
+    return it->second;
 }
 
 SrsJanusSession::SrsJanusSession(SrsJanusServer* j)
 {
-    id = 0;
-    janus = j;
-    cid = _srs_context->generate_id();
+    id_ = 0;
+    janus_ = j;
+    cid_ = _srs_context->generate_id();
 }
 
 SrsJanusSession::~SrsJanusSession()
 {
     if (true) {
         map<uint64_t, SrsJanusCall*>::iterator it;
-        for (it = calls.begin(); it != calls.end(); ++it) {
+        for (it = calls_.begin(); it != calls_.end(); ++it) {
             SrsJanusCall* call = it->second;
             srs_freep(call);
         }
@@ -374,7 +388,7 @@ SrsJanusSession::~SrsJanusSession()
 
     if (true) {
         vector<SrsJanusMessage*>::iterator it;
-        for (it = msgs.begin(); it != msgs.end(); ++it) {
+        for (it = msgs_.begin(); it != msgs_.end(); ++it) {
             SrsJanusMessage* msg = *it;
             srs_freep(msg);
         }
@@ -385,17 +399,17 @@ srs_error_t SrsJanusSession::polling(SrsJsonObject* req, SrsJsonObject* res)
 {
     srs_error_t err = srs_success;
 
-    if (msgs.empty()) {
+    if (msgs_.empty()) {
         // No data, keep-alive.
         srs_usleep(API_POLLING_LIMIT);
         res->set("janus", SrsJsonAny::str("keepalive"));
-        srs_trace("RTC polling, session=%" PRId64 ", keepalive", id);
+        srs_trace("RTC polling, session=%" PRId64 ", keepalive", id_);
         return err;
     }
 
-    SrsJanusMessage* msg = msgs[0];
+    SrsJanusMessage* msg = msgs_[0];
     SrsAutoFree(SrsJanusMessage, msg);
-    msgs.erase(msgs.begin());
+    msgs_.erase(msgs_.begin());
 
     if (msg->janus == "event") {
         res->set("janus", SrsJsonAny::str(msg->janus.c_str()));
@@ -410,10 +424,12 @@ srs_error_t SrsJanusSession::polling(SrsJsonObject* req, SrsJsonObject* res)
         SrsJsonObject* data = SrsJsonAny::object();
         plugindata->set("data", data);
         if (msg->videoroom == "joined") {
+            // Attach to plugin.
             data->set("videoroom", SrsJsonAny::str("joined"));
             data->set("id", SrsJsonAny::integer(msg->feed_id));
             data->set("private_id", SrsJsonAny::integer(msg->private_id));
         } else if (msg->videoroom == "configured") {
+            // Answer as publisher
             data->set("videoroom", SrsJsonAny::str("event"));
             data->set("configured", SrsJsonAny::str("ok"));
 
@@ -421,10 +437,24 @@ srs_error_t SrsJanusSession::polling(SrsJsonObject* req, SrsJsonObject* res)
             res->set("jsep", jsep);
             jsep->set("type", SrsJsonAny::str(msg->jsep_type.c_str()));
             jsep->set("sdp", SrsJsonAny::str(msg->jsep_sdp.c_str()));
+        } else if (msg->videoroom == "attached") {
+            // Offer as subscriber.
+            data->set("videoroom", SrsJsonAny::str("attached"));
+            data->set("id", SrsJsonAny::integer(msg->feed_id));
+            data->set("display", SrsJsonAny::str(msg->display.c_str()));
+
+            SrsJsonObject* jsep = SrsJsonObject::object();
+            res->set("jsep", jsep);
+            jsep->set("type", SrsJsonAny::str(msg->jsep_type.c_str()));
+            jsep->set("sdp", SrsJsonAny::str(msg->jsep_sdp.c_str()));
+        } else if (msg->videoroom == "started") {
+            // Answer as subscriber.
+            data->set("videoroom", SrsJsonAny::str("event"));
+            data->set("started", SrsJsonAny::str("ok"));
         }
 
         srs_trace("RTC polling, session=%" PRId64 ", janus=%s, sender=%" PRId64 ", transaction=%s, feed=%" PRId64 ", private=%u",
-            id, msg->janus.c_str(), msg->sender, msg->transaction.c_str(), msg->feed_id, msg->private_id);
+            id_, msg->janus.c_str(), msg->sender, msg->transaction.c_str(), msg->feed_id, msg->private_id);
     }
 
     return err;
@@ -432,7 +462,7 @@ srs_error_t SrsJanusSession::polling(SrsJsonObject* req, SrsJsonObject* res)
 
 void SrsJanusSession::enqueue(SrsJanusMessage* msg)
 {
-    msgs.push_back(msg);
+    msgs_.push_back(msg);
 }
 
 srs_error_t SrsJanusSession::attach(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res)
@@ -467,47 +497,47 @@ srs_error_t SrsJanusSession::attach(SrsJsonObject* req, SrsJanusMessage* msg, Sr
 
     // Process message.
     SrsJanusCall* call = new SrsJanusCall(this);
-    call->callid = callid;
+    call->callid_ = callid;
 
     do {
-        srs_random_generate((char*)&call->id, 8);
-        call->id &= 0x7fffffffffffffffLL;
-    } while (janus->fetch(call->id) || calls.find(call->id) != calls.end());
+        srs_random_generate((char*)&call->id_, 8);
+        call->id_ &= 0x7fffffffffffffffLL;
+    } while (janus_->fetch(call->id_) || calls_.find(call->id_) != calls_.end());
 
-    calls[call->id] = call;
+    // TODO: FIXME: Cleanup calls.
+    calls_[call->id_] = call;
 
     // Set response data.
     SrsJsonObject* data = SrsJsonAny::object();
     res->set("data", data);
 
-    data->set("id", SrsJsonAny::integer((int64_t)call->id));
+    data->set("id", SrsJsonAny::integer((int64_t)call->id_));
 
     srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, plugin=%s, opaque_id=%s, force_bundle=%d, force_rtcp_mux=%d, callid=%s, call=%" PRId64,
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
-        plugin.c_str(), opaque_id.c_str(), force_bundle, force_rtcp_mux, callid.c_str(), call->id);
+        plugin.c_str(), opaque_id.c_str(), force_bundle, force_rtcp_mux, callid.c_str(), call->id_);
 
     return err;
 }
 
 SrsJanusCall* SrsJanusSession::fetch(uint64_t sid)
 {
-    map<uint64_t, SrsJanusCall*>::iterator it = calls.find(sid);
-    if (it == calls.end()) {
+    map<uint64_t, SrsJanusCall*>::iterator it = calls_.find(sid);
+    if (it == calls_.end()) {
         return NULL;
     }
     return it->second;
 }
 
-SrsRtcServer* SrsJanusSession::server()
-{
-    return janus->server();
-}
+uint32_t SrsJanusCall::ssrc_num = 0;
 
 SrsJanusCall::SrsJanusCall(SrsJanusSession* s)
 {
-    id = 0;
-    session = s;
-    server_ = s->server();
+    id_ = 0;
+    session_ = s;
+
+    publisher_ = false;
+    rtc_session_ = NULL;
 }
 
 SrsJanusCall::~SrsJanusCall()
@@ -533,7 +563,9 @@ srs_error_t SrsJanusCall::message(SrsJsonObject* req, SrsJanusMessage* msg)
     if (request == "join") {
         return on_join_message(body, msg);
     } else if (request == "configure") {
-        return on_configure_message(req, body, msg);
+        return on_configure_publisher(req, body, msg);
+    } else if (request == "start") {
+        return on_start_subscriber(req, body, msg);
     } else {
         return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "request %s", request.c_str());
     }
@@ -577,50 +609,316 @@ srs_error_t SrsJanusCall::on_join_message(SrsJsonObject* req, SrsJanusMessage* m
     srs_error_t err = srs_success;
 
     SrsJsonAny* prop = NULL;
-    if ((prop = req->get_property("room")) == NULL || (!prop->is_string() && !prop->is_integer())) {
-        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no room");
-    }
-    string room;
-    if (prop->is_string()) {
-        room = prop->to_str();
-    } else if (prop->is_integer()) {
-        room = srs_int2str(prop->to_integer());
-    }
-
     if ((prop = req->ensure_property_string("ptype")) == NULL) {
         return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no ptype");
     }
     string ptype = prop->to_str();
 
-    if ((prop = req->ensure_property_string("display")) == NULL) {
-        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no display");
+    if (ptype != "publisher" && ptype != "listener") {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "invalid ptype=%s", ptype.c_str());
     }
-    string display = prop->to_str();
+    publisher_ = (ptype == "publisher");
 
-    if ((prop = req->get_property("feed_id")) == NULL || !prop->is_integer()) {
-        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no feed_id");
+    if (ptype == "publisher") {
+        if ((prop = req->get_property("feed_id")) == NULL || !prop->is_integer()) {
+            return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no feed_id");
+        }
+        uint64_t feed_id = prop->to_integer();
+
+        if ((prop = req->ensure_property_string("display")) == NULL) {
+            return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no display");
+        }
+        string display = prop->to_str();
+
+        SrsJanusMessage* res_msg = new SrsJanusMessage();
+        res_msg->janus = "event";
+        res_msg->session_id = session_->id_;
+        res_msg->sender = id_;
+        res_msg->transaction = msg->transaction;
+        res_msg->plugin = "janus.plugin.videoroom";
+        res_msg->videoroom = "joined";
+        res_msg->feed_id = feed_id;
+        srs_random_generate((char*)&res_msg->private_id, 4);
+        session_->enqueue(res_msg);
+
+        display_ = display;
+        feed_id_ = feed_id;
+        session_->janus_->set_callee(this);
+
+        srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, request=%s, ptype=%s, feed_id=%" PRId64 ", display=%s, sender=%" PRId64 ", private=%u, publisher=%d",
+            msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
+            "join", ptype.c_str(), feed_id, display.c_str(), res_msg->sender, res_msg->private_id, publisher_);
+    } else {
+        return on_join_as_subscriber(req, msg);
     }
-    uint64_t feed_id = prop->to_integer();
-
-    SrsJanusMessage* res_msg = new SrsJanusMessage();
-    res_msg->janus = "event";
-    res_msg->session_id = session->id;
-    res_msg->sender = id;
-    res_msg->transaction = msg->transaction;
-    res_msg->plugin = "janus.plugin.videoroom";
-    res_msg->videoroom = "joined";
-    res_msg->feed_id = feed_id;
-    srs_random_generate((char*)&res_msg->private_id, 4);
-    session->enqueue(res_msg);
-
-    srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, request=%s, room=%s, ptype=%s, display=%s, feed_id=%" PRId64 ", sender=%" PRId64 ", private=%u",
-        msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
-        "join", room.c_str(), ptype.c_str(), display.c_str(), feed_id, res_msg->sender, res_msg->private_id);
 
     return err;
 }
 
-srs_error_t SrsJanusCall::on_configure_message(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg)
+srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMessage* msg)
+{
+    srs_error_t err = srs_success;
+
+    // Find the callee in room.
+    SrsJsonAny* prop = NULL;
+    if ((prop = req->get_property("feed")) == NULL || !prop->is_integer()) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no feed");
+    }
+    uint64_t feed_id = prop->to_integer();
+
+    SrsJanusCall* callee = session_->janus_->callee(session_->appid_, session_->channel_, feed_id);
+    if (!callee) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no callee feed_id=%" PRId64, feed_id);
+    }
+
+    if ((prop = req->get_property("audio")) == NULL || !prop->is_boolean()) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no audio");
+    }
+    bool audio = prop->to_boolean();
+
+    if ((prop = req->get_property("video")) == NULL || !prop->is_boolean()) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no video");
+    }
+    bool video = prop->to_boolean();
+
+    if ((prop = req->get_property("offer_audio")) == NULL || !prop->is_boolean()) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no offer_audio");
+    }
+    bool offer_audio = prop->to_boolean();
+
+    if ((prop = req->get_property("offer_video")) == NULL || !prop->is_boolean()) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no offer_video");
+    }
+    bool offer_video = prop->to_boolean();
+
+    if ((prop = req->get_property("streams")) == NULL || !prop->is_array()) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no streams");
+    }
+    SrsJsonArray* streams = prop->to_array();
+
+    // TODO: FIXME: We should apply appid.
+    request.app = session_->channel_;
+    request.stream = callee->callid_;
+    srs_trace("RTC janus play stream=/%s/%s, feed_id=%" PRId64 ", self=%" PRId64,
+        request.app.c_str(), request.stream.c_str(), callee->feed_id_, feed_id_);
+
+    // TODO: FIXME: Parse vhost.
+    // discovery vhost, resolve the vhost from config
+    SrsConfDirective* parsed_vhost = _srs_config->get_vhost("");
+    if (parsed_vhost) {
+        request.vhost = parsed_vhost->arg0();
+    }
+
+    // Whether enabled.
+    bool server_enabled = _srs_config->get_rtc_server_enabled();
+    bool rtc_enabled = _srs_config->get_rtc_enabled(request.vhost);
+    if (server_enabled && !rtc_enabled) {
+        srs_warn("RTC disabled in vhost %s", request.vhost.c_str());
+    }
+    if (!server_enabled || !rtc_enabled) {
+        return srs_error_new(ERROR_RTC_DISABLED, "Disabled server=%d, rtc=%d, vhost=%s",
+            server_enabled, rtc_enabled, request.vhost.c_str());
+    }
+
+    // Generate offer.
+    SrsSdp local_sdp;
+
+    if ((err = subscirber_build_offer(&request, callee, local_sdp)) != srs_success) {
+        return srs_error_wrap(err, "build offer");
+    }
+
+    // TODO: FIXME: When server enabled, but vhost disabled, should report error.
+    if ((err = session_->janus_->rtc_->create_session2(local_sdp, &rtc_session_)) != srs_success) {
+        return srs_error_wrap(err, "create session");
+    }
+
+    ostringstream os;
+    if ((err = local_sdp.encode(os)) != srs_success) {
+        return srs_error_wrap(err, "encode sdp");
+    }
+
+    string local_sdp_str = os.str();
+    srs_verbose("local_sdp=%s", srs_string_replace(local_sdp_str, "\\r\\n", "\n").c_str());
+
+    SrsJanusMessage* res_msg = new SrsJanusMessage();
+    res_msg->janus = "event";
+    res_msg->session_id = session_->id_;
+    res_msg->sender = id_;
+    res_msg->transaction = msg->transaction;
+    res_msg->plugin = "janus.plugin.videoroom";
+    res_msg->videoroom = "attached";
+    res_msg->feed_id = callee->feed_id_;
+    res_msg->display = callee->display_;
+    res_msg->jsep_type = "offer";
+    res_msg->jsep_sdp = local_sdp_str;
+    srs_random_generate((char*)&res_msg->private_id, 4);
+    session_->enqueue(res_msg);
+
+    srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, request=%s, ptype=%s, callee(feed_id=%" PRId64 ", display=%s), audio=%d/%d, video=%d/%d, streams=%d, sender=%" PRId64 ", private=%u, publisher=%d, offer=%dB",
+        msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
+        "join", "listener", callee->feed_id_, callee->display_.c_str(), audio, offer_audio, video, offer_video, streams->count(),
+        res_msg->sender, res_msg->private_id, publisher_, local_sdp_str.length());
+
+    return err;
+}
+
+srs_error_t SrsJanusCall::subscirber_build_offer(SrsRequest* req, SrsJanusCall* callee, SrsSdp& local_sdp)
+{
+    srs_error_t err = srs_success;
+
+    local_sdp.version_ = "0";
+
+    local_sdp.username_        = RTMP_SIG_SRS_SERVER;
+    local_sdp.session_id_      = srs_int2str(session_->id_);
+    local_sdp.session_version_ = "2";
+    local_sdp.nettype_         = "IN";
+    local_sdp.addrtype_        = "IP4";
+    local_sdp.unicast_address_ = "0.0.0.0";
+
+    local_sdp.session_name_ = "TenfoldPlaySession";
+
+    local_sdp.msid_semantic_ = "WMS";
+    local_sdp.msids_.push_back(req->app + "/" + req->stream);
+
+    local_sdp.group_policy_ = "BUNDLE";
+
+    // TODO: FIXME: Avoid SSRC collision.
+    if (!ssrc_num) {
+        ssrc_num = ::getpid() * 10000 + ::getpid() * 100 + ::getpid();
+    }
+
+    // The msid/mslabel for MediaStream, we use the callee.
+    string mslabel = callee->callid_;
+
+    if (true) {
+        local_sdp.media_descs_.push_back(SrsMediaDesc("audio"));
+        SrsMediaDesc& audio = local_sdp.media_descs_.back();
+
+        audio.mid_ = "audio";
+        local_sdp.groups_.push_back(audio.mid_);
+
+        audio.port_ = 9;
+        audio.protos_ = "UDP/TLS/RTP/SAVPF";
+        // Offerer must use actpass value for setup attribute.
+        audio.session_info_.setup_ = "actpass";
+        audio.rtcp_mux_ = true;
+        // For subscriber, we are sendonly.
+        audio.sendonly_ = true;
+        audio.recvonly_ = false;
+        audio.sendrecv_ = false;
+
+        audio.payload_types_.push_back(SrsMediaPayloadType(111));
+        SrsMediaPayloadType& opus = audio.payload_types_.back();
+
+        opus.encoding_name_ = "opus";
+        opus.clock_rate_ = 48000;
+        opus.encoding_param_ = "2";
+        opus.format_specific_param_ = "minptime=10;useinbandfec=1";
+
+        audio.ssrc_infos_.push_back(SrsSSRCInfo());
+        SrsSSRCInfo& ssrc = audio.ssrc_infos_.back();
+
+        ssrc.ssrc_ = ++ssrc_num;
+        ssrc.cname_ = "sophonaudio";
+        ssrc.label_ = gen_random_str(16);
+        ssrc.mslabel_ = mslabel;
+        ssrc.msid_ = ssrc.mslabel_;
+        ssrc.msid_tracker_ = ssrc.label_;
+    }
+
+    if (true) {
+        local_sdp.media_descs_.push_back(SrsMediaDesc("video"));
+        SrsMediaDesc& video = local_sdp.media_descs_.back();
+
+        video.mid_ = "video";
+        local_sdp.groups_.push_back(video.mid_);
+
+        video.port_ = 9;
+        video.protos_ = "UDP/TLS/RTP/SAVPF";
+        // Offerer must use actpass value for setup attribute.
+        video.session_info_.setup_ = "actpass";
+        video.rtcp_mux_ = true;
+        // For subscriber, we are sendonly.
+        video.sendonly_ = true;
+        video.recvonly_ = false;
+        video.sendrecv_ = false;
+
+        video.payload_types_.push_back(SrsMediaPayloadType(102));
+        SrsMediaPayloadType& h264 = video.payload_types_.back();
+
+        h264.encoding_name_ = "H264";
+        h264.clock_rate_ = 90000;
+        h264.format_specific_param_ = "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f";
+
+        video.ssrc_infos_.push_back(SrsSSRCInfo());
+        SrsSSRCInfo& ssrc = video.ssrc_infos_.back();
+
+        ssrc.ssrc_ = ++ssrc_num;
+        ssrc.cname_ = "sophonvideo";
+        ssrc.label_ = gen_random_str(16);
+        ssrc.mslabel_ = mslabel;
+        ssrc.msid_ = ssrc.mslabel_;
+        ssrc.msid_tracker_ = ssrc.label_;
+    }
+
+    return err;
+}
+
+srs_error_t SrsJanusCall::on_start_subscriber(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg)
+{
+    srs_error_t err = srs_success;
+
+    SrsJsonAny* prop = NULL;
+    if ((prop = req->get_property("jsep")) == NULL || !prop->is_object()) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no jsep");
+    }
+    SrsJsonObject* jsep = prop->to_object();
+
+    if ((prop = jsep->ensure_property_string("type")) == NULL) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no jsep.type");
+    }
+    string type = prop->to_str();
+
+    if ((prop = jsep->ensure_property_string("sdp")) == NULL) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no jsep.sdp");
+    }
+    string sdp = prop->to_str();
+
+    if (!rtc_session_) {
+        return srs_error_new(ERROR_RTC_JANUS_NO_SESSION, "no session");
+    }
+
+    srs_verbose("remote_sdp=%s", srs_string_replace(sdp, "\\r\\n", "\n").c_str());
+
+    // TODO: FIXME: It seems remote_sdp doesn't represents the full SDP information.
+    SrsSdp remote_sdp;
+    if ((err = remote_sdp.parse(sdp)) != srs_success) {
+        return srs_error_wrap(err, "parse sdp failed: %s", sdp.c_str());
+    }
+
+    if ((err = session_->janus_->rtc_->setup_session2(rtc_session_, &request, remote_sdp)) != srs_success) {
+        return srs_error_wrap(err, "setup session");
+    }
+
+    SrsJanusMessage* res_msg = new SrsJanusMessage();
+    res_msg->janus = "event";
+    res_msg->session_id = session_->id_;
+    res_msg->sender = id_;
+    res_msg->transaction = msg->transaction;
+    res_msg->plugin = "janus.plugin.videoroom";
+    res_msg->videoroom = "started";
+    srs_random_generate((char*)&res_msg->private_id, 4);
+    session_->enqueue(res_msg);
+
+    srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, request=%s, jsep=%s/%dB",
+        msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
+        "start", type.c_str(), sdp.length());
+
+
+    return err;
+}
+
+srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg)
 {
     srs_error_t err = srs_success;
 
@@ -655,26 +953,20 @@ srs_error_t SrsJanusCall::on_configure_message(SrsJsonObject* req, SrsJsonObject
     }
     string sdp = prop->to_str();
 
-    // TODO: FIXME: It seems remote_sdp doesn't represents the full SDP information.
-    SrsSdp remote_sdp;
-    if ((err = remote_sdp.parse(sdp)) != srs_success) {
-        return srs_error_wrap(err, "parse sdp failed: %s", sdp.c_str());
-    }
+    // For client to specifies the EIP of server.
+    string eip;
 
-    SrsRequest request;
-    request.app = session->channel;
-    request.stream = callid;
+    // TODO: FIXME: We should apply appid.
+    request.app = session_->channel_;
+    request.stream = callid_;
+    srs_trace("RTC janus publish stream=/%s/%s, feed_id=%" PRId64,
+        request.app.c_str(), request.stream.c_str(), feed_id_);
 
     // TODO: FIXME: Parse vhost.
     // discovery vhost, resolve the vhost from config
     SrsConfDirective* parsed_vhost = _srs_config->get_vhost("");
     if (parsed_vhost) {
         request.vhost = parsed_vhost->arg0();
-    }
-
-    SrsSdp local_sdp;
-    if ((err = exchange_sdp(&request, remote_sdp, local_sdp)) != srs_success) {
-        return srs_error_wrap(err, "remote sdp have error or unsupport attributes");
     }
 
     // Whether enabled.
@@ -688,12 +980,19 @@ srs_error_t SrsJanusCall::on_configure_message(SrsJsonObject* req, SrsJsonObject
             server_enabled, rtc_enabled, request.vhost.c_str());
     }
 
-    // For client to specifies the EIP of server.
-    string eip;
+    // TODO: FIXME: It seems remote_sdp doesn't represents the full SDP information.
+    SrsSdp remote_sdp;
+    if ((err = remote_sdp.parse(sdp)) != srs_success) {
+        return srs_error_wrap(err, "parse sdp failed: %s", sdp.c_str());
+    }
+
+    SrsSdp local_sdp;
+    if ((err = publisher_exchange_sdp(&request, remote_sdp, local_sdp)) != srs_success) {
+        return srs_error_wrap(err, "remote sdp have error or unsupport attributes");
+    }
 
     // TODO: FIXME: When server enabled, but vhost disabled, should report error.
-    SrsRtcSession* rtc_session = NULL;
-    if ((err = server_->create_session(&request, remote_sdp, local_sdp, eip, true, &rtc_session)) != srs_success) {
+    if ((err = session_->janus_->rtc_->create_session(&request, remote_sdp, local_sdp, eip, true, &rtc_session_)) != srs_success) {
         return srs_error_wrap(err, "create session");
     }
 
@@ -707,15 +1006,15 @@ srs_error_t SrsJanusCall::on_configure_message(SrsJsonObject* req, SrsJsonObject
 
     SrsJanusMessage* res_msg = new SrsJanusMessage();
     res_msg->janus = "event";
-    res_msg->session_id = session->id;
-    res_msg->sender = id;
+    res_msg->session_id = session_->id_;
+    res_msg->sender = id_;
     res_msg->transaction = msg->transaction;
     res_msg->plugin = "janus.plugin.videoroom";
     res_msg->videoroom = "configured";
     res_msg->jsep_type = "answer";
     res_msg->jsep_sdp = local_sdp_str;
     srs_random_generate((char*)&res_msg->private_id, 4);
-    session->enqueue(res_msg);
+    session_->enqueue(res_msg);
 
     srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, request=%s, audio=%d, video=%d, streams=%d, jsep=%s/%dB, answer=%dB",
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
@@ -724,14 +1023,14 @@ srs_error_t SrsJanusCall::on_configure_message(SrsJsonObject* req, SrsJsonObject
     return err;
 }
 
-srs_error_t SrsJanusCall::exchange_sdp(SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp)
+srs_error_t SrsJanusCall::publisher_exchange_sdp(SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp)
 {
     srs_error_t err = srs_success;
 
     local_sdp.version_ = "0";
 
     local_sdp.username_        = RTMP_SIG_SRS_SERVER;
-    local_sdp.session_id_      = srs_int2str((int64_t)this);
+    local_sdp.session_id_      = srs_int2str(session_->id_);
     local_sdp.session_version_ = "2";
     local_sdp.nettype_         = "IN";
     local_sdp.addrtype_        = "IP4";
@@ -782,7 +1081,6 @@ srs_error_t SrsJanusCall::exchange_sdp(SrsRequest* req, const SrsSdp& remote_sdp
             if (local_media_desc.payload_types_.empty()) {
                 return srs_error_new(ERROR_RTC_SDP_EXCHANGE, "no valid found opus payload type");
             }
-
         } else if (remote_media_desc.is_video()) {
             std::deque<SrsMediaPayloadType> backup_payloads;
             std::vector<SrsMediaPayloadType> payloads = remote_media_desc.find_media_with_encoding_name("H264");
