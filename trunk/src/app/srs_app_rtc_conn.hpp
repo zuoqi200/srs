@@ -63,7 +63,6 @@ class SrsRtpPacket2;
 class ISrsCodec;
 class SrsRtpNackForReceiver;
 class SrsRtpIncommingVideoFrame;
-class SrsRtpRingBuffer;
 
 const uint8_t kSR   = 200;
 const uint8_t kRR   = 201;
