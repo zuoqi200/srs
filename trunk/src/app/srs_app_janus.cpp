@@ -737,7 +737,7 @@ srs_error_t SrsJanusCall::exchange_sdp(SrsRequest* req, const SrsSdp& remote_sdp
     local_sdp.addrtype_        = "IP4";
     local_sdp.unicast_address_ = "0.0.0.0";
 
-    local_sdp.session_name_ = "SRSPublishSession";
+    local_sdp.session_name_ = "TenfoldPublishSession";
 
     local_sdp.msid_semantic_ = "WMS";
     local_sdp.msids_.push_back(req->app + "/" + req->stream);

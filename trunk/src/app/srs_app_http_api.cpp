@@ -1018,7 +1018,7 @@ srs_error_t SrsGoApiRtcPlay::exchange_sdp(SrsRequest* req, const SrsSdp& remote_
     local_sdp.addrtype_        = "IP4";
     local_sdp.unicast_address_ = "0.0.0.0";
 
-    local_sdp.session_name_ = "SRSPlaySession";
+    local_sdp.session_name_ = "TenfoldPlaySession";
 
     local_sdp.msid_semantic_ = "WMS";
     local_sdp.msids_.push_back(req->app + "/" + req->stream);
@@ -1366,7 +1366,7 @@ srs_error_t SrsGoApiRtcPublish::exchange_sdp(SrsRequest* req, const SrsSdp& remo
     local_sdp.addrtype_        = "IP4";
     local_sdp.unicast_address_ = "0.0.0.0";
 
-    local_sdp.session_name_ = "SRSPublishSession";
+    local_sdp.session_name_ = "TenfoldPublishSession";
 
     local_sdp.msid_semantic_ = "WMS";
     local_sdp.msids_.push_back(req->app + "/" + req->stream);
