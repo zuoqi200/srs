@@ -34,6 +34,7 @@
 #include <srs_app_sdp.hpp>
 #include <srs_app_reload.hpp>
 #include <srs_kernel_rtp.hpp>
+#include <srs_app_rtp_queue.hpp>
 
 #include <string>
 #include <map>
@@ -42,6 +43,9 @@
 
 #include <openssl/ssl.h>
 #include <srtp2/srtp.h>
+
+// For Alibaba Tenfold.
+class SrsJanusServer;
 
 class SrsUdpMuxSocket;
 class SrsConsumer;
@@ -60,7 +64,6 @@ class ISrsCodec;
 class SrsRtpNackForReceiver;
 class SrsRtpIncommingVideoFrame;
 class SrsRtpRingBuffer;
-class SrsJanusServer;
 
 const uint8_t kSR   = 200;
 const uint8_t kRR   = 201;
@@ -215,8 +218,8 @@ private:
     uint16_t video_payload_type;
     uint32_t video_ssrc;
     // NACK ARQ ring buffer.
-    SrsRtpRingBuffer* audio_queue_;
-    SrsRtpRingBuffer* video_queue_;
+    SrsRtpRingBuffer<SrsRtpPacket2*>* audio_queue_;
+    SrsRtpRingBuffer<SrsRtpPacket2*>* video_queue_;
     // Simulators.
     int nn_simulate_nack_drop;
 private:
@@ -228,6 +231,8 @@ private:
     srs_utime_t mw_sleep;
     int mw_msgs;
     bool realtime;
+    // Whether enabled nack.
+    bool nack_enabled_;
 public:
     SrsRtcPlayer(SrsRtcSession* s, int parent_cid);
     virtual ~SrsRtcPlayer();
@@ -261,6 +266,8 @@ private:
 public:
     void nack_fetch(std::vector<SrsRtpPacket2*>& pkts, uint32_t ssrc, uint16_t seq);
     void simulate_nack_drop(int nn);
+private:
+    void simulate_drop_packet(SrsRtpHeader* h, int nn_bytes);
 };
 
 class SrsRtcPublisher : virtual public ISrsHourGlass, virtual public ISrsRtpPacketDecodeHandler
@@ -279,6 +286,10 @@ private:
 private:
     SrsRequest* req;
     SrsSource* source;
+    // Whether enabled nack.
+    bool nack_enabled_;
+    // Simulators.
+    int nn_simulate_nack_drop;
 private:
     std::map<uint32_t, uint64_t> last_sender_report_sys_time;
     std::map<uint32_t, SrsNtp> last_sender_report_ntp;
@@ -309,6 +320,8 @@ public:
     virtual srs_error_t notify(int type, srs_utime_t interval, srs_utime_t tick);
 public:
     void simulate_nack_drop(int nn);
+private:
+    void simulate_drop_packet(SrsRtpHeader* h, int nn_bytes);
 };
 
 class SrsRtcSession
