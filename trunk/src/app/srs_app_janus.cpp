@@ -403,7 +403,7 @@ srs_error_t SrsJanusSession::polling(SrsJsonObject* req, SrsJsonObject* res)
         // No data, keep-alive.
         srs_usleep(API_POLLING_LIMIT);
         res->set("janus", SrsJsonAny::str("keepalive"));
-        srs_trace("RTC polling, session=%" PRId64 ", keepalive", id_);
+        srs_verbose("RTC polling, session=%" PRId64 ", keepalive", id_);
         return err;
     }
 
