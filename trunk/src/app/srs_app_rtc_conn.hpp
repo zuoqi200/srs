@@ -270,12 +270,21 @@ public:
     void simulate_nack_drop(int nn);
 private:
     void simulate_drop_packet(SrsRtpHeader* h, int nn_bytes);
+public:
+    srs_error_t on_rtcp(char* data, int nb_data);
+private:
+    srs_error_t on_rtcp_sr(char* buf, int nb_buf);
+    srs_error_t on_rtcp_xr(char* buf, int nb_buf);
+    srs_error_t on_rtcp_feedback(char* data, int nb_data);
+    srs_error_t on_rtcp_ps_feedback(char* data, int nb_data);
+    srs_error_t on_rtcp_rr(char* data, int nb_data);
 };
 
 class SrsRtcPublisher : virtual public ISrsHourGlass, virtual public ISrsRtpPacketDecodeHandler
 {
 private:
     SrsHourGlass* report_timer;
+    uint64_t nn_audio_frames;
 private:
     SrsRtcSession* session_;
     uint32_t video_ssrc;
@@ -300,8 +309,6 @@ public:
     virtual ~SrsRtcPublisher();
 public:
     srs_error_t initialize(uint32_t vssrc, uint32_t assrc, SrsRequest* req);
-    srs_error_t on_rtcp_sender_report(char* buf, int nb_buf);
-    srs_error_t on_rtcp_xr(char* buf, int nb_buf);
 private:
     void check_send_nacks(SrsRtpNackForReceiver* nack, uint32_t ssrc);
     srs_error_t send_rtcp_rr(uint32_t ssrc, SrsRtpQueue* rtp_queue);
@@ -310,11 +317,17 @@ private:
 public:
     srs_error_t on_rtp(char* buf, int nb_buf);
     virtual void on_before_decode_payload(SrsRtpPacket2* pkt, SrsBuffer* buf, ISrsCodec** ppayload);
+    srs_error_t on_rtcp(char* data, int nb_data);
 private:
     srs_error_t on_audio(SrsRtpPacket2* pkt);
     srs_error_t on_audio_frame(SrsRtpPacket2* frame);
     srs_error_t on_video(SrsRtpPacket2* pkt);
     srs_error_t on_video_frame(SrsRtpPacket2* frame);
+    srs_error_t on_rtcp_sr(char* buf, int nb_buf);
+    srs_error_t on_rtcp_xr(char* buf, int nb_buf);
+    srs_error_t on_rtcp_feedback(char* data, int nb_data);
+    srs_error_t on_rtcp_ps_feedback(char* data, int nb_data);
+    srs_error_t on_rtcp_rr(char* data, int nb_data);
 public:
     void request_keyframe();
 // interface ISrsHourGlass
@@ -384,8 +397,8 @@ public:
     // The peer address may change, we can identify that by STUN messages.
     srs_error_t on_stun(SrsUdpMuxSocket* skt, SrsStunPacket* r);
     srs_error_t on_dtls(char* data, int nb_data);
-    srs_error_t on_rtcp(char* data, int nb_data);
     srs_error_t on_rtp(char* data, int nb_data);
+    srs_error_t on_rtcp(char* data, int nb_data);
 public:
     srs_error_t on_connection_established();
     srs_error_t start_play();
@@ -397,11 +410,6 @@ public:
     void simulate_nack_drop(int nn);
 private:
     srs_error_t on_binding_request(SrsStunPacket* r);
-    srs_error_t on_rtcp_feedback(char* data, int nb_data);
-    srs_error_t on_rtcp_ps_feedback(char* data, int nb_data);
-    srs_error_t on_rtcp_xr(char* data, int nb_data);
-    srs_error_t on_rtcp_sender_report(char* data, int nb_data);
-    srs_error_t on_rtcp_receiver_report(char* data, int nb_data);
 };
 
 class SrsUdpMuxSender : virtual public ISrsUdpSender, virtual public ISrsCoroutineHandler, virtual public ISrsReloadHandler
