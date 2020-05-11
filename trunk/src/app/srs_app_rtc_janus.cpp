@@ -21,7 +21,7 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <srs_app_janus.hpp>
+#include <srs_app_rtc_janus.hpp>
 
 #include <unistd.h>
 #include <string>
@@ -35,6 +35,7 @@ using namespace std;
 #include <srs_service_st.hpp>
 #include <srs_app_config.hpp>
 #include <srs_app_rtc_conn.hpp>
+#include <srs_app_rtc_server.hpp>
 
 // When API error, limit the request by sleep for a while.
 srs_utime_t API_ERROR_LIMIT = 3 * SRS_UTIME_SECONDS;
