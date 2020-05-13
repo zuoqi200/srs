@@ -84,6 +84,28 @@ public:
 #endif
 };
 
+class SrsRtcSourceManager
+{
+private:
+    srs_mutex_t lock;
+    std::map<std::string, SrsRtcSource*> pool;
+public:
+    SrsRtcSourceManager();
+    virtual ~SrsRtcSourceManager();
+public:
+    //  create source when fetch from cache failed.
+    // @param r the client request.
+    // @param pps the matched source, if success never be NULL.
+    virtual srs_error_t fetch_or_create(SrsRequest* r, SrsRtcSource** pps);
+private:
+    // Get the exists source, NULL when not exists.
+    // update the request and return the exists source.
+    virtual SrsRtcSource* fetch(SrsRequest* r);
+};
+
+// Global singleton instance.
+extern SrsRtcSourceManager* _srs_rtc_sources;
+
 class SrsRtcSource
 {
 private:
@@ -98,6 +120,8 @@ private:
     SrsRtcPublisher* rtc_publisher_;
     // Transmux RTMP to RTC.
     SrsRtcFromRtmpBridger* bridger_;
+    // The metadata cache.
+    SrsMetaCache* meta;
 private:
     // To delivery stream to clients.
     std::vector<SrsRtcConsumer*> consumers;
@@ -117,6 +141,8 @@ public:
     virtual int pre_source_id();
     // Get the bridger.
     ISrsSourceBridger* bridger();
+    // For RTC, we need to package SPS/PPS(in cached meta) before each IDR.
+    SrsMetaCache* cached_meta();
 public:
     // Create consumer
     // @param consumer, output the create consumer.
@@ -143,37 +169,18 @@ public:
     virtual srs_error_t on_video(SrsCommonMessage* video);
     virtual srs_error_t on_audio_imp(SrsSharedPtrMessage* audio);
     virtual srs_error_t on_video_imp(SrsSharedPtrMessage* video);
-};
-
-class SrsRtcSourceManager
-{
 private:
-    srs_mutex_t lock;
-    std::map<std::string, SrsRtcSource*> pool;
-public:
-    SrsRtcSourceManager();
-    virtual ~SrsRtcSourceManager();
-public:
-    //  create source when fetch from cache failed.
-    // @param r the client request.
-    // @param pps the matched source, if success never be NULL.
-    virtual srs_error_t fetch_or_create(SrsRequest* r, SrsRtcSource** pps);
-private:
-    // Get the exists source, NULL when not exists.
-    // update the request and return the exists source.
-    virtual SrsRtcSource* fetch(SrsRequest* r);
+    // The format, codec information.
+    // TODO: FIXME: Remove it.
+    SrsRtmpFormat* format;
+    srs_error_t filter(SrsSharedPtrMessage* shared_video, SrsFormat* format);
 };
-
-// Global singleton instance.
-extern SrsRtcSourceManager* _srs_rtc_sources;
 
 class SrsRtcFromRtmpBridger : public ISrsSourceBridger
 {
 private:
     SrsRequest* req;
     SrsRtcSource* source_;
-    // The metadata cache.
-    SrsMetaCache* meta;
     // The format, codec information.
     SrsRtmpFormat* format;
 private:
@@ -185,8 +192,6 @@ public:
     virtual ~SrsRtcFromRtmpBridger();
 public:
     virtual srs_error_t initialize(SrsRequest* r);
-    // For RTC, we need to package SPS/PPS(in cached meta) before each IDR.
-    SrsMetaCache* cached_meta();
     virtual srs_error_t on_publish();
     virtual void on_unpublish();
     virtual srs_error_t on_audio(SrsSharedPtrMessage* audio);
