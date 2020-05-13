@@ -32,9 +32,52 @@
 #include <srs_rtmp_msg_array.hpp>
 #include <srs_kernel_utility.hpp>
 #include <srs_protocol_format.hpp>
-#include <srs_app_rtc.hpp>
+#include <srs_kernel_buffer.hpp>
+#include <srs_app_rtc_codec.hpp>
+
+const int kChannel              = 2;
+const int kSamplerate           = 48000;
+
+// An AAC packet may be transcoded to many OPUS packets.
+const int kMaxOpusPackets = 8;
+// The max size for each OPUS packet.
+const int kMaxOpusPacketSize = 4096;
 
 using namespace std;
+
+// TODO: Add this function into SrsRtpMux class.
+srs_error_t aac_raw_append_adts_header(SrsSharedPtrMessage* shared_audio, SrsFormat* format, char** pbuf, int* pnn_buf)
+{
+    srs_error_t err = srs_success;
+
+    if (format->is_aac_sequence_header()) {
+        return err;
+    }
+
+    if (format->audio->nb_samples != 1) {
+        return srs_error_new(ERROR_RTC_RTP_MUXER, "adts");
+    }
+
+    int nb_buf = format->audio->samples[0].size + 7;
+    char* buf = new char[nb_buf];
+    SrsBuffer stream(buf, nb_buf);
+
+    // TODO: Add comment.
+    stream.write_1bytes(0xFF);
+    stream.write_1bytes(0xF9);
+    stream.write_1bytes(((format->acodec->aac_object - 1) << 6) | ((format->acodec->aac_sample_rate & 0x0F) << 2) | ((format->acodec->aac_channels & 0x04) >> 2));
+    stream.write_1bytes(((format->acodec->aac_channels & 0x03) << 6) | ((nb_buf >> 11) & 0x03));
+    stream.write_1bytes((nb_buf >> 3) & 0xFF);
+    stream.write_1bytes(((nb_buf & 0x07) << 5) | 0x1F);
+    stream.write_1bytes(0xFC);
+
+    stream.write_bytes(format->audio->samples[0].bytes, format->audio->samples[0].size);
+
+    *pbuf = buf;
+    *pnn_buf = nb_buf;
+
+    return err;
+}
 
 SrsRtcConsumer::SrsRtcConsumer(SrsRtcSource* s, SrsConnection* c)
 {
@@ -143,15 +186,11 @@ void SrsRtcConsumer::wait(int nb_msgs, srs_utime_t msgs_duration)
 
 SrsRtcSource::SrsRtcSource()
 {
-    req = NULL;
     _source_id = _pre_source_id = -1;
-
-    meta = new SrsMetaCache();
-    format = new SrsRtmpFormat();
-    rtc = new SrsRtc();
-
     _can_publish = true;
     rtc_publisher_ = NULL;
+
+    req = NULL;
     bridger_ = new SrsRtcFromRtmpBridger(this);
 }
 
@@ -160,10 +199,6 @@ SrsRtcSource::~SrsRtcSource()
     // never free the consumers,
     // for all consumers are auto free.
     consumers.clear();
-
-    srs_freep(meta);
-    srs_freep(format);
-    srs_freep(rtc);
 
     srs_freep(req);
     srs_freep(bridger_);
@@ -175,12 +210,8 @@ srs_error_t SrsRtcSource::initialize(SrsRequest* r)
 
     req = r->copy();
 
-    if ((err = format->initialize()) != srs_success) {
-        return srs_error_wrap(err, "format initialize");
-    }
-
-    if ((err = rtc->initialize(req)) != srs_success) {
-        return srs_error_wrap(err, "rtc initialize");
+    if ((err = bridger_->initialize(req)) != srs_success) {
+        return srs_error_wrap(err, "bridge initialize");
     }
 
     return err;
@@ -248,12 +279,6 @@ srs_error_t SrsRtcSource::consumer_dumps(SrsRtcConsumer* consumer, bool ds, bool
 {
     srs_error_t err = srs_success;
 
-    // Copy metadata and sequence header to consumer.
-    // TODO: FIXME: Maybe should not do this for RTC?
-    if ((err = meta->dumps(consumer, true, SrsRtmpJitterAlgorithmOFF, dm, dg)) != srs_success) {
-        return srs_error_wrap(err, "meta dumps");
-    }
-
     // print status.
     srs_trace("create consumer, no gop cache");
 
@@ -283,19 +308,11 @@ srs_error_t SrsRtcSource::on_publish()
 
     _can_publish = false;
 
-    if ((err = rtc->on_publish()) != srs_success) {
-        return srs_error_wrap(err, "rtc publish");
-    }
-
     // whatever, the publish thread is the source or edge source,
     // save its id to srouce id.
     if ((err = on_source_id_changed(_srs_context->get_id())) != srs_success) {
         return srs_error_wrap(err, "source id change");
     }
-
-    // Reset the metadata cache, to make VLC happy when disable/enable stream.
-    // @see https://github.com/ossrs/srs/issues/1630#issuecomment-597979448
-    meta->clear();
 
     // TODO: FIXME: Handle by statistic.
 
@@ -309,24 +326,12 @@ void SrsRtcSource::on_unpublish()
         return;
     }
 
-    rtc->on_unpublish();
-
-    // Reset the metadata cache, to make VLC happy when disable/enable stream.
-    // @see https://github.com/ossrs/srs/issues/1630#issuecomment-597979448
-    meta->update_previous_vsh();
-    meta->update_previous_ash();
-
     srs_trace("cleanup when unpublish");
 
     _can_publish = true;
     _source_id = -1;
 
     // TODO: FIXME: Handle by statistic.
-}
-
-SrsMetaCache* SrsRtcSource::cached_meta()
-{
-    return meta;
 }
 
 SrsRtcPublisher* SrsRtcSource::rtc_publisher()
@@ -350,18 +355,6 @@ srs_error_t SrsRtcSource::on_video(SrsCommonMessage* shared_video)
 {
     srs_error_t err = srs_success;
 
-    // drop any unknown header video.
-    // @see https://github.com/ossrs/srs/issues/421
-    if (!SrsFlvVideo::acceptable(shared_video->payload, shared_video->size)) {
-        char b0 = 0x00;
-        if (shared_video->size > 0) {
-            b0 = shared_video->payload[0];
-        }
-
-        srs_warn("drop unknown header video, size=%d, bytes[0]=%#x", shared_video->size, b0);
-        return err;
-    }
-
     // convert shared_video to msg, user should not use shared_video again.
     // the payload is transfer to msg, and set to NULL in shared_video.
     SrsSharedPtrMessage msg;
@@ -377,56 +370,12 @@ srs_error_t SrsRtcSource::on_audio_imp(SrsSharedPtrMessage* msg)
 {
     srs_error_t err = srs_success;
 
-    bool is_aac_sequence_header = SrsFlvAudio::sh(msg->payload, msg->size);
-    bool is_sequence_header = is_aac_sequence_header;
-
-    // whether consumer should drop for the duplicated sequence header.
-    bool drop_for_reduce = false;
-    if (is_sequence_header && meta->previous_ash() && _srs_config->get_reduce_sequence_header(req->vhost)) {
-        if (meta->previous_ash()->size == msg->size) {
-            drop_for_reduce = srs_bytes_equals(meta->previous_ash()->payload, msg->payload, msg->size);
-            srs_warn("drop for reduce sh audio, size=%d", msg->size);
-        }
-    }
-
-    // TODO: FIXME: Support parsing OPUS for RTC.
-    if ((err = format->on_audio(msg)) != srs_success) {
-        return srs_error_wrap(err, "format consume audio");
-    }
-
-    // Parse RTMP message to RTP packets, in FU-A if too large.
-    if ((err = rtc->on_audio(msg, format)) != srs_success) {
-        // TODO: We should support more strategies.
-        srs_warn("rtc: ignore audio error %s", srs_error_desc(err).c_str());
-        srs_error_reset(err);
-        rtc->on_unpublish();
-    }
-
     // copy to all consumer
-    if (!drop_for_reduce) {
-        for (int i = 0; i < (int)consumers.size(); i++) {
-            SrsRtcConsumer* consumer = consumers.at(i);
-            if ((err = consumer->enqueue(msg, true, SrsRtmpJitterAlgorithmOFF)) != srs_success) {
-                return srs_error_wrap(err, "consume message");
-            }
+    for (int i = 0; i < (int)consumers.size(); i++) {
+        SrsRtcConsumer* consumer = consumers.at(i);
+        if ((err = consumer->enqueue(msg, true, SrsRtmpJitterAlgorithmOFF)) != srs_success) {
+            return srs_error_wrap(err, "consume message");
         }
-    }
-
-    // cache the sequence header of aac, or first packet of mp3.
-    // for example, the mp3 is used for hls to write the "right" audio codec.
-    // TODO: FIXME: to refine the stream info system.
-    if (is_aac_sequence_header || !meta->ash()) {
-        if ((err = meta->update_ash(msg)) != srs_success) {
-            return srs_error_wrap(err, "meta consume audio");
-        }
-    }
-
-    // if atc, update the sequence header to abs time.
-    if (meta->ash()) {
-        meta->ash()->timestamp = msg->timestamp;
-    }
-    if (meta->data()) {
-        meta->data()->timestamp = msg->timestamp;
     }
 
     return err;
@@ -436,56 +385,12 @@ srs_error_t SrsRtcSource::on_video_imp(SrsSharedPtrMessage* msg)
 {
     srs_error_t err = srs_success;
 
-    bool is_sequence_header = SrsFlvVideo::sh(msg->payload, msg->size);
-
-    // user can disable the sps parse to workaround when parse sps failed.
-    // @see https://github.com/ossrs/srs/issues/474
-    if (is_sequence_header) {
-        format->avc_parse_sps = _srs_config->get_parse_sps(req->vhost);
-    }
-
-    if ((err = format->on_video(msg)) != srs_success) {
-        return srs_error_wrap(err, "format consume video");
-    }
-
-    // Parse RTMP message to RTP packets, in FU-A if too large.
-    if ((err = rtc->on_video(msg, format)) != srs_success) {
-        // TODO: We should support more strategies.
-        srs_warn("rtc: ignore video error %s", srs_error_desc(err).c_str());
-        srs_error_reset(err);
-        rtc->on_unpublish();
-    }
-
-    // whether consumer should drop for the duplicated sequence header.
-    bool drop_for_reduce = false;
-    if (is_sequence_header && meta->previous_vsh() && _srs_config->get_reduce_sequence_header(req->vhost)) {
-        if (meta->previous_vsh()->size == msg->size) {
-            drop_for_reduce = srs_bytes_equals(meta->previous_vsh()->payload, msg->payload, msg->size);
-            srs_warn("drop for reduce sh video, size=%d", msg->size);
-        }
-    }
-
-    // cache the sequence header if h264
-    if (is_sequence_header && (err = meta->update_vsh(msg)) != srs_success) {
-        return srs_error_wrap(err, "meta update video");
-    }
-
     // copy to all consumer
-    if (!drop_for_reduce) {
-        for (int i = 0; i < (int)consumers.size(); i++) {
-            SrsRtcConsumer* consumer = consumers.at(i);
-            if ((err = consumer->enqueue(msg, true, SrsRtmpJitterAlgorithmOFF)) != srs_success) {
-                return srs_error_wrap(err, "consume video");
-            }
+    for (int i = 0; i < (int)consumers.size(); i++) {
+        SrsRtcConsumer* consumer = consumers.at(i);
+        if ((err = consumer->enqueue(msg, true, SrsRtmpJitterAlgorithmOFF)) != srs_success) {
+            return srs_error_wrap(err, "consume video");
         }
-    }
-
-    // if atc, update the sequence header to abs time.
-    if (meta->vsh()) {
-        meta->vsh()->timestamp = msg->timestamp;
-    }
-    if (meta->data()) {
-        meta->data()->timestamp = msg->timestamp;
     }
 
     return err;
@@ -563,32 +468,226 @@ SrsRtcSourceManager* _srs_rtc_sources = new SrsRtcSourceManager();
 
 SrsRtcFromRtmpBridger::SrsRtcFromRtmpBridger(SrsRtcSource* source)
 {
+    req = NULL;
     source_ = source;
+    meta = new SrsMetaCache();
+    format = new SrsRtmpFormat();
+    codec = new SrsAudioRecode(kChannel, kSamplerate);
+    discard_aac = false;
+    discard_bframe = false;
 }
 
 SrsRtcFromRtmpBridger::~SrsRtcFromRtmpBridger()
 {
+    srs_freep(meta);
+    srs_freep(format);
+    srs_freep(codec);
+}
+
+srs_error_t SrsRtcFromRtmpBridger::initialize(SrsRequest* r)
+{
+    srs_error_t err = srs_success;
+
+    req = r;
+
+    if ((err = format->initialize()) != srs_success) {
+        return srs_error_wrap(err, "format initialize");
+    }
+
+    if ((err = codec->initialize()) != srs_success) {
+        return srs_error_wrap(err, "init codec");
+    }
+
+    // TODO: FIXME: Support reload and log it.
+    discard_aac = _srs_config->get_rtc_aac_discard(req->vhost);
+    discard_bframe = _srs_config->get_rtc_bframe_discard(req->vhost);
+    srs_trace("RTC bridge from RTMP, discard_aac=%d, discard_bframe=%d", discard_aac, discard_bframe);
+
+    return err;
+}
+
+SrsMetaCache* SrsRtcFromRtmpBridger::cached_meta()
+{
+    return meta;
 }
 
 srs_error_t SrsRtcFromRtmpBridger::on_publish()
 {
+    srs_error_t err = srs_success;
+
     // TODO: FIXME: Should sync with bridger?
-    return source_->on_publish();
-}
+    if ((err = source_->on_publish()) != srs_success) {
+        return srs_error_wrap(err, "source publish");
+    }
 
-srs_error_t SrsRtcFromRtmpBridger::on_audio(SrsSharedPtrMessage* audio)
-{
-    return source_->on_audio_imp(audio);
-}
+    // Reset the metadata cache, to make VLC happy when disable/enable stream.
+    // @see https://github.com/ossrs/srs/issues/1630#issuecomment-597979448
+    meta->clear();
 
-srs_error_t SrsRtcFromRtmpBridger::on_video(SrsSharedPtrMessage* video)
-{
-    return source_->on_video_imp(video);
+    return err;
 }
 
 void SrsRtcFromRtmpBridger::on_unpublish()
 {
     // TODO: FIXME: Should sync with bridger?
     source_->on_unpublish();
+
+    // Reset the metadata cache, to make VLC happy when disable/enable stream.
+    // @see https://github.com/ossrs/srs/issues/1630#issuecomment-597979448
+    meta->update_previous_vsh();
+    meta->update_previous_ash();
+}
+
+srs_error_t SrsRtcFromRtmpBridger::on_audio(SrsSharedPtrMessage* msg)
+{
+    srs_error_t err = srs_success;
+
+    // TODO: FIXME: Support parsing OPUS for RTC.
+    if ((err = format->on_audio(msg)) != srs_success) {
+        return srs_error_wrap(err, "format consume audio");
+    }
+
+    // Ignore if no format->acodec, it means the codec is not parsed, or unknown codec.
+    // @issue https://github.com/ossrs/srs/issues/1506#issuecomment-562079474
+    if (!format->acodec) {
+        return err;
+    }
+
+    // ts support audio codec: aac/mp3
+    SrsAudioCodecId acodec = format->acodec->id;
+    if (acodec != SrsAudioCodecIdAAC && acodec != SrsAudioCodecIdMP3) {
+        return err;
+    }
+
+    // When drop aac audio packet, never transcode.
+    if (discard_aac && acodec == SrsAudioCodecIdAAC) {
+        return err;
+    }
+
+    // ignore sequence header
+    srs_assert(format->audio);
+
+    char* adts_audio = NULL;
+    int nn_adts_audio = 0;
+    // TODO: FIXME: Reserve 7 bytes header when create shared message.
+    if ((err = aac_raw_append_adts_header(msg, format, &adts_audio, &nn_adts_audio)) != srs_success) {
+        return srs_error_wrap(err, "aac append header");
+    }
+
+    if (adts_audio) {
+        err = transcode(msg, adts_audio, nn_adts_audio);
+        srs_freep(adts_audio);
+    }
+
+    return source_->on_audio_imp(msg);
+}
+
+srs_error_t SrsRtcFromRtmpBridger::transcode(SrsSharedPtrMessage* shared_audio, char* adts_audio, int nn_adts_audio)
+{
+    srs_error_t err = srs_success;
+
+    // Opus packet cache.
+    static char* opus_payloads[kMaxOpusPackets];
+
+    static bool initialized = false;
+    if (!initialized) {
+        initialized = true;
+
+        static char opus_packets_cache[kMaxOpusPackets][kMaxOpusPacketSize];
+        opus_payloads[0] = &opus_packets_cache[0][0];
+        for (int i = 1; i < kMaxOpusPackets; i++) {
+           opus_payloads[i] = opus_packets_cache[i];
+        }
+    }
+
+    // Transcode an aac packet to many opus packets.
+    SrsSample aac;
+    aac.bytes = adts_audio;
+    aac.size = nn_adts_audio;
+
+    int nn_opus_packets = 0;
+    int opus_sizes[kMaxOpusPackets];
+    if ((err = codec->recode(&aac, opus_payloads, opus_sizes, nn_opus_packets)) != srs_success) {
+        return srs_error_wrap(err, "recode error");
+    }
+
+    // Save OPUS packets in shared message.
+    if (nn_opus_packets <= 0) {
+        return err;
+    }
+
+    int nn_max_extra_payload = 0;
+    SrsSample samples[nn_opus_packets];
+    for (int i = 0; i < nn_opus_packets; i++) {
+        SrsSample* p = samples + i;
+        p->size = opus_sizes[i];
+        p->bytes = new char[p->size];
+        memcpy(p->bytes, opus_payloads[i], p->size);
+
+        nn_max_extra_payload = srs_max(nn_max_extra_payload, p->size);
+    }
+
+    shared_audio->set_extra_payloads(samples, nn_opus_packets);
+    shared_audio->set_max_extra_payload(nn_max_extra_payload);
+
+    return err;
+}
+
+srs_error_t SrsRtcFromRtmpBridger::on_video(SrsSharedPtrMessage* msg)
+{
+    srs_error_t err = srs_success;
+
+    bool is_sequence_header = SrsFlvVideo::sh(msg->payload, msg->size);
+
+    // user can disable the sps parse to workaround when parse sps failed.
+    // @see https://github.com/ossrs/srs/issues/474
+    if (is_sequence_header) {
+        format->avc_parse_sps = _srs_config->get_parse_sps(req->vhost);
+    }
+
+    // cache the sequence header if h264
+    if (is_sequence_header && (err = meta->update_vsh(msg)) != srs_success) {
+        return srs_error_wrap(err, "meta update video");
+    }
+
+    if ((err = format->on_video(msg)) != srs_success) {
+        return srs_error_wrap(err, "format consume video");
+    }
+
+    return source_->on_video_imp(msg);
+}
+
+srs_error_t SrsRtcFromRtmpBridger::filter(SrsSharedPtrMessage* shared_frame, SrsFormat* format)
+{
+    srs_error_t err = srs_success;
+
+    // If IDR, we will insert SPS/PPS before IDR frame.
+    if (format->video && format->video->has_idr) {
+        shared_frame->set_has_idr(true);
+    }
+
+    // Update samples to shared frame.
+    for (int i = 0; i < format->video->nb_samples; ++i) {
+        SrsSample* sample = &format->video->samples[i];
+
+        // Because RTC does not support B-frame, so we will drop them.
+        // TODO: Drop B-frame in better way, which not cause picture corruption.
+        if (discard_bframe) {
+            if ((err = sample->parse_bframe()) != srs_success) {
+                return srs_error_wrap(err, "parse bframe");
+            }
+            if (sample->bframe) {
+                continue;
+            }
+        }
+    }
+
+    if (format->video->nb_samples <= 0) {
+        return err;
+    }
+
+    shared_frame->set_samples(format->video->samples, format->video->nb_samples);
+
+    return err;
 }
 

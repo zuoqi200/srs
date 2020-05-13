@@ -53,7 +53,6 @@ using namespace std;
 #include <srs_app_rtc_dtls.hpp>
 #include <srs_app_utility.hpp>
 #include <srs_app_config.hpp>
-#include <srs_app_rtc.hpp>
 #include <srs_app_rtc_queue.hpp>
 #include <srs_app_source.hpp>
 #include <srs_app_server.hpp>
@@ -1424,7 +1423,8 @@ srs_error_t SrsRtcPlayer::package_stap_a(SrsRtcSource* source, SrsSharedPtrMessa
 {
     srs_error_t err = srs_success;
 
-    SrsMetaCache* meta = source->cached_meta();
+    SrsRtcFromRtmpBridger* bridger = dynamic_cast<SrsRtcFromRtmpBridger*>(source->bridger());
+    SrsMetaCache* meta = bridger->cached_meta();
     if (!meta) {
         return err;
     }
