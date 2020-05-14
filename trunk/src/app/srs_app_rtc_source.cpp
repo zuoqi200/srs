@@ -424,9 +424,11 @@ srs_error_t SrsRtcSource::on_rtp(SrsRtpPacket2* pkt)
 {
     srs_error_t err = srs_success;
 
+    SrsAutoFree(SrsRtpPacket2, pkt);
+
     for (int i = 0; i < (int)consumers.size(); i++) {
         SrsRtcConsumer* consumer = consumers.at(i);
-        if ((err = consumer->enqueue2(pkt)) != srs_success) {
+        if ((err = consumer->enqueue2(pkt->copy())) != srs_success) {
             return srs_error_wrap(err, "consume message");
         }
     }
@@ -669,7 +671,6 @@ srs_error_t SrsRtcFromRtmpBridger::transcode(char* adts_audio, int nn_adts_audio
     }
 
     int nn_max_extra_payload = 0;
-    SrsSample samples[nn_opus_packets];
     for (int i = 0; i < nn_opus_packets; i++) {
         char* data = (char*)opus_payloads[i];
         int size = (int)opus_sizes[i];
@@ -698,13 +699,15 @@ srs_error_t SrsRtcFromRtmpBridger::package_opus(char* data, int size, SrsRtpPack
     pkt->frame_type = SrsFrameTypeAudio;
     pkt->rtp_header.set_marker(true);
 
-    SrsRtpRawPayload* raw = pkt->reuse_raw();
+    SrsRtpRawPayload* raw = new SrsRtpRawPayload();
+    pkt->payload = raw;
+
     raw->payload = new char[size];
     raw->nn_payload = size;
     memcpy(raw->payload, data, size);
 
-    // When free the RTP packet, should free the bytes allocated here.
-    pkt->original_bytes = raw->payload;
+    pkt->shared_msg = new SrsSharedPtrMessage();
+    pkt->shared_msg->wrap(raw->payload, size);
 
     *ppkt = pkt;
 
@@ -847,27 +850,29 @@ srs_error_t SrsRtcFromRtmpBridger::package_stap_a(SrsRtcSource* source, SrsShare
     stap->nri = (SrsAvcNaluType)header;
 
     // Copy the SPS/PPS bytes, because it may change.
-    char* p = new char[sps.size() + pps.size()];
-    pkt->original_bytes = p;
+    int size = (int)(sps.size() + pps.size());
+    char* payload = new char[size];
+    pkt->shared_msg = new SrsSharedPtrMessage();
+    pkt->shared_msg->wrap(payload, size);
 
     if (true) {
         SrsSample* sample = new SrsSample();
-        sample->bytes = p;
+        sample->bytes = payload;
         sample->size = (int)sps.size();
         stap->nalus.push_back(sample);
 
-        memcpy(p, (char*)&sps[0], sps.size());
-        p += (int)sps.size();
+        memcpy(payload, (char*)&sps[0], sps.size());
+        payload += (int)sps.size();
     }
 
     if (true) {
         SrsSample* sample = new SrsSample();
-        sample->bytes = p;
+        sample->bytes = payload;
         sample->size = (int)pps.size();
         stap->nalus.push_back(sample);
 
-        memcpy(p, (char*)&pps[0], pps.size());
-        p += (int)pps.size();
+        memcpy(payload, (char*)&pps[0], pps.size());
+        payload += (int)pps.size();
     }
 
     *ppkt = pkt;
@@ -907,7 +912,7 @@ srs_error_t SrsRtcFromRtmpBridger::package_nalus(SrsSharedPtrMessage* msg, vecto
         pkt->frame_type = SrsFrameTypeVideo;
         pkt->rtp_header.set_timestamp(msg->timestamp * 90);
         pkt->payload = raw;
-        pkt->original_msg = msg->copy();
+        pkt->shared_msg = msg->copy();
         pkts.push_back(pkt);
     } else {
         // We must free it, should never use RTP packets to free it,
@@ -942,7 +947,7 @@ srs_error_t SrsRtcFromRtmpBridger::package_nalus(SrsSharedPtrMessage* msg, vecto
             fua->end = bool(i == num_of_packet - 1);
 
             pkt->payload = fua;
-            pkt->original_msg = msg->copy();
+            pkt->shared_msg = msg->copy();
             pkts.push_back(pkt);
 
             nb_left -= packet_size;
@@ -961,11 +966,13 @@ srs_error_t SrsRtcFromRtmpBridger::package_single_nalu(SrsSharedPtrMessage* msg,
     pkt->frame_type = SrsFrameTypeVideo;
     pkt->rtp_header.set_timestamp(msg->timestamp * 90);
 
-    SrsRtpRawPayload* raw = pkt->reuse_raw();
+    SrsRtpRawPayload* raw = new SrsRtpRawPayload();
+    pkt->payload = raw;
+
     raw->payload = sample->bytes;
     raw->nn_payload = sample->size;
 
-    pkt->original_msg = msg->copy();
+    pkt->shared_msg = msg->copy();
     pkts.push_back(pkt);
 
     return err;
@@ -988,7 +995,8 @@ srs_error_t SrsRtcFromRtmpBridger::package_fu_a(SrsSharedPtrMessage* msg, SrsSam
         pkt->frame_type = SrsFrameTypeVideo;
         pkt->rtp_header.set_timestamp(msg->timestamp * 90);
 
-        SrsRtpFUAPayload2* fua = pkt->reuse_fua();
+        SrsRtpFUAPayload2* fua = new SrsRtpFUAPayload2();
+        pkt->payload = fua;
 
         fua->nri = (SrsAvcNaluType)header;
         fua->nalu_type = (SrsAvcNaluType)nal_type;
@@ -998,7 +1006,7 @@ srs_error_t SrsRtcFromRtmpBridger::package_fu_a(SrsSharedPtrMessage* msg, SrsSam
         fua->payload = p;
         fua->size = packet_size;
 
-        pkt->original_msg = msg->copy();
+        pkt->shared_msg = msg->copy();
         pkts.push_back(pkt);
 
         p += packet_size;

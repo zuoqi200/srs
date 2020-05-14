@@ -469,86 +469,23 @@ srs_error_t SrsRtcDtls::unprotect_rtcp(char* out_buf, const char* in_buf, int& n
     return srs_error_new(ERROR_RTC_SRTP_UNPROTECT, "rtcp unprotect failed");
 }
 
-SrsRtcOutgoingPackets::SrsRtcOutgoingPackets(int nn_cache_max)
+SrsRtcOutgoingInfo::SrsRtcOutgoingInfo()
 {
 #if defined(SRS_DEBUG)
     debug_id = 0;
 #endif
 
     use_gso = false;
-    should_merge_nalus = false;
-
     nn_rtp_pkts = 0;
     nn_audios = nn_extras = 0;
     nn_videos = nn_samples = 0;
     nn_bytes = nn_rtp_bytes = 0;
     nn_padding_bytes = nn_paddings = 0;
     nn_dropped = 0;
-
-    cursor = 0;
-    nn_cache = nn_cache_max;
-    // TODO: FIXME: We should allocate a smaller cache, and increase it when exhausted.
-    cache = new SrsRtpPacket2[nn_cache];
 }
 
-SrsRtcOutgoingPackets::~SrsRtcOutgoingPackets()
+SrsRtcOutgoingInfo::~SrsRtcOutgoingInfo()
 {
-    srs_freepa(cache);
-    nn_cache = 0;
-}
-
-void SrsRtcOutgoingPackets::reset(bool gso, bool merge_nalus)
-{
-    for (int i = 0; i < cursor; i++) {
-        SrsRtpPacket2* packet = cache + i;
-        packet->reset();
-    }
-
-#if defined(SRS_DEBUG)
-    debug_id++;
-#endif
-
-    use_gso = gso;
-    should_merge_nalus = merge_nalus;
-
-    nn_rtp_pkts = 0;
-    nn_audios = nn_extras = 0;
-    nn_videos = nn_samples = 0;
-    nn_bytes = nn_rtp_bytes = 0;
-    nn_padding_bytes = nn_paddings = 0;
-    nn_dropped = 0;
-
-    cursor = 0;
-}
-
-SrsRtpPacket2* SrsRtcOutgoingPackets::fetch()
-{
-    if (cursor >= nn_cache) {
-        return NULL;
-    }
-    return cache + (cursor++);
-}
-
-SrsRtpPacket2* SrsRtcOutgoingPackets::back()
-{
-    srs_assert(cursor > 0);
-    return cache + cursor - 1;
-}
-
-int SrsRtcOutgoingPackets::size()
-{
-    return cursor;
-}
-
-int SrsRtcOutgoingPackets::capacity()
-{
-    return nn_cache;
-}
-
-SrsRtpPacket2* SrsRtcOutgoingPackets::at(int index)
-{
-    srs_assert(index < cursor);
-    return cache + index;
 }
 
 SrsRtcPlayer::SrsRtcPlayer(SrsRtcSession* s, int parent_cid)
@@ -713,7 +650,7 @@ srs_error_t SrsRtcPlayer::cycle()
 
     // TODO: FIXME: Use cache for performance?
     vector<SrsRtpPacket2*> pkts;
-    SrsRtcOutgoingPackets info;
+    SrsRtcOutgoingInfo info;
 
     while (true) {
         if ((err = trd->pull()) != srs_success) {
@@ -752,7 +689,7 @@ srs_error_t SrsRtcPlayer::cycle()
         int nn_rtc_packets = srs_max(info.nn_audios, info.nn_extras) + info.nn_videos;
         stat->perf_on_rtc_packets(nn_rtc_packets);
         // Stat the RAW RTP packets, which maybe group by GSO.
-        stat->perf_on_rtp_packets(info.size());
+        stat->perf_on_rtp_packets(msg_count);
         // Stat the RTP packets going into kernel.
         stat->perf_on_gso_packets(info.nn_rtp_pkts);
         // Stat the bytes and paddings.
@@ -764,13 +701,13 @@ srs_error_t SrsRtcPlayer::cycle()
         if (pprint->can_print()) {
             // TODO: FIXME: Print stat like frame/s, packet/s, loss_packets.
             srs_trace("-> RTC PLAY %d/%d msgs, %d/%d packets, %d audios, %d extras, %d videos, %d samples, %d/%d/%d bytes, %d pad, %d/%d cache",
-                msg_count, info.nn_dropped, info.size(), info.nn_rtp_pkts, info.nn_audios, info.nn_extras, info.nn_videos, info.nn_samples, info.nn_bytes,
-                info.nn_rtp_bytes, info.nn_padding_bytes, info.nn_paddings, info.size(), info.capacity());
+                msg_count, info.nn_dropped, msg_count, info.nn_rtp_pkts, info.nn_audios, info.nn_extras, info.nn_videos, info.nn_samples, info.nn_bytes,
+                info.nn_rtp_bytes, info.nn_padding_bytes, info.nn_paddings, msg_count, msg_count);
         }
     }
 }
 
-srs_error_t SrsRtcPlayer::send_messages(SrsRtcSource* source, vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingPackets& info)
+srs_error_t SrsRtcPlayer::send_messages(SrsRtcSource* source, vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info)
 {
     srs_error_t err = srs_success;
 
@@ -788,8 +725,8 @@ srs_error_t SrsRtcPlayer::send_messages(SrsRtcSource* source, vector<SrsRtpPacke
     // If enabled GSO, send out some packets in a msghdr.
     // @remark When NACK simulator is on, we don't use GSO.
     // TODO: FIXME: Support GSO.
-    if (packets.use_gso && !nn_simulate_nack_drop) {
-        if ((err = send_packets_gso(info)) != srs_success) {
+    if (info.use_gso && !nn_simulate_nack_drop) {
+        if ((err = send_packets_gso(pkts, info)) != srs_success) {
             return srs_error_wrap(err, "gso send");
         }
         return err;
@@ -804,7 +741,7 @@ srs_error_t SrsRtcPlayer::send_messages(SrsRtcSource* source, vector<SrsRtpPacke
     return err;
 }
 
-srs_error_t SrsRtcPlayer::messages_to_packets(SrsRtcSource* source, vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingPackets& info)
+srs_error_t SrsRtcPlayer::messages_to_packets(SrsRtcSource* source, vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info)
 {
     srs_error_t err = srs_success;
 
@@ -844,7 +781,37 @@ srs_error_t SrsRtcPlayer::messages_to_packets(SrsRtcSource* source, vector<SrsRt
     return err;
 }
 
-srs_error_t SrsRtcPlayer::send_packets(std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingPackets& info)
+srs_error_t SrsRtcPlayer::package_opus(SrsRtpPacket2* pkt)
+{
+    srs_error_t err = srs_success;
+
+    pkt->rtp_header.set_timestamp(audio_timestamp);
+    pkt->rtp_header.set_sequence(audio_sequence++);
+    pkt->rtp_header.set_ssrc(audio_ssrc);
+    pkt->rtp_header.set_payload_type(audio_payload_type);
+
+    // TODO: FIXME: Padding audio to the max payload in RTP packets.
+    if (max_padding > 0) {
+    }
+
+    // TODO: FIXME: Why 960? Need Refactoring?
+    audio_timestamp += 960;
+
+    return err;
+}
+
+srs_error_t SrsRtcPlayer::package_video(SrsRtpPacket2* pkt)
+{
+    srs_error_t err = srs_success;
+
+    pkt->rtp_header.set_sequence(video_sequence++);
+    pkt->rtp_header.set_ssrc(video_ssrc);
+    pkt->rtp_header.set_payload_type(video_payload_type);
+
+    return err;
+}
+
+srs_error_t SrsRtcPlayer::send_packets(std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info)
 {
     srs_error_t err = srs_success;
 
@@ -893,10 +860,11 @@ srs_error_t SrsRtcPlayer::send_packets(std::vector<SrsRtpPacket2*>& pkts, SrsRtc
         if (nack_enabled_) {
             SrsRtpPacket2* nack = new SrsRtpPacket2();
             nack->rtp_header = pkt->rtp_header;
-            nack->padding = pkt->padding;
 
             // TODO: FIXME: Should avoid memory copying.
-            SrsRtpRawPayload* payload = nack->reuse_raw();
+            SrsRtpRawPayload* payload = new SrsRtpRawPayload();
+            nack->payload = payload;
+
             payload->nn_payload = (int)iov->iov_len;
             payload->payload = new char[payload->nn_payload];
             memcpy((void*)payload->payload, iov->iov_base, iov->iov_len);
@@ -937,7 +905,7 @@ srs_error_t SrsRtcPlayer::send_packets(std::vector<SrsRtpPacket2*>& pkts, SrsRtc
 }
 
 // TODO: FIXME: We can gather and pad audios, because they have similar size.
-srs_error_t SrsRtcPlayer::send_packets_gso(SrsRtcOutgoingPackets& packets)
+srs_error_t SrsRtcPlayer::send_packets_gso(vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info)
 {
     srs_error_t err = srs_success;
 
@@ -952,9 +920,9 @@ srs_error_t SrsRtcPlayer::send_packets_gso(SrsRtcOutgoingPackets& packets)
     // The message will marshal in iovec.
     iovec* iov = NULL;
 
-    int nn_packets = packets.size();
+    int nn_packets = pkts.size();
     for (int i = 0; i < nn_packets; i++) {
-        SrsRtpPacket2* packet = packets.at(i);
+        SrsRtpPacket2* packet = pkts.at(i);
         int nn_packet = packet->nb_bytes();
         int padding = 0;
 
@@ -962,7 +930,7 @@ srs_error_t SrsRtcPlayer::send_packets_gso(SrsRtcOutgoingPackets& packets)
         int nn_next_packet = 0;
         if (max_padding > 0) {
             if (i < nn_packets - 1) {
-                next_packet = (i < nn_packets - 1)? packets.at(i + 1):NULL;
+                next_packet = (i < nn_packets - 1)? pkts.at(i + 1):NULL;
                 nn_next_packet = next_packet? next_packet->nb_bytes() : 0;
             }
 
@@ -987,13 +955,13 @@ srs_error_t SrsRtcPlayer::send_packets_gso(SrsRtcOutgoingPackets& packets)
 
                 if (padding > 0) {
 #if defined(SRS_DEBUG)
-                    srs_trace("#%d, Padding %d bytes %d=>%d, packets %d, max_padding %d", packets.debug_id,
+                    srs_trace("#%d, Padding %d bytes %d=>%d, packets %d, max_padding %d", info.debug_id,
                         padding, nn_packet, nn_packet + padding, nn_packets, max_padding);
 #endif
                     packet->add_padding(padding);
                     nn_packet += padding;
-                    packets.nn_paddings++;
-                    packets.nn_padding_bytes += padding;
+                    info.nn_paddings++;
+                    info.nn_padding_bytes += padding;
                 }
             }
         }
@@ -1066,10 +1034,11 @@ srs_error_t SrsRtcPlayer::send_packets_gso(SrsRtcOutgoingPackets& packets)
         if (nack_enabled_) {
             SrsRtpPacket2* nack = new SrsRtpPacket2();
             nack->rtp_header = packet->rtp_header;
-            nack->padding = packet->padding;
 
             // TODO: FIXME: Should avoid memory copying.
-            SrsRtpRawPayload* payload = nack->reuse_raw();
+            SrsRtpRawPayload* payload = new SrsRtpRawPayload();
+            nack->payload = payload;
+
             payload->nn_payload = (int)iov->iov_len;
             payload->payload = new char[payload->nn_payload];
             memcpy((void*)payload->payload, iov->iov_base, iov->iov_len);
@@ -1081,7 +1050,7 @@ srs_error_t SrsRtcPlayer::send_packets_gso(SrsRtcOutgoingPackets& packets)
             }
         }
 
-        packets.nn_rtp_bytes += (int)iov->iov_len;
+        info.nn_rtp_bytes += (int)iov->iov_len;
 
         // If GSO, they must has same size, except the final one.
         if (using_gso && !gso_final && gso_encrypt && gso_encrypt != (int)iov->iov_len) {
@@ -1102,12 +1071,12 @@ srs_error_t SrsRtcPlayer::send_packets_gso(SrsRtcOutgoingPackets& packets)
 
 #if defined(SRS_DEBUG)
         bool is_video = packet->rtp_header.get_payload_type() == video_payload_type;
-        srs_trace("#%d, Packet %s SSRC=%d, SN=%d, %d/%d bytes", packets.debug_id, is_video? "Video":"Audio",
+        srs_trace("#%d, Packet %s SSRC=%d, SN=%d, %d/%d bytes", info.debug_id, is_video? "Video":"Audio",
             packet->rtp_header.get_ssrc(), packet->rtp_header.get_sequence(), nn_packet - padding, padding);
         if (do_send) {
             for (int j = 0; j < (int)mhdr->msg_hdr.msg_iovlen; j++) {
                 iovec* iov = mhdr->msg_hdr.msg_iov + j;
-                srs_trace("#%d, %s #%d/%d/%d, %d/%d bytes, size %d/%d", packets.debug_id, (using_gso? "GSO":"RAW"), j,
+                srs_trace("#%d, %s #%d/%d/%d, %d/%d bytes, size %d/%d", info.debug_id, (using_gso? "GSO":"RAW"), j,
                     gso_cursor + 1, mhdr->msg_hdr.msg_iovlen, iov->iov_len, padding, gso_size, gso_encrypt);
             }
         }
@@ -1138,7 +1107,7 @@ srs_error_t SrsRtcPlayer::send_packets_gso(SrsRtcOutgoingPackets& packets)
 #endif
 
             // When we send out a packet, we commit a RTP packet.
-            packets.nn_rtp_pkts++;
+            info.nn_rtp_pkts++;
 
             if ((err = sender->sendmmsg(mhdr)) != srs_success) {
                 return srs_error_wrap(err, "send msghdr");
@@ -1151,40 +1120,10 @@ srs_error_t SrsRtcPlayer::send_packets_gso(SrsRtcOutgoingPackets& packets)
     }
 
 #if defined(SRS_DEBUG)
-    srs_trace("#%d, RTC PLAY summary, rtp %d/%d, videos %d/%d, audios %d/%d, pad %d/%d/%d", packets.debug_id, packets.size(),
-        packets.nn_rtp_pkts, packets.nn_videos, packets.nn_samples, packets.nn_audios, packets.nn_extras, packets.nn_paddings,
-        packets.nn_padding_bytes, packets.nn_rtp_bytes);
+    srs_trace("#%d, RTC PLAY summary, rtp %d/%d, videos %d/%d, audios %d/%d, pad %d/%d/%d", info.debug_id, pkts.size(),
+        info.nn_rtp_pkts, info.nn_videos, info.nn_samples, info.nn_audios, info.nn_extras, info.nn_paddings,
+        info.nn_padding_bytes, info.nn_rtp_bytes);
 #endif
-
-    return err;
-}
-
-srs_error_t SrsRtcPlayer::package_opus(SrsRtpPacket2* pkt)
-{
-    srs_error_t err = srs_success;
-
-    pkt->rtp_header.set_timestamp(audio_timestamp);
-    pkt->rtp_header.set_sequence(audio_sequence++);
-    pkt->rtp_header.set_ssrc(audio_ssrc);
-    pkt->rtp_header.set_payload_type(audio_payload_type);
-
-    // TODO: FIXME: Padding audio to the max payload in RTP packets.
-    if (max_padding > 0) {
-    }
-
-    // TODO: FIXME: Why 960? Need Refactoring?
-    audio_timestamp += 960;
-
-    return err;
-}
-
-srs_error_t SrsRtcPlayer::package_video(SrsRtpPacket2* pkt)
-{
-    srs_error_t err = srs_success;
-
-    pkt->rtp_header.set_sequence(video_sequence++);
-    pkt->rtp_header.set_ssrc(video_ssrc);
-    pkt->rtp_header.set_payload_type(video_payload_type);
 
     return err;
 }
@@ -1712,7 +1651,8 @@ srs_error_t SrsRtcPublisher::on_rtp(char* buf, int nb_buf)
     SrsRtpPacket2* pkt = new SrsRtpPacket2();
 
     pkt->set_decode_handler(this);
-    pkt->original_bytes = buf;
+    pkt->shared_msg = new SrsSharedPtrMessage();
+    pkt->shared_msg->wrap(buf, nb_buf);
 
     SrsBuffer b(buf, nb_buf);
     if ((err = pkt->decode(&b)) != srs_success) {
@@ -1737,7 +1677,7 @@ srs_error_t SrsRtcPublisher::on_rtp(char* buf, int nb_buf)
     }
 }
 
-void SrsRtcPublisher::on_before_decode_payload(SrsRtpPacket2* pkt, SrsBuffer* buf, ISrsCodec** ppayload)
+void SrsRtcPublisher::on_before_decode_payload(SrsRtpPacket2* pkt, SrsBuffer* buf, ISrsRtpPayloader** ppayload)
 {
     // No payload, ignore.
     if (buf->empty()) {
@@ -1746,15 +1686,15 @@ void SrsRtcPublisher::on_before_decode_payload(SrsRtpPacket2* pkt, SrsBuffer* bu
 
     uint32_t ssrc = pkt->rtp_header.get_ssrc();
     if (ssrc == audio_ssrc) {
-        *ppayload = pkt->reuse_raw();
+        *ppayload = new SrsRtpRawPayload();
     } else if (ssrc == video_ssrc) {
         uint8_t v = (uint8_t)pkt->nalu_type;
         if (v == kStapA) {
             *ppayload = new SrsRtpSTAPPayload();
         } else if (v == kFuA) {
-            *ppayload = pkt->reuse_fua();
+            *ppayload = new SrsRtpFUAPayload2();
         } else {
-            *ppayload = pkt->reuse_raw();
+            *ppayload = new SrsRtpRawPayload();
         }
     }
 }

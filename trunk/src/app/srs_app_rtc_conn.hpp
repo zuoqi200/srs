@@ -150,12 +150,10 @@ private:
 
 // A group of RTP packets for outgoing(send to players).
 // TODO: FIXME: Rename to stat for RTP packets.
-class SrsRtcOutgoingPackets
+class SrsRtcOutgoingInfo
 {
 public:
     bool use_gso;
-    // TODO: FIXME: Remove it.
-    bool should_merge_nalus;
 public:
 #if defined(SRS_DEBUG)
     // Debug id.
@@ -187,22 +185,9 @@ public:
     int nn_paddings;
     // The number of dropped messages.
     int nn_dropped;
-private:
-    // TODO: FIXME: Remove the cache.
-    int cursor;
-    int nn_cache;
-    SrsRtpPacket2* cache;
 public:
-    // TODO: FIXME: Remove the cache.
-    SrsRtcOutgoingPackets(int nn_cache_max = 8);
-    virtual ~SrsRtcOutgoingPackets();
-public:
-    void reset(bool gso, bool merge_nalus);
-    SrsRtpPacket2* fetch();
-    SrsRtpPacket2* back();
-    int size();
-    int capacity();
-    SrsRtpPacket2* at(int index);
+    SrsRtcOutgoingInfo();
+    virtual ~SrsRtcOutgoingInfo();
 };
 
 class SrsRtcPlayer : virtual public ISrsCoroutineHandler, virtual public ISrsReloadHandler
@@ -255,13 +240,12 @@ public:
 public:
     virtual srs_error_t cycle();
 private:
-    srs_error_t send_messages(SrsRtcSource* source, std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingPackets& info);
-    srs_error_t messages_to_packets(SrsRtcSource* source, std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingPackets& info);
-    srs_error_t send_packets(std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingPackets& info);
-    srs_error_t send_packets_gso(SrsRtcOutgoingPackets& packets);
-private:
+    srs_error_t send_messages(SrsRtcSource* source, std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
+    srs_error_t messages_to_packets(SrsRtcSource* source, std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
     srs_error_t package_opus(SrsRtpPacket2* pkt);
     srs_error_t package_video(SrsRtpPacket2* pkt);
+    srs_error_t send_packets(std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
+    srs_error_t send_packets_gso(std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
 public:
     void nack_fetch(std::vector<SrsRtpPacket2*>& pkts, uint32_t ssrc, uint16_t seq);
     void simulate_nack_drop(int nn);
@@ -313,7 +297,7 @@ private:
     srs_error_t send_rtcp_fb_pli(uint32_t ssrc);
 public:
     srs_error_t on_rtp(char* buf, int nb_buf);
-    virtual void on_before_decode_payload(SrsRtpPacket2* pkt, SrsBuffer* buf, ISrsCodec** ppayload);
+    virtual void on_before_decode_payload(SrsRtpPacket2* pkt, SrsBuffer* buf, ISrsRtpPayloader** ppayload);
 private:
     srs_error_t on_audio(SrsRtpPacket2* pkt);
     srs_error_t on_video(SrsRtpPacket2* pkt);
