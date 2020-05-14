@@ -56,6 +56,7 @@ const uint8_t kEnd              = 0x40; // Fu-header end bit
 class SrsBuffer;
 class SrsRtpRawPayload;
 class SrsRtpFUAPayload2;
+class SrsSharedPtrMessage;
 
 class SrsRtpHeader
 {
@@ -115,12 +116,16 @@ public:
     ISrsCodec* payload;
     // TODO: FIXME: Merge into rtp_header.
     int padding;
-// Decoder helper.
+// Helper fields.
 public:
     // The first byte as nalu type, for video decoder only.
     SrsAvcNaluType nalu_type;
-    // The original bytes for decoder only, we will free it.
+    // The original bytes for decoder or bridger only, we will free it.
     char* original_bytes;
+    // The original msg for bridger only, we will free it.
+    SrsSharedPtrMessage* original_msg;
+    // The frame type, for RTMP bridger or SFU source.
+    SrsFrameType frame_type;
 // Fast cache for performance.
 private:
     // Cache frequently used payload for performance.
@@ -145,6 +150,8 @@ public:
     SrsRtpFUAPayload2* reuse_fua();
     // Set the decode handler.
     void set_decode_handler(ISrsRtpPacketDecodeHandler* h);
+    // Whether the packet is Audio packet.
+    bool is_audio();
 // interface ISrsEncoder
 public:
     virtual int nb_bytes();
