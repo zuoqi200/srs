@@ -380,6 +380,7 @@ srs_error_t SrsRtcDtls::srtp_recv_init()
     memcpy(key, client_key.data(), client_key.size());
     policy.key = key;
 
+    // TODO: FIXME: Wrap error code.
     if (srtp_create(&srtp_recv, &policy) != srtp_err_status_ok) {
         srs_freepa(key);
         return srs_error_new(ERROR_RTC_SRTP_INIT, "srtp_create failed");
@@ -396,6 +397,7 @@ srs_error_t SrsRtcDtls::protect_rtp(char* out_buf, const char* in_buf, int& nb_o
 
     if (srtp_send) {
         memcpy(out_buf, in_buf, nb_out_buf);
+        // TODO: FIXME: Wrap error code.
         if (srtp_protect(srtp_send, out_buf, &nb_out_buf) != 0) {
             return srs_error_new(ERROR_RTC_SRTP_PROTECT, "rtp protect failed");
         }
@@ -415,6 +417,7 @@ srs_error_t SrsRtcDtls::protect_rtp2(void* rtp_hdr, int* len_ptr)
         return srs_error_new(ERROR_RTC_SRTP_PROTECT, "rtp protect");
     }
 
+    // TODO: FIXME: Wrap error code.
     if (srtp_protect(srtp_send, rtp_hdr, len_ptr) != 0) {
         return srs_error_new(ERROR_RTC_SRTP_PROTECT, "rtp protect");
     }
@@ -428,8 +431,10 @@ srs_error_t SrsRtcDtls::unprotect_rtp(char* out_buf, const char* in_buf, int& nb
 
     if (srtp_recv) {
         memcpy(out_buf, in_buf, nb_out_buf);
-        if (srtp_unprotect(srtp_recv, out_buf, &nb_out_buf) != 0) {
-            return srs_error_new(ERROR_RTC_SRTP_UNPROTECT, "rtp unprotect failed");
+
+        srtp_err_status_t r0 = srtp_unprotect(srtp_recv, out_buf, &nb_out_buf);
+        if (r0 != srtp_err_status_ok) {
+            return srs_error_new(ERROR_RTC_SRTP_UNPROTECT, "unprotect r0=%u", r0);
         }
 
         return err;
@@ -444,6 +449,7 @@ srs_error_t SrsRtcDtls::protect_rtcp(char* out_buf, const char* in_buf, int& nb_
 
     if (srtp_send) {
         memcpy(out_buf, in_buf, nb_out_buf);
+        // TODO: FIXME: Wrap error code.
         if (srtp_protect_rtcp(srtp_send, out_buf, &nb_out_buf) != 0) {
             return srs_error_new(ERROR_RTC_SRTP_PROTECT, "rtcp protect failed");
         }
@@ -460,6 +466,7 @@ srs_error_t SrsRtcDtls::unprotect_rtcp(char* out_buf, const char* in_buf, int& n
 
     if (srtp_recv) {
         memcpy(out_buf, in_buf, nb_out_buf);
+        // TODO: FIXME: Wrap error code.
         if (srtp_unprotect_rtcp(srtp_recv, out_buf, &nb_out_buf) != srtp_err_status_ok) {
             return srs_error_new(ERROR_RTC_SRTP_UNPROTECT, "rtcp unprotect failed");
         }
@@ -1453,6 +1460,7 @@ void SrsRtcPublisher::check_send_nacks(SrsRtpNackForReceiver* nack, uint32_t ssr
     // @see: https://tools.ietf.org/html/rfc4585#section-6.1
     vector<uint16_t> nack_seqs;
     nack->get_nack_seqs(nack_seqs);
+    
     vector<uint16_t>::iterator iter = nack_seqs.begin();
     while (iter != nack_seqs.end()) {
         char buf[kRtpPacketSize];
@@ -1648,9 +1656,38 @@ srs_error_t SrsRtcPublisher::send_rtcp_fb_pli(uint32_t ssrc)
     return err;
 }
 
-srs_error_t SrsRtcPublisher::on_rtp(char* buf, int nb_buf)
+srs_error_t SrsRtcPublisher::on_rtp(char* data, int nb_data)
 {
     srs_error_t err = srs_success;
+
+    // For NACK simulator, drop packet.
+    if (nn_simulate_nack_drop) {
+        SrsBuffer b0(data, nb_data); SrsRtpHeader h0; h0.decode(&b0);
+        simulate_drop_packet(&h0, nb_data);
+        return err;
+    }
+
+    // Decrypt the cipher to plaintext RTP data.
+    int nb_unprotected_buf = nb_data;
+    char* unprotected_buf = new char[kRtpPacketSize];
+    if ((err = session_->dtls_->unprotect_rtp(unprotected_buf, data, nb_unprotected_buf)) != srs_success) {
+        // We try to decode the RTP header for more detail error informations.
+        SrsBuffer b0(data, nb_data); SrsRtpHeader h0; h0.decode(&b0);
+        err = srs_error_wrap(err, "marker=%u, pt=%u, seq=%u, ts=%u, ssrc=%u, pad=%u, payload=%uB", h0.get_marker(), h0.get_payload_type(),
+            h0.get_sequence(), h0.get_timestamp(), h0.get_ssrc(), h0.get_padding(), nb_data - b0.pos());
+
+        srs_freepa(unprotected_buf);
+        return err;
+    }
+
+    if (session_->blackhole && session_->blackhole_addr && session_->blackhole_stfd) {
+        // Ignore any error for black-hole.
+        void* p = unprotected_buf; int len = nb_unprotected_buf; SrsRtcSession* s = session_;
+        srs_sendto(s->blackhole_stfd, p, len, (sockaddr*)s->blackhole_addr, sizeof(sockaddr_in), SRS_UTIME_NO_TIMEOUT);
+    }
+
+    char* buf = unprotected_buf;
+    int nb_buf = nb_unprotected_buf;
 
     // Decode the RTP packet from buffer.
     SrsRtpPacket2* pkt = new SrsRtpPacket2();
@@ -1665,12 +1702,6 @@ srs_error_t SrsRtcPublisher::on_rtp(char* buf, int nb_buf)
         if ((err = pkt->decode(&b)) != srs_success) {
             return srs_error_wrap(err, "decode rtp packet");
         }
-    }
-
-    // For NACK simulator, drop packet.
-    if (nn_simulate_nack_drop) {
-        simulate_drop_packet(&pkt->header, nb_buf);
-        return err;
     }
 
     // For source to consume packet.
@@ -1751,23 +1782,44 @@ srs_error_t SrsRtcPublisher::on_video(SrsRtpPacket2* pkt)
 srs_error_t SrsRtcPublisher::on_nack(SrsRtpPacket2* pkt)
 {
     srs_error_t err = srs_success;
-
+    
+    SrsRtpNackForReceiver* nack_receiver = audio_nack_;
+    SrsRtpRingBuffer* ring_queue = audio_queue_;
+    
+    // TODO: FIXME: use is_audio() to jugdement
+    uint32_t ssrc = pkt->header.get_ssrc();
     uint16_t seq = pkt->header.get_sequence();
-    SrsRtpNackInfo* nack_info = audio_nack_->find(seq);
+    bool video = (ssrc == video_ssrc) ? true : false;
+    if (video) {
+        nack_receiver = video_nack_; 
+        ring_queue = video_queue_;
+    }
+
+    // TODO: check whether is necessary?
+    nack_receiver->remove_timeout_packets();
+
+    SrsRtpNackInfo* nack_info = nack_receiver->find(seq);
     if (nack_info) {
+        // seq had been received.
+        nack_receiver->remove(seq);
         return err;
     }
 
+    // insert check nack list
     uint16_t nack_first = 0, nack_last = 0;
-    if (!audio_queue_->update(seq, nack_first, nack_last)) {
-        srs_warn("too old seq %u, range [%u, %u]", seq, audio_queue_->begin, audio_queue_->end);
+    if (!ring_queue->update(seq, nack_first, nack_last)) {
+        srs_warn("too old seq %u, range [%u, %u]", seq, ring_queue->begin, ring_queue->end);
     }
-
     if (srs_rtp_seq_distance(nack_first, nack_last) > 0) {
         srs_trace("update seq=%u, nack range [%u, %u]", seq, nack_first, nack_last);
-        audio_nack_->insert(nack_first, nack_last);
-        audio_nack_->check_queue_size();
+        nack_receiver->insert(nack_first, nack_last);
+        nack_receiver->check_queue_size();
     }
+    
+    // insert into video_queue and audio_queue
+    ring_queue->set(seq, pkt->copy());
+    // send_nack
+    check_send_nacks(nack_receiver, ssrc);
 
     return err;
 }
@@ -2126,13 +2178,12 @@ void SrsRtcPublisher::request_keyframe()
 srs_error_t SrsRtcPublisher::notify(int type, srs_utime_t interval, srs_utime_t tick)
 {
     srs_error_t err = srs_success;
-
     // TODO: FIXME: Check error.
     send_rtcp_rr(video_ssrc, video_queue_);
     send_rtcp_rr(audio_ssrc, audio_queue_);
     send_rtcp_xr_rrtr(video_ssrc);
     send_rtcp_xr_rrtr(audio_ssrc);
-
+    
     return err;
 }
 
@@ -2363,8 +2414,6 @@ srs_error_t SrsRtcSession::on_rtcp(char* data, int nb_data)
 
 srs_error_t SrsRtcSession::on_rtp(char* data, int nb_data)
 {
-    srs_error_t err = srs_success;
-
     if (publisher_ == NULL) {
         return srs_error_new(ERROR_RTC_RTCP, "rtc publisher null");
     }
@@ -2373,20 +2422,7 @@ srs_error_t SrsRtcSession::on_rtp(char* data, int nb_data)
         return srs_error_new(ERROR_RTC_RTCP, "recv unexpect rtp packet before dtls done");
     }
 
-    int nb_unprotected_buf = nb_data;
-    char* unprotected_buf = new char[kRtpPacketSize];
-    if ((err = dtls_->unprotect_rtp(unprotected_buf, data, nb_unprotected_buf)) != srs_success) {
-        srs_freepa(unprotected_buf);
-        return srs_error_wrap(err, "rtp unprotect failed");
-    }
-
-    if (blackhole && blackhole_addr && blackhole_stfd) {
-        // Ignore any error for black-hole.
-        void* p = unprotected_buf; int len = nb_unprotected_buf;
-        srs_sendto(blackhole_stfd, p, len, (sockaddr*)blackhole_addr, sizeof(sockaddr_in), SRS_UTIME_NO_TIMEOUT);
-    }
-
-    return publisher_->on_rtp(unprotected_buf, nb_unprotected_buf);
+    return publisher_->on_rtp(data, nb_data);
 }
 
 srs_error_t SrsRtcSession::on_connection_established()

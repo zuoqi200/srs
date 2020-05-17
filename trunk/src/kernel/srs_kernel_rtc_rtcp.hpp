@@ -197,38 +197,40 @@ public:
 
 };
 
-/*
-         0                   1                   2                   3
-        0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |V=2|P|  FMT=15 |    PT=205     |           length              |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                     SSRC of packet sender                     |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                      SSRC of media source                     |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |      base sequence number     |      packet status count      |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |                 reference time                | fb pkt. count |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |          packet chunk         |         packet chunk          |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       .                                                               .
-       .                                                               .
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       |         packet chunk          |  recv delta   |  recv delta   |
-       +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-       .                                                               .
-*/
-#define kTwccFbPktHeaderSize  				 (4 + 8 + 8)
-#define kTwccFbChunkBytes						(2)
-#define kTwccFbPktFormat 						  (15)
-#define kTwccFbPayloadType					   (205)
-#define kTwccFbMaxPktStatusCount	  (0xffff)
-//#define kTwccFbMaxPktLength				    (4 + (1 << 16))
-#define kTwccFbDeltaUnit 					       (250)	 // multiple of 250us
-#define kTwccFbTimeMultiplier   		     (kTwccFbDeltaUnit * (1 << 8)) // multiplicand multiplier/* 250us -> 64ms  (1 << 8) */
-#define kTwccFbReferenceTimeDivisor 	((1ll<<24) * kTwccFbTimeMultiplier) // dividend divisor
+// The Message format of TWCC, @see https://tools.ietf.org/html/draft-holmer-rmcat-transport-wide-cc-extensions-01#section-3.1
+//       0                   1                   2                   3
+//       0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//      |V=2|P|  FMT=15 |    PT=205     |           length              |
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//      |                     SSRC of packet sender                     |
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//      |                      SSRC of media source                     |
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//      |      base sequence number     |      packet status count      |
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//      |                 reference time                | fb pkt. count |
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//      |          packet chunk         |         packet chunk          |
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//      .                                                               .
+//      .                                                               .
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//      |         packet chunk          |  recv delta   |  recv delta   |
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//      .                                                               .
+//      .                                                               .
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+//      |           recv delta          |  recv delta   | zero padding  |
+//      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+#define kTwccFbPktHeaderSize (4 + 8 + 8)
+#define kTwccFbChunkBytes (2)
+#define kTwccFbPktFormat (15)
+#define kTwccFbPayloadType (205)
+#define kTwccFbMaxPktStatusCount (0xffff)
+#define kTwccFbDeltaUnit (250)	 // multiple of 250us
+#define kTwccFbTimeMultiplier (kTwccFbDeltaUnit * (1 << 8)) // multiplicand multiplier/* 250us -> 64ms  (1 << 8) */
+#define kTwccFbReferenceTimeDivisor ((1ll<<24) * kTwccFbTimeMultiplier) // dividend divisor
 
 #define kTwccFbMaxRunLength 		0x1fff
 #define kTwccFbOneBitElements 		14
@@ -251,27 +253,27 @@ private:
     std::map<uint16_t, srs_utime_t> recv_packes_;
     std::set<uint16_t, SrsSeqCompareLess> recv_sns_;
 
-    typedef struct srs_rtcp_twcc_chunk {
+    struct SrsRtcpTWCCChunk {
         uint8_t delta_sizes[kTwccFbMaxBitElements];
         uint16_t size;
         bool all_same;
         bool has_large_delta;
-    }srs_rtcp_twcc_chunk_t;
+    };
 
     int pkt_len;
 
 private:
     void clear();
     srs_utime_t calculate_delta_us(srs_utime_t ts, srs_utime_t last);
-    srs_error_t process_pkt_chunk(srs_rtcp_twcc_chunk_t& chunk, int delta_size);
-    bool can_add_to_chunk(srs_rtcp_twcc_chunk_t& chunk, int delta_size);
-    void add_to_chunk(srs_rtcp_twcc_chunk_t& chunk, int delta_size);
-    srs_error_t encode_chunk(srs_rtcp_twcc_chunk_t& chunk);
-    srs_error_t encode_chunk_run_length(srs_rtcp_twcc_chunk_t& chunk);
-    srs_error_t encode_chunk_one_bit(srs_rtcp_twcc_chunk_t& chunk);
-    srs_error_t encode_chunk_two_bit(srs_rtcp_twcc_chunk_t& chunk, size_t size, bool shift);
-    void reset_chunk(srs_rtcp_twcc_chunk_t& chunk);
-    srs_error_t encode_remaining_chunk(srs_rtcp_twcc_chunk_t& chunk);
+    srs_error_t process_pkt_chunk(SrsRtcpTWCCChunk& chunk, int delta_size);
+    bool can_add_to_chunk(SrsRtcpTWCCChunk& chunk, int delta_size);
+    void add_to_chunk(SrsRtcpTWCCChunk& chunk, int delta_size);
+    srs_error_t encode_chunk(SrsRtcpTWCCChunk& chunk);
+    srs_error_t encode_chunk_run_length(SrsRtcpTWCCChunk& chunk);
+    srs_error_t encode_chunk_one_bit(SrsRtcpTWCCChunk& chunk);
+    srs_error_t encode_chunk_two_bit(SrsRtcpTWCCChunk& chunk, size_t size, bool shift);
+    void reset_chunk(SrsRtcpTWCCChunk& chunk);
+    srs_error_t encode_remaining_chunk(SrsRtcpTWCCChunk& chunk);
 
 public:
     SrsRtcpTWCC(uint32_t sender_ssrc = 0);
@@ -306,11 +308,11 @@ public:
 class SrsRtcpNack : public SrsRtcpCommon
 {
 private:
-    typedef struct pid_blp_s {  
+    struct SrsPidBlp {
         uint16_t pid;
         uint16_t blp;
         bool in_use;
-    }pid_blp_t;
+    };
 
     uint32_t sender_ssrc_;
     uint32_t media_ssrc_;
