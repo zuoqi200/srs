@@ -30,6 +30,8 @@
 #include <vector>
 #include <map>
 
+#include <srs_kernel_rtc_rtp.hpp>
+
 class SrsRtpPacket2;
 class SrsRtpQueue;
 class SrsRtpRingBuffer;
@@ -38,10 +40,9 @@ class SrsRtpRingBuffer;
 //      [seq1(done)|seq2|seq3 ... seq10|seq11(lost)|seq12|seq13]
 //                   \___(head_sequence_)   \               \___(highest_sequence_)
 //                                           \___(no received, in nack list)
-//      * seq1: The packet is done, we already got the entire frame and processed it.
-//      * seq2,seq3,...,seq10,seq12,seq13: We are processing theses packets, for example, some FU-A or NALUs,
-//               but not an entire video frame right now.
-//      * seq10: This packet is lost or not received, we put it in the nack list.
+//      * seq1: The packet is done, we have already got and processed it.
+//      * seq2,seq3,...,seq10,seq12,seq13: Theses packets are in queue and wait to be processed.
+//      * seq10: This packet is lost or not received, we will put it in the nack list.
 // We store the received packets in ring buffer.
 class SrsRtpRingBuffer
 {
@@ -82,7 +83,7 @@ public:
     // Get the packet by seq.
     SrsRtpPacket2* at(uint16_t seq);
 public:
-    // TODO: FIXME: Move it?
+    // TODO: FIXME: Refine it?
     void notify_nack_list_full();
     void notify_drop_seq(uint16_t seq);
 };
@@ -112,12 +113,8 @@ struct SrsRtpNackInfo
 class SrsRtpNackForReceiver
 {
 private:
-    struct SeqComp {
-        bool operator()(const uint16_t& pre_value, const uint16_t& value) const;
-    };
-private:
     // Nack queue, seq order, oldest to newest.
-    std::map<uint16_t, SrsRtpNackInfo, SeqComp> queue_;
+    std::map<uint16_t, SrsRtpNackInfo, SrsSeqCompareLess> queue_;
     // Max nack count.
     size_t max_queue_size_;
     SrsRtpRingBuffer* rtp_;
