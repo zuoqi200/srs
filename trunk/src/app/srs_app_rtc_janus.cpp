@@ -1091,7 +1091,7 @@ srs_error_t SrsJanusCall::publisher_exchange_sdp(SrsRequest* req, const SrsSdp& 
                     continue;
                 }
                 H264SpecificParam h264_param;
-                if ((err = parse_h264_fmtp(iter->format_specific_param_, h264_param)) != srs_success) {
+                if ((err = srs_parse_h264_fmtp(iter->format_specific_param_, h264_param)) != srs_success) {
                     srs_error_reset(err); continue;
                 }
 
