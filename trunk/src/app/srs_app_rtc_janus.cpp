@@ -226,6 +226,15 @@ srs_error_t SrsGoApiRtcJanus::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpM
         if ((err = call->trickle(req, &req_msg)) != srs_success) {
             return srs_error_wrap(err, "body %s", req_json.c_str());
         }
+    } else if (req_msg.janus == "destroy") {
+        if (!session) {
+            return srs_error_new(ERROR_RTC_JANUS_NO_SESSION, "destroy, no session id=%" PRId64, janus_session_id);
+        }
+
+        // TODO: FIXME: Maybe we should response error.
+        res->set("session", SrsJsonAny::integer(session->id_));
+
+        janus_->destroy(session, &req_msg);
     } else {
         srs_warn("RTC unknown action=%s, body=%s", req_msg.janus.c_str(), req_json.c_str());
         srs_usleep(API_ERROR_LIMIT);
@@ -345,6 +354,28 @@ srs_error_t SrsJanusServer::create(SrsJsonObject* req, SrsJanusMessage* msg, Srs
     return err;
 }
 
+void SrsJanusServer::destroy(SrsJanusSession* session, SrsJanusMessage* msg)
+{
+    string appid = session->appid_;
+    string channel = session->channel_;
+    string userid = session->userid_;
+    string session_id = session->sessionid_;
+
+    session->destroy();
+
+    srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, appid=%s, channel=%s, userid=%s, session_id=%s, session=%" PRId64,
+        msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
+        appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), session->id_);
+
+    // Remove session from server and destroy it.
+    map<uint64_t, SrsJanusSession*>::iterator it = sessions_.find(session->id_);
+    if (it != sessions_.end()) {
+        sessions_.erase(it);
+    }
+
+    srs_freep(session);
+}
+
 SrsJanusSession* SrsJanusServer::fetch(uint64_t sid)
 {
     map<uint64_t, SrsJanusSession*>::iterator it = sessions_.find(sid);
@@ -358,6 +389,16 @@ void SrsJanusServer::set_callee(SrsJanusCall* call)
 {
     string ucid = call->session_->appid_ + "/" + call->session_->channel_ + "/" + srs_int2str(call->feed_id_);
     publishers_[ucid] = call;
+}
+
+void SrsJanusServer::destroy_callee(SrsJanusCall* call)
+{
+    string ucid = call->session_->appid_ + "/" + call->session_->channel_ + "/" + srs_int2str(call->feed_id_);
+
+    std::map<std::string, SrsJanusCall*>::iterator it = publishers_.find(ucid);
+    if (it != publishers_.end()) {
+        publishers_.erase(it);
+    }
 }
 
 SrsJanusCall* SrsJanusServer::callee(string appid, string channel, uint64_t feed_id)
@@ -530,6 +571,21 @@ SrsJanusCall* SrsJanusSession::fetch(uint64_t sid)
     return it->second;
 }
 
+void SrsJanusSession::destroy()
+{
+    map<uint64_t, SrsJanusCall*>::iterator it;
+    for (it = calls_.begin(); it != calls_.end(); ++it) {
+        SrsJanusCall* call = it->second;
+
+        // For publisher, destroy the callee in server.
+        if (call->publisher_) {
+            janus_->destroy_callee(call);
+        }
+
+        call->destroy();
+    }
+}
+
 uint32_t SrsJanusCall::ssrc_num = 0;
 
 SrsJanusCall::SrsJanusCall(SrsJanusSession* s)
@@ -543,6 +599,11 @@ SrsJanusCall::SrsJanusCall(SrsJanusSession* s)
 
 SrsJanusCall::~SrsJanusCall()
 {
+}
+
+void SrsJanusCall::destroy()
+{
+    session_->janus_->rtc_->destroy(rtc_session_);
 }
 
 srs_error_t SrsJanusCall::message(SrsJsonObject* req, SrsJanusMessage* msg)

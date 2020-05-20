@@ -103,8 +103,10 @@ public:
     srs_error_t listen_api();
 public:
     srs_error_t create(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
+    void destroy(SrsJanusSession* session, SrsJanusMessage* msg);
     SrsJanusSession* fetch(uint64_t sid);
     void set_callee(SrsJanusCall* call);
+    void destroy_callee(SrsJanusCall* call);
     SrsJanusCall* callee(std::string appid, std::string channel, uint64_t feed_id);
 };
 
@@ -131,17 +133,18 @@ public:
 public:
     srs_error_t attach(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
     SrsJanusCall* fetch(uint64_t sid);
+    void destroy();
 };
 
 class SrsJanusCall
 {
 private:
-    bool publisher_;
     // TODO: FIXME: For subscriber, should free session if no answer.
     SrsRtcSession* rtc_session_;
     SrsRequest request;
     static uint32_t ssrc_num;
 public:
+    bool publisher_;
     SrsJanusSession* session_;
     std::string callid_;
     uint64_t id_;
@@ -151,6 +154,7 @@ public:
     SrsJanusCall(SrsJanusSession* s);
     virtual ~SrsJanusCall();
 public:
+    void destroy();
     srs_error_t message(SrsJsonObject* req, SrsJanusMessage* msg);
     srs_error_t trickle(SrsJsonObject* req, SrsJanusMessage* msg);
 private:
