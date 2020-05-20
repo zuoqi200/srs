@@ -360,12 +360,16 @@ void SrsJanusServer::destroy(SrsJanusSession* session, SrsJanusMessage* msg)
     string channel = session->channel_;
     string userid = session->userid_;
     string session_id = session->sessionid_;
-
-    session->destroy();
-
     srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, appid=%s, channel=%s, userid=%s, session_id=%s, session=%" PRId64,
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), session->id_);
+
+    do_destroy(session);
+}
+
+void SrsJanusServer::do_destroy(SrsJanusSession* session)
+{
+    session->destroy();
 
     // Remove session from server and destroy it.
     map<uint64_t, SrsJanusSession*>::iterator it = sessions_.find(session->id_);
@@ -409,6 +413,26 @@ SrsJanusCall* SrsJanusServer::callee(string appid, string channel, uint64_t feed
         return NULL;
     }
     return it->second;
+}
+
+void SrsJanusServer::on_timeout(SrsRtcSession* rtc_session)
+{
+    map<uint64_t, SrsJanusSession*>::iterator it;
+    for (it = sessions_.begin(); it != sessions_.end(); ++it) {
+        SrsJanusSession* session = it->second;
+        if (!session->find(rtc_session)) {
+            continue;
+        }
+
+        string appid = session->appid_;
+        string channel = session->channel_;
+        string userid = session->userid_;
+        string session_id = session->sessionid_;
+        srs_trace("RTC janus timeout remove, appid=%s, channel=%s, userid=%s, session_id=%s, session=%" PRId64,
+            appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), session->id_);
+            
+        do_destroy(session);
+    }
 }
 
 SrsJanusSession::SrsJanusSession(SrsJanusServer* j)
@@ -571,6 +595,19 @@ SrsJanusCall* SrsJanusSession::fetch(uint64_t sid)
     return it->second;
 }
 
+SrsJanusCall* SrsJanusSession::find(SrsRtcSession* session)
+{
+    map<uint64_t, SrsJanusCall*>::iterator it;
+    for (it = calls_.begin(); it != calls_.end(); ++it) {
+        SrsJanusCall* call = it->second;
+        if (call->rtc_session_ == session) {
+            return call;
+        }
+    }
+
+    return NULL;
+}
+
 void SrsJanusSession::destroy()
 {
     map<uint64_t, SrsJanusCall*>::iterator it;
@@ -603,7 +640,10 @@ SrsJanusCall::~SrsJanusCall()
 
 void SrsJanusCall::destroy()
 {
-    session_->janus_->rtc_->destroy(rtc_session_);
+    // Note that the rtc_session_ will be freed by rtc server.
+    if (rtc_session_) {
+        session_->janus_->rtc_->destroy(rtc_session_);
+    }
 }
 
 srs_error_t SrsJanusCall::message(SrsJsonObject* req, SrsJanusMessage* msg)

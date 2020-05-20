@@ -28,6 +28,7 @@
 
 #include <srs_http_stack.hpp>
 #include <srs_rtmp_stack.hpp>
+#include <srs_app_rtc_server.hpp>
 
 #include <map>
 #include <string>
@@ -89,7 +90,7 @@ private:
     srs_error_t do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, SrsJsonObject* res);
 };
 
-class SrsJanusServer
+class SrsJanusServer : public ISrsRtcServerHandler
 {
 private:
     std::map<uint64_t, SrsJanusSession*> sessions_;
@@ -104,10 +105,14 @@ public:
 public:
     srs_error_t create(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
     void destroy(SrsJanusSession* session, SrsJanusMessage* msg);
+private:
+    void do_destroy(SrsJanusSession* session);
+public:
     SrsJanusSession* fetch(uint64_t sid);
     void set_callee(SrsJanusCall* call);
     void destroy_callee(SrsJanusCall* call);
     SrsJanusCall* callee(std::string appid, std::string channel, uint64_t feed_id);
+    virtual void on_timeout(SrsRtcSession* rtc_session);
 };
 
 class SrsJanusSession
@@ -133,11 +138,13 @@ public:
 public:
     srs_error_t attach(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
     SrsJanusCall* fetch(uint64_t sid);
+    SrsJanusCall* find(SrsRtcSession* session);
     void destroy();
 };
 
 class SrsJanusCall
 {
+    friend class SrsJanusSession;
 private:
     // TODO: FIXME: For subscriber, should free session if no answer.
     SrsRtcSession* rtc_session_;
