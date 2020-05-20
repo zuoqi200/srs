@@ -274,6 +274,9 @@ srs_error_t SrsJanusServer::listen_api()
         return srs_error_wrap(err, "handle janus");
     }
 
+    // Handle the session timeout event.
+    rtc_->set_handler(this);
+
     return err;
 }
 
@@ -430,8 +433,9 @@ void SrsJanusServer::on_timeout(SrsRtcSession* rtc_session)
         string session_id = session->sessionid_;
         srs_trace("RTC janus timeout remove, appid=%s, channel=%s, userid=%s, session_id=%s, session=%" PRId64,
             appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), session->id_);
-            
+
         do_destroy(session);
+        return;
     }
 }
 
