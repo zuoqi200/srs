@@ -1335,7 +1335,7 @@ srs_error_t SrsGoApiPerf::serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage*
 
         p->set("target", SrsJsonAny::str(target.c_str()));
         p->set("reset", SrsJsonAny::str(reset.c_str()));
-        p->set("help", SrsJsonAny::str("?target=avframes|rtc|rtp|gso|writev_iovs|sendmmsg|bytes|dropped"));
+        p->set("help", SrsJsonAny::str("?target=avframes|rtc|rtp|writev_iovs|bytes"));
         p->set("help2", SrsJsonAny::str("?reset=all"));
     }
 
@@ -1371,24 +1371,6 @@ srs_error_t SrsGoApiPerf::serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage*
         }
     }
 
-    if (target.empty() || target == "gso") {
-        SrsJsonObject* p = SrsJsonAny::object();
-        data->set("gso", p);
-        if ((err = stat->dumps_perf_gso(p)) != srs_success) {
-            int code = srs_error_code(err); srs_error_reset(err);
-            return srs_api_response_code(w, r, code);
-        }
-    }
-
-    if (target.empty() || target == "sendmmsg") {
-        SrsJsonObject* p = SrsJsonAny::object();
-        data->set("sendmmsg", p);
-        if ((err = stat->dumps_perf_sendmmsg(p)) != srs_success) {
-            int code = srs_error_code(err); srs_error_reset(err);
-            return srs_api_response_code(w, r, code);
-        }
-    }
-
     if (target.empty() || target == "writev_iovs") {
         SrsJsonObject* p = SrsJsonAny::object();
         data->set("writev_iovs", p);
@@ -1402,15 +1384,6 @@ srs_error_t SrsGoApiPerf::serve_http(ISrsHttpResponseWriter* w, ISrsHttpMessage*
         SrsJsonObject* p = SrsJsonAny::object();
         data->set("bytes", p);
         if ((err = stat->dumps_perf_bytes(p)) != srs_success) {
-            int code = srs_error_code(err); srs_error_reset(err);
-            return srs_api_response_code(w, r, code);
-        }
-    }
-
-    if (target.empty() || target == "dropped") {
-        SrsJsonObject* p = SrsJsonAny::object();
-        data->set("dropped", p);
-        if ((err = stat->dumps_perf_dropped(p)) != srs_success) {
             int code = srs_error_code(err); srs_error_reset(err);
             return srs_api_response_code(w, r, code);
         }
@@ -1800,7 +1773,7 @@ srs_error_t SrsHttpApi::process_request(ISrsHttpResponseWriter* w, ISrsHttpMessa
     SrsHttpMessage* hm = dynamic_cast<SrsHttpMessage*>(r);
     srs_assert(hm);
     
-    srs_verbose("HTTP API %s %s, content-length=%" PRId64 ", chunked=%d/%d",
+    srs_trace("HTTP API %s %s, content-length=%" PRId64 ", chunked=%d/%d",
         r->method_str().c_str(), r->url().c_str(), r->content_length(),
         hm->is_chunked(), hm->is_infinite_chunked());
     

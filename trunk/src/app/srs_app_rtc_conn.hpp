@@ -53,8 +53,6 @@ class SrsRtcSession;
 class SrsSharedPtrMessage;
 class SrsRtcSource;
 class SrsRtpPacket2;
-class ISrsUdpSender;
-class SrsRtpPacket2;
 class ISrsCodec;
 class SrsRtpNackForReceiver;
 class SrsRtpIncommingVideoFrame;
@@ -153,8 +151,6 @@ private:
 class SrsRtcOutgoingInfo
 {
 public:
-    bool use_gso;
-public:
 #if defined(SRS_DEBUG)
     // Debug id.
     uint32_t debug_id;
@@ -183,8 +179,6 @@ public:
     int nn_videos;
     // The number of padded packet.
     int nn_paddings;
-    // The number of dropped messages.
-    int nn_dropped;
 public:
     SrsRtcOutgoingInfo();
     virtual ~SrsRtcOutgoingInfo();
@@ -213,9 +207,6 @@ private:
     // Simulators.
     int nn_simulate_nack_drop;
 private:
-    // For merged-write and GSO.
-    bool gso;
-    int max_padding;
     // For merged-write messages.
     int mw_msgs;
     bool realtime;
@@ -228,7 +219,6 @@ public:
     srs_error_t initialize(const uint32_t& vssrc, const uint32_t& assrc, const uint16_t& v_pt, const uint16_t& a_pt);
 // interface ISrsReloadHandler
 public:
-    virtual srs_error_t on_reload_rtc_server();
     virtual srs_error_t on_reload_vhost_play(std::string vhost);
     virtual srs_error_t on_reload_vhost_realtime(std::string vhost);
 public:
@@ -240,12 +230,8 @@ public:
 public:
     virtual srs_error_t cycle();
 private:
-    srs_error_t send_messages(SrsRtcSource* source, const std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
-    srs_error_t messages_to_packets(SrsRtcSource* source, const std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
-    srs_error_t package_opus(SrsRtpPacket2* pkt);
-    srs_error_t package_video(SrsRtpPacket2* pkt);
-    srs_error_t send_packets(const std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
-    srs_error_t send_packets_gso(const std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
+    srs_error_t send_packets(SrsRtcSource* source, const std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
+    srs_error_t do_send_packets(const std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
 public:
     void nack_fetch(std::vector<SrsRtpPacket2*>& pkts, uint32_t ssrc, uint16_t seq);
     void simulate_nack_drop(int nn);
@@ -335,6 +321,8 @@ class SrsRtcSession
     friend class SrsRtcDtls;
     friend class SrsRtcPlayer;
     friend class SrsRtcPublisher;
+public:
+    bool disposing_;
 private:
     SrsRtcServer* server_;
     SrsRtcSessionStateType state_;

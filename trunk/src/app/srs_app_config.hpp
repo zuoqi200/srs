@@ -527,19 +527,15 @@ public:
     virtual std::string get_rtc_server_candidates();
     virtual std::string get_rtc_server_ip_family();
     virtual bool get_rtc_server_ecdsa();
-    virtual int get_rtc_server_sendmmsg();
     virtual bool get_rtc_server_encrypt();
     virtual int get_rtc_server_reuseport();
     virtual bool get_rtc_server_merge_nalus();
-    virtual bool get_rtc_server_gso();
-    virtual int get_rtc_server_padding();
     virtual bool get_rtc_server_perf_stat();
     virtual int get_rtc_server_queue_length();
     virtual bool get_rtc_server_black_hole();
     virtual std::string get_rtc_server_black_hole_publisher();
 private:
     virtual int get_rtc_server_reuseport2();
-    virtual bool get_rtc_server_gso2();
 
 public:
     SrsConfDirective* get_rtc(std::string vhost);
