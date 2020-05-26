@@ -84,7 +84,7 @@ static std::vector<std::string> get_candidate_ips()
     string family = _srs_config->get_rtc_server_ip_family();
     for (int i = 0; i < (int)ips.size(); ++i) {
         SrsIPAddress* ip = ips[i];
-        if (!ip->is_loopback) {
+        if (ip->is_loopback) {
             continue;
         }
 
@@ -96,7 +96,7 @@ static std::vector<std::string> get_candidate_ips()
         }
 
         candidate_ips.push_back(ip->ip);
-        srs_warn("Best matched ip=%s, ifname=%s", ip->ip.c_str(), ip->ifname.c_str());
+        srs_trace("Best matched ip=%s, ifname=%s", ip->ip.c_str(), ip->ifname.c_str());
     }
 
     if (!candidate_ips.empty()) {
@@ -111,7 +111,7 @@ static std::vector<std::string> get_candidate_ips()
         }
 
         candidate_ips.push_back(ip->ip);
-        srs_warn("No best matched, use first ip=%s, ifname=%s", ip->ip.c_str(), ip->ifname.c_str());
+        srs_trace("No best matched, use first ip=%s, ifname=%s", ip->ip.c_str(), ip->ifname.c_str());
         return candidate_ips;
     }
 
@@ -463,7 +463,8 @@ void SrsRtcServer::check_and_clean_timeout_session()
         session->disposing_ = true;
         zombies_.push_back(session);
 
-        iter = map_username_session.erase(iter);
+        // Use C++98 style: https://stackoverflow.com/a/4636230
+        map_username_session.erase(iter++);
         map_id_session.erase(session->peer_id());
 
         if (handler) {

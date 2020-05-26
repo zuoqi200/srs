@@ -536,6 +536,12 @@ srs_error_t SrsRtcPlayer::initialize(const uint32_t& vssrc, const uint32_t& assr
     srs_trace("RTC publisher video(ssrc=%d, pt=%d), audio(ssrc=%d, pt=%d), nack=%d",
         video_ssrc, video_payload_type, audio_ssrc, audio_payload_type, nack_enabled_);
 
+    if (_srs_rtc_hijacker) {
+        if ((err = _srs_rtc_hijacker->on_start_play(session_, this, session_->req)) != srs_success) {
+            return srs_error_wrap(err, "on start play");
+        }
+    }
+
     return err;
 }
 
@@ -628,6 +634,12 @@ srs_error_t SrsRtcPlayer::cycle()
     vector<SrsRtpPacket2*> pkts;
     SrsRtcOutgoingInfo info;
 
+    if (_srs_rtc_hijacker) {
+        if ((err = _srs_rtc_hijacker->on_start_consume(session_, this, session_->req, consumer)) != srs_success) {
+            return srs_error_wrap(err, "on start consuming");
+        }
+    }
+
     while (true) {
         if ((err = trd->pull()) != srs_success) {
             return srs_error_wrap(err, "rtc sender thread");
@@ -709,23 +721,23 @@ srs_error_t SrsRtcPlayer::send_packets(SrsRtcSource* source, const vector<SrsRtp
             // TODO: FIXME: Why 960? Need Refactoring?
             audio_timestamp += 960;
             continue;
-         }
+        }
 
-         // For video, we should process all NALUs in samples.
-         info.nn_videos++;
+        // For video, we should process all NALUs in samples.
+        info.nn_videos++;
 
-         // For video, we should set the RTP packet informations about this consumer.
-         pkt->header.set_sequence(video_sequence++);
-         pkt->header.set_ssrc(video_ssrc);
-         pkt->header.set_payload_type(video_payload_type);
-     }
+        // For video, we should set the RTP packet informations about this consumer.
+        pkt->header.set_sequence(video_sequence++);
+        pkt->header.set_ssrc(video_ssrc);
+        pkt->header.set_payload_type(video_payload_type);
+    }
 
-     // By default, we send packets by sendmmsg.
-     if ((err = do_send_packets(pkts, info)) != srs_success) {
-         return srs_error_wrap(err, "raw send");
-     }
+    // By default, we send packets by sendmmsg.
+    if ((err = do_send_packets(pkts, info)) != srs_success) {
+        return srs_error_wrap(err, "raw send");
+    }
 
-     return err;
+    return err;
 }
 
 srs_error_t SrsRtcPlayer::do_send_packets(const std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info)
@@ -1100,7 +1112,7 @@ srs_error_t SrsRtcPublisher::initialize(uint32_t vssrc, uint32_t assrc, uint8_t 
     // TODO: FIXME: Support reload.
     nack_enabled_ = _srs_config->get_rtc_nack_enabled(session_->req->vhost);
 
-    srs_trace("RTC player video(ssrc=%u), audio(ssrc=%u), nack=%d",
+    srs_trace("RTC publisher video(ssrc=%u), audio(ssrc=%u), nack=%d",
         video_ssrc, audio_ssrc, nack_enabled_);
 
     if ((err = report_timer->tick(0 * SRS_UTIME_MILLISECONDS)) != srs_success) {
@@ -1120,6 +1132,12 @@ srs_error_t SrsRtcPublisher::initialize(uint32_t vssrc, uint32_t assrc, uint8_t 
     }
 
     source->set_rtc_publisher(this);
+
+    if (_srs_rtc_hijacker) {
+        if ((err = _srs_rtc_hijacker->on_start_publish(session_, this, req)) != srs_success) {
+            return srs_error_wrap(err, "on start publish");
+        }
+    }
 
     return err;
 }
@@ -1403,6 +1421,7 @@ srs_error_t SrsRtcPublisher::on_rtp(char* data, int nb_data)
         if ((err = pkt->decode(&b, &extension_map_)) != srs_success) {
             return srs_error_wrap(err, "decode rtp packet");
         }
+
         if (0 != twcc_ext_id_) {
             uint16_t twcc_sn = 0;
             if ((err = pkt->header.get_twcc_sequence_number(twcc_sn)) == srs_success) {
@@ -1416,10 +1435,12 @@ srs_error_t SrsRtcPublisher::on_rtp(char* data, int nb_data)
     // For source to consume packet.
     uint32_t ssrc = pkt->header.get_ssrc();
     if (ssrc == audio_ssrc) {
+        pkt->frame_type = SrsFrameTypeAudio;
         if ((err = on_audio(pkt)) != srs_success) {
             return srs_error_wrap(err, "on audio");
         }
     } else if (ssrc == video_ssrc) {
+        pkt->frame_type = SrsFrameTypeVideo;
         if ((err = on_video(pkt)) != srs_success) {
             return srs_error_wrap(err, "on video");
         }
@@ -1430,6 +1451,12 @@ srs_error_t SrsRtcPublisher::on_rtp(char* data, int nb_data)
     // For NACK to handle packet.
     if (nack_enabled_ && (err = on_nack(pkt)) != srs_success) {
         return srs_error_wrap(err, "on nack");
+    }
+
+    if (_srs_rtc_hijacker) {
+        if ((err = _srs_rtc_hijacker->on_rtp_packet(session_, this, req, pkt->copy())) != srs_success) {
+            return srs_error_wrap(err, "on rtp packet");
+        }
     }
 
     return err;
@@ -2034,7 +2061,7 @@ srs_error_t SrsRtcSession::initialize(SrsRtcSource* source, SrsRequest* r, bool 
     srs_trace("RTC init session, timeout=%dms, blackhole=%d", srsu2msi(sessionStunTimeout), blackhole);
 
     if (blackhole) {
-        string blackhole_ep = _srs_config->get_rtc_server_black_hole_publisher();
+        string blackhole_ep = _srs_config->get_rtc_server_black_hole_addr();
         if (!blackhole_ep.empty()) {
             string host; int port;
             srs_parse_hostport(blackhole_ep, host, port);
@@ -2226,6 +2253,7 @@ srs_error_t SrsRtcSession::start_publish()
             break;
         }
     }
+
     // FIXME: err process.
     if ((err = publisher_->initialize(video_ssrc, audio_ssrc, twcc_ext_id, req)) != srs_success) {
         return srs_error_wrap(err, "rtc publisher init");
@@ -2318,4 +2346,14 @@ srs_error_t SrsRtcSession::on_binding_request(SrsStunPacket* r)
 
     return err;
 }
+
+ISrsRtcHijacker::ISrsRtcHijacker()
+{
+}
+
+ISrsRtcHijacker::~ISrsRtcHijacker()
+{
+}
+
+ISrsRtcHijacker* _srs_rtc_hijacker = NULL;
 
