@@ -34,7 +34,6 @@
 #include <string>
 
 class SrsHttpUri;
-class SrsHttpParser;
 class ISrsHttpMessage;
 class SrsStSocket;
 class SrsTcpClient;
@@ -86,7 +85,6 @@ private:
     // The underlayer TCP transport, set to NULL when disconnect, or never not NULL when connected.
     // We will disconnect transport when initialize or channel error, such as send/recv error.
     SrsTcpClient* transport;
-    SrsHttpParser* parser;
     std::map<std::string, std::string> headers;
     // The timeout in srs_utime_t.
     srs_utime_t timeout;

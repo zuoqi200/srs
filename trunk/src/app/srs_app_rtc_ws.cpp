@@ -50,7 +50,6 @@ SrsWebsocketClient::SrsWebsocketClient(ISrsWebsocket* wb, int id)
     wb_handler_ = wb;
     state_ = SrsWebsocketClient::SrsWebsocketState_not_start;
     transport = NULL;
-    parser = NULL;
     recv_timeout = timeout = SRS_UTIME_NO_TIMEOUT;
     port = 0;
 
@@ -61,7 +60,6 @@ SrsWebsocketClient::~SrsWebsocketClient()
 {
     disconnect();
     
-    srs_freep(parser);
     srs_freep(trd);
 }
 
@@ -73,13 +71,6 @@ srs_error_t SrsWebsocketClient::connect(std::string url, srs_utime_t tm)
     SrsHttpUri uri;
     if ((err = uri.initialize(url)) != srs_success) {
         return srs_error_wrap(err, "http: parse url. url=%s", url.c_str());
-    }
-
-    srs_freep(parser);
-    parser = new SrsHttpParser();
-
-    if ((err = parser->initialize(HTTP_RESPONSE, false)) != srs_success) {
-        return srs_error_wrap(err, "http: init parser");
     }
     
     // Always disconnect the transport.
@@ -148,9 +139,14 @@ srs_error_t SrsWebsocketClient::negotiate(std::string uri)
         disconnect();
         return srs_error_wrap(err, "http: write");
     }
+
+    SrsHttpParser parser;
+    if ((err = parser.initialize(HTTP_RESPONSE, false)) != srs_success) {
+        return srs_error_wrap(err, "http: init parser");
+    }
     
     ISrsHttpMessage* msg = NULL;
-    if ((err = parser->parse_message(transport, &msg)) != srs_success) {
+    if ((err = parser.parse_message(transport, &msg)) != srs_success) {
         return srs_error_wrap(err, "http: parse response");
     }
     srs_assert(msg);
