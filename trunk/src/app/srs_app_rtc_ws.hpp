@@ -118,7 +118,6 @@ public:
 
 public:
     virtual srs_error_t cycle();
-
 };
 
 #endif

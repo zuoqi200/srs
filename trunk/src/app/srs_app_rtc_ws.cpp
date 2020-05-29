@@ -66,6 +66,7 @@ SrsWebsocketClient::~SrsWebsocketClient()
 srs_error_t SrsWebsocketClient::connect(std::string url, srs_utime_t tm)
 {
     srs_error_t err = srs_success;
+
     state_ = SrsWebsocketClient::SrsWebsocketState_negotiating;
 
     SrsHttpUri uri;
@@ -176,11 +177,13 @@ srs_error_t SrsWebsocketClient::send(ISrsWebsocket::SrsWebsocketMsgType type, ui
     } else {
         return srs_error_new(ERROR_WEBSOCKET_OPCODE, "unkown type %d", type);
     }
+
     return do_send(opcode, len, msg);
 }
 srs_error_t SrsWebsocketClient::do_send(uint8_t opcode, uint64_t len, uint8_t* msg)
 {
     srs_error_t err = srs_success;
+
     uint32_t mask_tmp = rand();
     uint8_t mask[4];
     memcpy(mask, &mask_tmp, sizeof(mask));
@@ -224,6 +227,7 @@ srs_error_t SrsWebsocketClient::do_send(uint8_t opcode, uint64_t len, uint8_t* m
 srs_error_t SrsWebsocketClient::close(SrsWebsocketStatusCode code, int len, uint8_t* msg)
 {
     srs_error_t err = srs_success;
+
     if (SrsWebsocketClient::SrsWebsocketState_not_start == state_ || 
         SrsWebsocketClient::SrsWebsocketState_negotiating == state_) {
         return srs_error_new(ERROR_WEBSOCKET_INVALID_STATUS, "cannot close. state:%d", state_);
@@ -243,6 +247,7 @@ srs_error_t SrsWebsocketClient::close(SrsWebsocketStatusCode code, int len, uint
     if (srs_success != (err = do_send(0x08, len+2, close_msg))) {
         return srs_error_wrap(err, "fail to send");
     }
+
     return err;
 }
 
@@ -330,6 +335,7 @@ srs_error_t SrsWebsocketClient::handle_msg(uint8_t opcode, uint64_t len, uint8_t
 srs_error_t SrsWebsocketClient::cycle()
 {
     srs_error_t err = srs_success;
+
     const int fix_size = 500 * 1024;
     uint8_t* payload_fix = new uint8_t[fix_size];
     SrsAutoFreeA(uint8_t, payload_fix);
@@ -381,6 +387,7 @@ srs_error_t SrsWebsocketClient::cycle()
                 payload_large = new uint8_t[real_len + 8];
                 p = payload_large;
         }
+        // TODO: FIXME: Use transport->read_fully
         while(rest > 0) {
             nread = 0;
             if (srs_success != (err = transport->read(p, rest, &nread))) {
@@ -403,6 +410,7 @@ srs_error_t SrsWebsocketClient::cycle()
             payload_large = NULL;
         }
     }
+
     return err;
 }
 
