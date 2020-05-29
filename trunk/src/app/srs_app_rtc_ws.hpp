@@ -37,8 +37,6 @@ class SrsHttpUri;
 class SrsHttpParser;
 class ISrsHttpMessage;
 class SrsStSocket;
-class SrsKbps;
-class SrsWallClock;
 class SrsTcpClient;
 
 // @see https://tools.ietf.org/html/rfc6455
@@ -90,8 +88,6 @@ private:
     SrsTcpClient* transport;
     SrsHttpParser* parser;
     std::map<std::string, std::string> headers;
-    SrsKbps* kbps;
-    SrsWallClock* clk;
     // The timeout in srs_utime_t.
     srs_utime_t timeout;
     srs_utime_t recv_timeout;

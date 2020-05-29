@@ -28,7 +28,6 @@
 #include <sstream>
 using namespace std;
 
-#include <srs_protocol_kbps.hpp>
 #include <srs_kernel_utility.hpp>
 #include <srs_kernel_consts.hpp>
 #include <srs_kernel_error.hpp>
@@ -51,8 +50,6 @@ SrsWebsocketClient::SrsWebsocketClient(ISrsWebsocket* wb, int id)
     wb_handler_ = wb;
     state_ = SrsWebsocketClient::SrsWebsocketState_not_start;
     transport = NULL;
-    clk = new SrsWallClock();
-    kbps = new SrsKbps(clk);
     parser = NULL;
     recv_timeout = timeout = SRS_UTIME_NO_TIMEOUT;
     port = 0;
@@ -64,8 +61,6 @@ SrsWebsocketClient::~SrsWebsocketClient()
 {
     disconnect();
     
-    srs_freep(kbps);
-    srs_freep(clk);
     srs_freep(parser);
     srs_freep(trd);
 }
@@ -82,7 +77,7 @@ srs_error_t SrsWebsocketClient::connect(std::string url, srs_utime_t tm)
 
     srs_freep(parser);
     parser = new SrsHttpParser();
-    
+
     if ((err = parser->initialize(HTTP_RESPONSE, false)) != srs_success) {
         return srs_error_wrap(err, "http: init parser");
     }
@@ -265,7 +260,6 @@ srs_error_t SrsWebsocketClient::ping(uint64_t len, uint8_t* msg)
 
 void SrsWebsocketClient::disconnect()
 {
-    kbps->set_io(NULL, NULL);
     srs_freep(transport);
 }
 
@@ -288,8 +282,6 @@ srs_error_t SrsWebsocketClient::connect()
     // Set the recv/send timeout in srs_utime_t.
     transport->set_recv_timeout(recv_timeout);
     transport->set_send_timeout(timeout);
-    
-    kbps->set_io(transport, transport);
     
     return err;
 }
