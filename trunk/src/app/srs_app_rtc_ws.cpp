@@ -406,8 +406,7 @@ srs_error_t SrsWebsocketClient::cycle()
             if (srs_success != (err = handle_msg(opcode, real_len, payload_large))) {
                 srs_error("fail to process websocket msg. %s", srs_error_desc(err).c_str());   
             }
-            delete []payload_large;
-            payload_large = NULL;
+            srs_freepa(payload_large);
         }
     }
 
