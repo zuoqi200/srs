@@ -67,6 +67,7 @@ public:
     ISrsWebsocket();
     virtual ~ISrsWebsocket();
 public:
+    // TODO: FIXME: Add comments for interface.
     virtual srs_error_t on_recv_msg(int id, SrsWebsocketMsgType type, int msg_len, uint8_t* msg) = 0;
     virtual srs_error_t on_pong(int id, int msg_len, uint8_t* msg) = 0;
     virtual srs_error_t on_close(int id, uint16_t code, int msg_len, uint8_t* msg) = 0;
@@ -125,7 +126,6 @@ public:
     virtual srs_error_t cycle();
 
 };
-
 
 #endif
 

@@ -45,7 +45,6 @@ ISrsWebsocket::~ISrsWebsocket()
 {
 }
 
-
 SrsWebsocketClient::SrsWebsocketClient(ISrsWebsocket* wb, int id)
 {
     id_ = id;
@@ -71,7 +70,7 @@ SrsWebsocketClient::~SrsWebsocketClient()
     srs_freep(trd);
 }
 
-srs_error_t SrsWebsocketClient::connect(std::string url, srs_utime_t tm/* = SRS_HTTP_CLIENT_TIMEOUT*/)
+srs_error_t SrsWebsocketClient::connect(std::string url, srs_utime_t tm)
 {
     srs_error_t err = srs_success;
     state_ = SrsWebsocketClient::SrsWebsocketState_negotiating;
@@ -107,7 +106,7 @@ srs_error_t SrsWebsocketClient::connect(std::string url, srs_utime_t tm/* = SRS_
     headers["Connection"] = "Upgrade";
     headers["Upgrade"] = "websocket";
     headers["Sec-WebSocket-Version"] = "13";
-    //TODO: generate by random and encode by base64
+    // TODO: FIXME: generate by random and encode by base64
     headers["Sec-WebSocket-Key"] = "Cukm8ELu8audsfP6PqiQ7A==";
 
     string path = uri.get_path();
@@ -163,7 +162,7 @@ srs_error_t SrsWebsocketClient::negotiate(std::string uri)
     SrsAutoFree(ISrsHttpMessage, msg);
 
     int code = msg->status_code();
-    if(101 != code) {
+    if (101 != code) {
         return srs_error_new(ERROR_WEBSOCKET_STATUS_CODE, "invalid status code %d", code);
     }
 
@@ -174,14 +173,14 @@ srs_error_t SrsWebsocketClient::negotiate(std::string uri)
     
 srs_error_t SrsWebsocketClient::send(ISrsWebsocket::SrsWebsocketMsgType type, uint64_t len, uint8_t* msg)
 {
-    if(SrsWebsocketClient::SrsWebsocketState_connected != state_) {
+    if (SrsWebsocketClient::SrsWebsocketState_connected != state_) {
         return srs_error_new(ERROR_WEBSOCKET_INVALID_STATUS, "cannot send. current state %d", state_);
     }
 
     uint8_t opcode = 0x01;
-    if(ISrsWebsocket::SrsWebsocketMsgType_text == type) {
+    if (ISrsWebsocket::SrsWebsocketMsgType_text == type) {
         opcode = 0x01;
-    } else if(ISrsWebsocket::SrsWebsocketMsgType_bin == type) {
+    } else if (ISrsWebsocket::SrsWebsocketMsgType_bin == type) {
         opcode = 0x02;
     } else {
         return srs_error_new(ERROR_WEBSOCKET_OPCODE, "unkown type %d", type);
@@ -195,9 +194,9 @@ srs_error_t SrsWebsocketClient::do_send(uint8_t opcode, uint64_t len, uint8_t* m
     uint8_t mask[4];
     memcpy(mask, &mask_tmp, sizeof(mask));
     uint64_t msg_len = 2 /* header*/ + sizeof(mask) + len;
-    if((125 < len) && (0xFFFF >= len)) {
+    if ((125 < len) && (0xFFFF >= len)) {
         msg_len += 2;
-    } else if( 0xFFFF < len) {
+    } else if ( 0xFFFF < len) {
         msg_len += 8;
     }
 
@@ -205,9 +204,9 @@ srs_error_t SrsWebsocketClient::do_send(uint8_t opcode, uint64_t len, uint8_t* m
     SrsBuffer buf((char*)bin, msg_len);
     buf.write_1bytes(0x80 | opcode);
 
-    if(125 >= len) {
+    if (125 >= len) {
         buf.write_1bytes(0x80 | len);
-    } else if(0xFFFF >= len) {
+    } else if (0xFFFF >= len) {
         buf.write_1bytes((int8_t)(0x80 | 0x7E));
         buf.write_2bytes(len);
     } else {
@@ -222,7 +221,7 @@ srs_error_t SrsWebsocketClient::do_send(uint8_t opcode, uint64_t len, uint8_t* m
 
     while(0 < msg_len) {
         ssize_t nwrite = 0;
-        if(srs_success != (err = transport->write(bin, msg_len, &nwrite))) {
+        if (srs_success != (err = transport->write(bin, msg_len, &nwrite))) {
             return srs_error_wrap(err, "fail to send websocket msg. msg_len:%d", msg_len);
         }
         msg_len -= nwrite;
@@ -234,12 +233,12 @@ srs_error_t SrsWebsocketClient::do_send(uint8_t opcode, uint64_t len, uint8_t* m
 srs_error_t SrsWebsocketClient::close(SrsWebsocketStatusCode code, int len, uint8_t* msg)
 {
     srs_error_t err = srs_success;
-    if(SrsWebsocketClient::SrsWebsocketState_not_start == state_ || 
+    if (SrsWebsocketClient::SrsWebsocketState_not_start == state_ || 
         SrsWebsocketClient::SrsWebsocketState_negotiating == state_) {
         return srs_error_new(ERROR_WEBSOCKET_INVALID_STATUS, "cannot close. state:%d", state_);
     }
 
-    if(SrsWebsocketClient::SrsWebsocketState_closing == state_ || 
+    if (SrsWebsocketClient::SrsWebsocketState_closing == state_ || 
         SrsWebsocketClient::SrsWebsocketState_closed == state_) {
         return srs_success;
     }
@@ -250,7 +249,7 @@ srs_error_t SrsWebsocketClient::close(SrsWebsocketStatusCode code, int len, uint
     SrsAutoFreeA(uint8_t, close_msg);
     memcpy(close_msg, &net_code, sizeof(net_code));
     memcpy(close_msg+sizeof(net_code), msg, len);
-    if(srs_success != (err = do_send(0x08, len+2, close_msg))) {
+    if (srs_success != (err = do_send(0x08, len+2, close_msg))) {
         return srs_error_wrap(err, "fail to send");
     }
     return err;
@@ -258,7 +257,7 @@ srs_error_t SrsWebsocketClient::close(SrsWebsocketStatusCode code, int len, uint
 
 srs_error_t SrsWebsocketClient::ping(uint64_t len, uint8_t* msg)
 {
-    if(SrsWebsocketClient::SrsWebsocketState_connected != state_) {
+    if (SrsWebsocketClient::SrsWebsocketState_connected != state_) {
         return srs_error_new(ERROR_WEBSOCKET_INVALID_STATUS, "cannot ping. state:%d", state_);
     }
     return do_send(0x09, len, msg);
@@ -299,35 +298,35 @@ srs_error_t SrsWebsocketClient::handle_msg(uint8_t opcode, uint64_t len, uint8_t
 {
     srs_error_t err = srs_success;
 
-    if(0x09 == opcode) {
+    if (0x09 == opcode) {
         // handle ping request and response pong
         return do_send(0x0A, len, msg);
-    } else if( 0x01 == opcode) {
+    } else if ( 0x01 == opcode) {
         // invoke handler->recv
         return wb_handler_->on_recv_msg(id_, ISrsWebsocket::SrsWebsocketMsgType_text, len , msg);
-    } else if(0x02 == opcode) {
+    } else if (0x02 == opcode) {
         return wb_handler_->on_recv_msg(id_, ISrsWebsocket::SrsWebsocketMsgType_bin, len , msg);
-    } else if(0x0A == opcode) {
+    } else if (0x0A == opcode) {
         // receive pong response and invoke header->on_pong
         return wb_handler_->on_pong(id_, len, msg);
-    } else if(0x08 == opcode) {
+    } else if (0x08 == opcode) {
         //receive close msg
         //if it has send close request, so it is response, then just close
         // if not , it is request. Then send close response and invoke handler on_close
-        if(SrsWebsocketClient::SrsWebsocketState_closing != state_) {
+        if (SrsWebsocketClient::SrsWebsocketState_closing != state_) {
             // invoke handler
-            if(2 <= len) {
+            if (2 <= len) {
                 uint16_t code = ntohs(*((uint16_t*)msg));
-                if(srs_success != (err = wb_handler_->on_close(id_, code, len - 2 , msg + 2))) {
+                if (srs_success != (err = wb_handler_->on_close(id_, code, len - 2 , msg + 2))) {
                     return srs_error_wrap(err, "fail to handle close request");
                 }
             } else {
-                if(srs_success != (err = wb_handler_->on_close(id_, 1000, 0 , NULL))) {
+                if (srs_success != (err = wb_handler_->on_close(id_, 1000, 0 , NULL))) {
                     return srs_error_wrap(err, "fail to handle close request");
                 }
             }
             // send close response
-            if(srs_success != (err = do_send(0x08, 0, NULL))) {
+            if (srs_success != (err = do_send(0x08, 0, NULL))) {
                 return srs_error_wrap(err, "fail to send close response. %s", msg);
             }
         } 
@@ -356,11 +355,11 @@ srs_error_t SrsWebsocketClient::cycle()
         }
 
         memset(header, 0, sizeof(header));
-        if(srs_success != (err = transport->read(header, 2, &nread))) {
+        if (srs_success != (err = transport->read(header, 2, &nread))) {
             return srs_error_wrap(err, "fail to read websocket header");
         }
 
-        if(0 == nread) {
+        if (0 == nread) {
             continue;
         }
         // TODO: check if nread < 2, proceed to read header
@@ -372,15 +371,15 @@ srs_error_t SrsWebsocketClient::cycle()
         srs_trace("recv websocket header: fin %u, opcode %u, payload_len %u", fin, opcode, payload_len);
 
         uint64_t real_len = payload_len;
-        if(0x7E > real_len) {
+        if (0x7E > real_len) {
             real_len = payload_len;
-        } else if(0x7E == real_len) {
-            if(srs_success != (err = transport->read(header+2, 2, &nread))) {
+        } else if (0x7E == real_len) {
+            if (srs_success != (err = transport->read(header+2, 2, &nread))) {
                 return srs_error_wrap(err, "fail to read websocket len");
             }
             real_len = ntohs(*((uint16_t*)(header + 2)));
-        } else if(0x7F == real_len) {
-            if(srs_success != (err = transport->read(header+2, 8, &nread))) {
+        } else if (0x7F == real_len) {
+            if (srs_success != (err = transport->read(header+2, 8, &nread))) {
                 return srs_error_wrap(err, "fail to read websocket len");
             }
             real_len = ntohll(*((uint64_t*)(header+2)));
@@ -390,26 +389,26 @@ srs_error_t SrsWebsocketClient::cycle()
 
         uint64_t rest = real_len;
         uint8_t* p = payload_fix;
-        if(fix_size <= real_len) {
+        if (fix_size <= real_len) {
                 payload_large = new uint8_t[real_len + 8];
                 p = payload_large;
         }
         while(rest > 0) {
             nread = 0;
-            if(srs_success != (err = transport->read(p, rest, &nread))) {
+            if (srs_success != (err = transport->read(p, rest, &nread))) {
                 return srs_error_wrap(err, "fail to read websocket payload");
             }
             p += nread;
             rest -= nread;
         }
-        if(fix_size > real_len) {
+        if (fix_size > real_len) {
             srs_trace("websocket: recv payload - %s", payload_fix);
-            if(srs_success != (err = handle_msg(opcode, real_len, payload_fix))) {
+            if (srs_success != (err = handle_msg(opcode, real_len, payload_fix))) {
                 srs_error("fail to process websocket msg. %s", srs_error_desc(err).c_str());   
             }
         } else {
             srs_trace("websocket: recv payload - %s", payload_large);
-            if(srs_success != (err = handle_msg(opcode, real_len, payload_large))) {
+            if (srs_success != (err = handle_msg(opcode, real_len, payload_large))) {
                 srs_error("fail to process websocket msg. %s", srs_error_desc(err).c_str());   
             }
             delete []payload_large;
