@@ -39,11 +39,11 @@
 #define SRS_XSTR(v) SRS_INTERNAL_STR(v)
 
 // The project informations, may sent to client in HTTP header or RTMP metadata.
-#define RTMP_SIG_SRS_KEY "SRS"
-#define RTMP_SIG_SRS_CODE "Leo"
-#define RTMP_SIG_SRS_URL "https://github.com/ossrs/srs"
-#define RTMP_SIG_SRS_LICENSE "MIT"
-#define RTMP_SIG_SRS_AUTHORS "Winlin,Wenjie,Runner365,John,B.P.Y,Lixin"
+#define RTMP_SIG_SRS_KEY "Tenfold"
+#define RTMP_SIG_SRS_CODE "Baseline"
+#define RTMP_SIG_SRS_URL "https://www.aliyun.com/product/rtc"
+#define RTMP_SIG_SRS_LICENSE "Commercial"
+#define RTMP_SIG_SRS_AUTHORS "AliRTC"
 #define RTMP_SIG_SRS_VERSION SRS_XSTR(VERSION_MAJOR) "." SRS_XSTR(VERSION_MINOR) "." SRS_XSTR(VERSION_REVISION)
 #define RTMP_SIG_SRS_SERVER RTMP_SIG_SRS_KEY "/" RTMP_SIG_SRS_VERSION "(" RTMP_SIG_SRS_CODE ")"
 
