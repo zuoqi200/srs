@@ -26,6 +26,7 @@
 #include <string>
 #include <arpa/inet.h>
 #include <sstream>
+#include <stdlib.h>
 using namespace std;
 
 #include <srs_kernel_utility.hpp>
@@ -35,6 +36,9 @@ using namespace std;
 #include <srs_core_autofree.hpp>
 #include <srs_service_http_conn.hpp>
 #include <srs_kernel_buffer.hpp>
+
+#define htonll(x) ((1==htonl(1)) ? (x) : ((int64_t)htonl((x) & 0xFFFFFFFF) << 32) | htonl((x) >> 32))
+#define ntohll(x) ((1==ntohl(1)) ? (x) : ((int64_t)ntohl((x) & 0xFFFFFFFF) << 32) | ntohl((x) >> 32))
 
 ISrsWebsocket::ISrsWebsocket()
 {
