@@ -289,7 +289,7 @@
 #define ERROR_INOTIFY_WATCH                 3094
 
 ///////////////////////////////////////////////////////
-// HTTP/StreamCaster protocol error.
+// WS/HTTP/StreamCaster protocol error.
 ///////////////////////////////////////////////////////
 #define ERROR_HTTP_PATTERN_EMPTY            4000
 #define ERROR_HTTP_PATTERN_DUPLICATED       4001
@@ -324,6 +324,9 @@
 #define ERROR_HTTP_302_INVALID              4038
 #define ERROR_BASE64_DECODE                 4039
 #define ERROR_HTTP_STREAM_EOF               4040
+#define ERROR_WEBSOCKET_STATUS_CODE         4041
+#define ERROR_WEBSOCKET_OPCODE              4042
+#define ERROR_WEBSOCKET_INVALID_STATUS      4043
 
 ///////////////////////////////////////////////////////
 // RTC protocol error.
