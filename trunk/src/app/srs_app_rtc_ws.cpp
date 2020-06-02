@@ -37,8 +37,13 @@ using namespace std;
 #include <srs_service_http_conn.hpp>
 #include <srs_kernel_buffer.hpp>
 
+#ifndef htonll
 #define htonll(x) ((1==htonl(1)) ? (x) : ((int64_t)htonl((x) & 0xFFFFFFFF) << 32) | htonl((x) >> 32))
+#endif
+
+#ifndef ntohll
 #define ntohll(x) ((1==ntohl(1)) ? (x) : ((int64_t)ntohl((x) & 0xFFFFFFFF) << 32) | ntohl((x) >> 32))
+#endif
 
 ISrsWebsocket::ISrsWebsocket()
 {
