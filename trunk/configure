@@ -273,12 +273,30 @@ for SRS_MODULE in ${SRS_MODULES[*]}; do
 done
 APP_INCS="src/app"; MODULE_DIR=${APP_INCS} . auto/modules.sh
 APP_OBJS="${MODULE_OBJS[@]}"
+
+#
+# WebRTC features.
+if [ $SRS_RTC = YES ]; then
+    MODULE_ID="WebRTC"
+    MODULE_DEPENDS=("CORE" "KERNEL" "PROTOCOL" "APP")
+    ModuleLibIncs=(${SRS_OBJS_DIR})
+    MODULE_FILES=(
+        "rtc_base/constructor_magic" "api/rtc_event_log/rtc_event_log"
+        "modules/congestion_controller/goog_cc/goog_cc_network_control"
+    )
+    WebRTC_INCS="src/webrtc"; MODULE_DIR=${WebRTC_INCS} . auto/modules.sh
+    WebRTC_OBJS="${MODULE_OBJS[@]}"
+fi
+
 #
 #Server Module, for SRS only.
 MODULE_ID="SERVER"
 MODULE_DEPENDS=("CORE" "KERNEL" "PROTOCOL" "APP")
 if [[ $SRS_SRT == YES ]]; then
     MODULE_DEPENDS+=("SRT")
+fi
+if [[ $SRS_RTC == YES ]]; then
+    MODULE_DEPENDS+=("WebRTC")
 fi
 ModuleLibIncs=(${SRS_OBJS_DIR} ${LibSTRoot} ${LibGperfRoot} ${LibSSLRoot})
 if [[ $SRS_RTC == YES ]]; then
@@ -332,6 +350,7 @@ fi
 MODULE_OBJS="${CORE_OBJS[@]} ${KERNEL_OBJS[@]} ${PROTOCOL_OBJS[@]} ${APP_OBJS[@]} ${SERVER_OBJS[@]}"
 ModuleLibIncs=(${SRS_OBJS_DIR} ${LibSTRoot} ${LibGperfRoot} ${LibSSLRoot})
 if [[ $SRS_RTC == YES ]]; then
+    MODULE_OBJS="${MODULE_OBJS} ${WebRTC_OBJS[@]}"
     ModuleLibIncs+=("${LibFfmpegRoot[*]}" ${LibSrtpRoot})
 fi
 if [[ $SRS_SRT == YES ]]; then
@@ -385,6 +404,9 @@ if [ $SRS_UTEST = YES ]; then
         MODULE_DEPENDS+=("SRT")
     fi
     MODULE_OBJS="${CORE_OBJS[@]} ${KERNEL_OBJS[@]} ${PROTOCOL_OBJS[@]} ${APP_OBJS[@]} ${SRT_OBJS[@]}"
+    if [[ $SRS_SRT == YES ]]; then
+        MODULE_OBJS="${MODULE_OBJS} ${WebRTC_OBJS[@]}"
+    fi
     LINK_OPTIONS="-lpthread ${SrsLinkOptions}" MODULE_DIR="src/utest" APP_NAME="srs_utest" . auto/utest.sh
 fi
 
@@ -396,7 +418,14 @@ fi
 # makefile
 echo "Generate Makefile"
 
-# backup old makefile.
+# For WebRTC, generate sub directorires.
+if [[ $SRS_RTC == YES ]]; then
+    for item in `find ${WebRTC_INCS} -type d`; do
+        echo "	@mkdir -p ${SRS_OBJS_DIR}/${item}" >> ${SRS_WORKDIR}/${SRS_MAKEFILE}
+    done
+fi
+
+# backup old makefile as tailer.
 rm -f ${SRS_WORKDIR}/${SRS_MAKEFILE}.bk &&
 mv ${SRS_WORKDIR}/${SRS_MAKEFILE} ${SRS_WORKDIR}/${SRS_MAKEFILE}.bk
 
