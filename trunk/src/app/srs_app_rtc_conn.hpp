@@ -195,7 +195,6 @@ protected:
 private:
     // TODO: FIXME: How to handle timestamp overflow?
     // Information for audio.
-    uint32_t audio_timestamp;
     uint16_t audio_sequence;
     uint32_t audio_ssrc;
     uint16_t audio_payload_type;
@@ -214,6 +213,8 @@ private:
     bool realtime;
     // Whether enabled nack.
     bool nack_enabled_;
+    // Whether keep original sequence number.
+    bool keep_sequence_;
 public:
     SrsRtcPlayer(SrsRtcSession* s, int parent_cid);
     virtual ~SrsRtcPlayer();
