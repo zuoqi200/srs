@@ -128,7 +128,7 @@ private:
 public:
     SrsJanusServer* janus_;
     uint64_t id_;
-    int cid_;
+    std::string cid_;
 public:
     SrsJanusSession(SrsJanusServer* j);
     virtual ~SrsJanusSession();
