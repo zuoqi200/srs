@@ -32,25 +32,42 @@ class SrsRequest;
 
 #include <openssl/ssl.h>
 
-class SrsDtls
+class SrsDtlsCertificate
 {
 private:
-    static SrsDtls* _instance;
-private:
     std::string fingerprint;
+    bool ecdsa_mode;
     X509* dtls_cert;
     EVP_PKEY* dtls_pkey;
     EC_KEY* eckey;
-private:
+public:
+    SrsDtlsCertificate();
+    virtual ~SrsDtlsCertificate();
+public:
+    // Initialize DTLS certificate.
+    srs_error_t initialize();
+    // dtls_cert
+    X509* get_cert();
+    // public key
+    EVP_PKEY* get_public_key();
+    // ECDSA key
+    EC_KEY* get_ecdsa_key();
+    // certificate fingerprint
+    std::string get_fingerprint();
+    // whether is ecdsa
+    bool is_ecdsa();
+};
+
+// @global config object.
+extern SrsDtlsCertificate* _srs_rtc_dtls_certificate;
+
+class SrsDtls
+{
+public:
     SrsDtls();
     virtual ~SrsDtls();
 public:
-    srs_error_t init(SrsRequest* r);
-public:
-    static SrsDtls* instance();
-    SSL_CTX* build_dtls_ctx();
-public:
-    std::string get_fingerprint() const;
+    static SSL_CTX* build_dtls_ctx();
 };
 
 #endif
