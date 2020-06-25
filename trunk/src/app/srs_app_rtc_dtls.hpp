@@ -31,6 +31,7 @@
 class SrsRequest;
 
 #include <openssl/ssl.h>
+#include <srtp2/srtp.h>
 
 class SrsDtlsCertificate
 {
@@ -93,10 +94,37 @@ public:
     srs_error_t initialize(SrsRequest* r);  
     srs_error_t do_handshake();
     srs_error_t on_dtls(char* data, int nb_data);
-    srs_error_t export_keying_material(unsigned char *out, size_t olen, const char *label, size_t llen, const unsigned char *p, size_t plen, int use_context);
+    srs_error_t get_srtp_key(std::string& recv_key, std::string& send_key);
 private:
     SSL_CTX* build_dtls_ctx();
     srs_error_t handshake();
+};
+
+class SrsSRTP
+{
+private:
+    srtp_t recv_ctx_;
+    srtp_t send_ctx_;
+public:
+    SrsSRTP();
+    virtual ~SrsSRTP();
+public:
+    // Intialize srtp context with recv_key and send_key.
+    srs_error_t initialize(std::string recv_key, std::string send_key);
+public:
+    // Encrypt the input plaintext to output cipher with nb_cipher bytes.
+    // @remark Note that the nb_cipher is the size of input plaintext, and 
+    // it also is the length of output cipher when return.
+    srs_error_t protect_rtp(const char* plaintext, char* cipher, int& nb_cipher);
+    srs_error_t protect_rtcp(const char* plaintext, char* cipher, int& nb_cipher);
+    // Encrypt the input rtp_hdr with *len_ptr bytes.
+    // @remark the input plaintext and out cipher reuse rtp_hdr.
+    srs_error_t protect_rtp2(void* rtp_hdr, int* len_ptr);
+    // Decrypt the input cipher to output cipher with nb_cipher bytes.
+    // @remark Note that the nb_plaintext is the size of input cipher, and 
+    // it also is the length of output plaintext when return.
+    srs_error_t unprotect_rtp(const char* cipher, char* plaintext, int& nb_plaintext);
+    srs_error_t unprotect_rtcp(const char* cipher, char* plaintext, int& nb_plaintext);
 };
 
 #endif
