@@ -40,6 +40,10 @@
 #include <srs_app_rtc_source.hpp>
 #include <srs_app_rtc_api.hpp>
 
+#ifdef SRS_CXX14
+#include <srs_api/srs_webrtc_log.hpp>
+#endif
+
 // @global dtls certficate for rtc module.
 SrsDtlsCertificate* _srs_rtc_dtls_certificate = new SrsDtlsCertificate();
 
@@ -523,12 +527,24 @@ RtcServerAdapter::RtcServerAdapter()
 
 RtcServerAdapter::~RtcServerAdapter()
 {
+#ifdef SRS_CXX14
+    unregister_webrtc_log();
+#endif
+
     srs_freep(rtc);
 }
 
 srs_error_t RtcServerAdapter::initialize()
 {
     srs_error_t err = srs_success;
+
+#ifdef SRS_CXX14
+    //initial_webrtc();
+    //initialize log of webrtc gcc/twcc
+    if(srs_success != register_webrtc_log()) {
+        return srs_error_wrap(err, "register webrtc log");
+    }
+#endif
 
     if ((err = _srs_rtc_dtls_certificate->initialize()) != srs_success) {
         return srs_error_wrap(err, "rtc dtls certificate initialize");

@@ -357,6 +357,10 @@
 #define ERROR_RTC_INVALID_PARAMS            5023
 #define ERROR_RTC_DUMMY_BRIDGER             5024
 
+#define ERROR_RTC_WEBRTC_CREATE_GCC         5800
+#define ERROR_RTC_PARSE_TWCC_FEEDBACK       5801
+#define ERROR_RTC_WEBRTC_GET_GCC            5802
+
 ///////////////////////////////////////////////////////
 // GB28181 API error.
 ///////////////////////////////////////////////////////

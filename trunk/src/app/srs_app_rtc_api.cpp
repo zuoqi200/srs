@@ -274,6 +274,7 @@ srs_error_t SrsGoApiRtcPlay::exchange_sdp(SrsRequest* req, const SrsSdp& remote_
     local_sdp.group_policy_ = "BUNDLE";
 
     bool nack_enabled = _srs_config->get_rtc_nack_enabled(req->vhost);
+    bool gcc_enabled = _srs_config->get_rtc_gcc_enabled(req->vhost);
 
     for (size_t i = 0; i < remote_sdp.media_descs_.size(); ++i) {
         const SrsMediaDesc& remote_media_desc = remote_sdp.media_descs_[i];
@@ -285,6 +286,28 @@ srs_error_t SrsGoApiRtcPlay::exchange_sdp(SrsRequest* req, const SrsSdp& remote_
         }
 
         SrsMediaDesc& local_media_desc = local_sdp.media_descs_.back();
+
+         // check extmap
+        bool use_twcc = false;
+        map<int, std::string> extmap = remote_media_desc.get_extmaps();
+        for(map<int, std::string>::iterator it = extmap.begin(); it != extmap.end(); ++it) {
+            if(kTWCCExt == it->second) {
+                local_media_desc.extmaps_[it->first] = kTWCCExt;
+                use_twcc = true;
+            }
+        }
+
+        if (use_twcc && !gcc_enabled) {
+            use_twcc = false;
+            srs_trace("Disable %s GCC for config is off", local_media_desc.type_.c_str());
+        }
+
+#ifndef SRS_CXX14
+        if (use_twcc) {
+            use_twcc = false;
+            srs_warn("Disable %s GCC for C++14 disabled", local_media_desc.type_.c_str());
+        }
+#endif
 
         if (remote_media_desc.is_audio()) {
             // TODO: check opus format specific param
@@ -299,6 +322,11 @@ srs_error_t SrsGoApiRtcPlay::exchange_sdp(SrsRequest* req, const SrsSdp& remote_
                 for (int j = 0; j < (int)rtcp_fb.size(); j++) {
                     if (nack_enabled) {
                         if (rtcp_fb.at(j) == "nack" || rtcp_fb.at(j) == "nack pli") {
+                            payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
+                        }
+                    }
+                    if (use_twcc) {
+                        if (rtcp_fb.at(j) == "transport-cc") {
                             payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
                         }
                     }
@@ -335,6 +363,11 @@ srs_error_t SrsGoApiRtcPlay::exchange_sdp(SrsRequest* req, const SrsSdp& remote_
                     for (int j = 0; j < (int)rtcp_fb.size(); j++) {
                         if (nack_enabled) {
                             if (rtcp_fb.at(j) == "nack" || rtcp_fb.at(j) == "nack pli") {
+                                payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
+                            }
+                        }
+                        if (use_twcc) {
+                            if (rtcp_fb.at(j) == "transport-cc") {
                                 payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
                             }
                         }

@@ -3785,7 +3785,7 @@ srs_error_t SrsConfig::check_normal_config()
                 && n != "security" && n != "http_remux" && n != "dash"
                 && n != "http_static" && n != "hds" && n != "exec"
                 && n != "in_ack_size" && n != "out_ack_size" && n != "rtc" && n != "nack"
-                && n != "twcc") {
+                && n != "twcc" && n != "gcc") {
                 return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "illegal vhost.%s", n.c_str());
             }
             // for each sub directives of vhost.
@@ -5079,6 +5079,25 @@ bool SrsConfig::get_rtc_twcc_enabled(string vhost)
     }
     return SRS_CONF_PERFER_TRUE(conf->arg0());
 }
+
+bool SrsConfig::get_rtc_gcc_enabled(string vhost)
+{
+    static bool DEFAULT = true;
+    SrsConfDirective* conf = get_vhost(vhost);
+    if (!conf) {
+        return DEFAULT;
+    }
+    conf = conf->get("gcc");
+    if (!conf) {
+        return DEFAULT;
+    }
+    conf = conf->get("enabled");
+    if (!conf || conf->arg0().empty()) {
+        return DEFAULT;
+    }
+    return SRS_CONF_PERFER_TRUE(conf->arg0());
+}
+
 SrsConfDirective* SrsConfig::get_vhost(string vhost, bool try_default_vhost)
 {
     srs_assert(root);
