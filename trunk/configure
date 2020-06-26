@@ -448,7 +448,6 @@ if [[ $SRS_RTC == YES && $SRS_CXX14 == YES ]]; then
 fi
 ModuleLibIncs=(${SRS_OBJS_DIR} ${LibSTRoot} ${LibGperfRoot} ${LibSSLRoot})
 if [[ $SRS_RTC == YES ]]; then
-    MODULE_OBJS="${MODULE_OBJS} ${WebRTC_OBJS[@]}"
     ModuleLibIncs+=(${LibSrtpRoot})
 fi
 if [[ $SRS_FFMPEG_FIT == YES ]]; then
