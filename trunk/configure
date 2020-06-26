@@ -520,7 +520,14 @@ fi
 # makefile
 echo "Generate Makefile"
 
-# backup old makefile.
+# For WebRTC, generate sub directorires.
+if [[ $SRS_RTC == YES ]]; then
+    for item in `find ${WebRTC_INCS} -type d`; do
+        echo "	@mkdir -p ${SRS_OBJS_DIR}/${item}" >> ${SRS_WORKDIR}/${SRS_MAKEFILE}
+    done
+fi
+
+# backup old makefile as tailer.
 rm -f ${SRS_WORKDIR}/${SRS_MAKEFILE}.bk &&
 mv ${SRS_WORKDIR}/${SRS_MAKEFILE} ${SRS_WORKDIR}/${SRS_MAKEFILE}.bk
 

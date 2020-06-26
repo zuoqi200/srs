@@ -20,7 +20,7 @@ SRS_SRT=NO
 SRS_RTC=YES
 SRS_GB28181=NO
 SRS_CXX11=NO
-SRS_CXX14=NO
+SRS_CXX14=YES
 SRS_NGINX=NO
 SRS_LIBRTMP=NO
 SRS_RESEARCH=NO
@@ -50,7 +50,7 @@ SRS_FFMPEG_STUB=NO
 # FFmpeg tool is the binary for FFmpeg tool, to exec ingest or transcode.
 SRS_FFMPEG_TOOL=NO
 # FFmpeg fit is the source code for RTC, to transcode audio or video in SRS.
-SRS_FFMPEG_FIT=RESERVED
+SRS_FFMPEG_FIT=YES
 # arguments
 SRS_PREFIX=/usr/local/srs
 SRS_JOBS=1
