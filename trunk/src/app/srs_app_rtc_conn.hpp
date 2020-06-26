@@ -39,6 +39,10 @@
 #include <srs_app_rtc_source.hpp>
 #include <srs_app_rtc_dtls.hpp>
 
+#ifdef SRS_CXX14
+#include <srs_api/srs_webrtc_api.hpp>
+#endif
+
 #include <string>
 #include <map>
 #include <vector>
@@ -212,11 +216,17 @@ private:
     bool nack_enabled_;
     // Whether keep original sequence number.
     bool keep_sequence_;
+private:
+    // twcc handler
+    int twcc_id_;
+#ifdef SRS_CXX14
+    SrsWebRtcTwcc twcc_controller;
+#endif
 public:
     SrsRtcPlayer(SrsRtcSession* s, std::string parent_cid);
     virtual ~SrsRtcPlayer();
 public:
-    srs_error_t initialize(const uint32_t& vssrc, const uint32_t& assrc, const uint16_t& v_pt, const uint16_t& a_pt);
+    srs_error_t initialize(const uint32_t& vssrc, const uint32_t& assrc, const uint16_t& v_pt, const uint16_t& a_pt, const int twcc_id);
 // interface ISrsReloadHandler
 public:
     virtual srs_error_t on_reload_vhost_play(std::string vhost);
@@ -245,6 +255,9 @@ private:
     srs_error_t on_rtcp_feedback(char* data, int nb_data);
     srs_error_t on_rtcp_ps_feedback(char* data, int nb_data);
     srs_error_t on_rtcp_rr(char* data, int nb_data);
+#ifdef SRS_CXX14
+    srs_error_t create_twcc_handler();
+#endif
 };
 
 class SrsRtcPublisher : virtual public ISrsHourGlass, virtual public ISrsRtpPacketDecodeHandler, virtual public ISrsRtcPublisher

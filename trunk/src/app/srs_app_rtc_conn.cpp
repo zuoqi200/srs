@@ -57,6 +57,10 @@ using namespace std;
 #include <srs_app_rtc_server.hpp>
 #include <srs_app_rtc_source.hpp>
 
+#ifdef SRS_CXX14
+#include <srs_api/srs_webrtc_api.hpp>
+#endif
+
 // TODO: FIXME: Move to utility.
 string gen_random_str(int len)
 {
@@ -287,6 +291,8 @@ SrsRtcPlayer::SrsRtcPlayer(SrsRtcSession* s, string parent_cid)
     nack_enabled_ = false;
     keep_sequence_ = false;
 
+    twcc_id_ = -1;
+
     _srs_config->subscribe(this);
 }
 
@@ -299,7 +305,7 @@ SrsRtcPlayer::~SrsRtcPlayer()
     srs_freep(video_queue_);
 }
 
-srs_error_t SrsRtcPlayer::initialize(const uint32_t& vssrc, const uint32_t& assrc, const uint16_t& v_pt, const uint16_t& a_pt)
+srs_error_t SrsRtcPlayer::initialize(const uint32_t& vssrc, const uint32_t& assrc, const uint16_t& v_pt, const uint16_t& a_pt, const int twcc_id)
 {
     srs_error_t err = srs_success;
 
@@ -324,6 +330,15 @@ srs_error_t SrsRtcPlayer::initialize(const uint32_t& vssrc, const uint32_t& assr
     srs_trace("RTC player video(ssrc=%d, pt=%d), audio(ssrc=%d, pt=%d), nack=%d, keep-seq=%d, sequence(audio=%u,video=%u,delta=%u)",
         video_ssrc, video_payload_type, audio_ssrc, audio_payload_type, nack_enabled_, keep_sequence_, audio_sequence, video_sequence, sequence_delta);
 
+    twcc_id_ = twcc_id;
+#ifdef SRS_CXX14
+    if(-1 != twcc_id_) {
+        if(srs_success != (err = create_twcc_handler())) {
+            return srs_error_wrap(err, "create twcc hanlder");
+        }
+    }
+#endif
+
     if (_srs_rtc_hijacker) {
         if ((err = _srs_rtc_hijacker->on_start_play(session_, this, session_->req)) != srs_success) {
             return srs_error_wrap(err, "on start play");
@@ -332,6 +347,19 @@ srs_error_t SrsRtcPlayer::initialize(const uint32_t& vssrc, const uint32_t& assr
 
     return err;
 }
+
+#ifdef SRS_CXX14
+srs_error_t SrsRtcPlayer::create_twcc_handler()
+{
+    srs_error_t err = srs_success;
+
+    if(srs_success != (err = twcc_controller.initialize())) {
+        return srs_error_wrap(err, "fail to initial twcc controller");
+    }
+
+    return err;
+}
+#endif
 
 srs_error_t SrsRtcPlayer::on_reload_vhost_play(string vhost)
 {
@@ -496,6 +524,14 @@ srs_error_t SrsRtcPlayer::send_packets(SrsRtcSource* source, const vector<SrsRtp
         info.nn_bytes += pkt->nb_bytes();
 
         uint16_t oseq = pkt->header.get_sequence();
+#ifdef SRS_CXX14
+        // set twcc sn
+        if(-1 != twcc_id_) {
+            pkt->header.set_twcc_sequence_number(twcc_id_, twcc_controller.allocate_twcc_sn());
+        }
+#endif
+
+        // For audio, we transcoded AAC to opus in extra payloads.
         if (pkt->is_audio()) {
             info.nn_audios++;
 
@@ -555,6 +591,7 @@ srs_error_t SrsRtcPlayer::do_send_packets(const std::vector<SrsRtpPacket2*>& pkt
         iov->iov_base = iov_base;
         iov->iov_len = kRtpPacketSize;
 
+        uint16_t twcc_sn = 0;
         // Marshal packet to bytes in iovec.
         if (true) {
             SrsBuffer stream((char*)iov->iov_base, iov->iov_len);
@@ -562,6 +599,19 @@ srs_error_t SrsRtcPlayer::do_send_packets(const std::vector<SrsRtpPacket2*>& pkt
                 return srs_error_wrap(err, "encode packet");
             }
             iov->iov_len = stream.pos();
+
+#ifdef SRS_CXX14
+            if(-1 != twcc_id_) {
+                //store rtp in twcc adaptor
+                if(srs_success != (err = pkt->header.get_twcc_sequence_number(twcc_sn))) {
+                    return srs_error_wrap(err, "get twcc sn");
+                }
+                if(srs_success != (err = twcc_controller.on_pre_send_packet(pkt->header.get_ssrc(), 
+                    pkt->header.get_sequence(),twcc_sn, stream.pos()))) {
+                    return srs_error_wrap(err, "store sending rtp pkt in adaptor");
+                }
+            }
+#endif
         }
 
         // Whether encrypt the RTP bytes.
@@ -614,6 +664,14 @@ srs_error_t SrsRtcPlayer::do_send_packets(const std::vector<SrsRtpPacket2*>& pkt
         // Detail log, should disable it in release version.
         srs_info("RTC: SEND PT=%u, SSRC=%#x, SEQ=%u, Time=%u, %u/%u bytes", pkt->header.get_payload_type(), pkt->header.get_ssrc(),
             pkt->header.get_sequence(), pkt->header.get_timestamp(), pkt->nb_bytes(), iov->iov_len);
+
+#ifdef SRS_CXX14
+        if(-1 != twcc_id_) {
+            if(srs_success != (err = twcc_controller.on_sent_packet(twcc_sn))) {
+                return srs_error_wrap(err, "set sent event of rtp pkt in twcc");
+            }
+        }
+#endif
     }
 
     return err;
@@ -752,10 +810,27 @@ srs_error_t SrsRtcPlayer::on_rtcp_feedback(char* buf, int nb_buf)
        :            Feedback Control Information (FCI)                 :
        :                                                               :
     */
-    /*uint8_t first = */stream->read_1bytes();
+    uint8_t first = stream->read_1bytes();
     //uint8_t version = first & 0xC0;
     //uint8_t padding = first & 0x20;
-    //uint8_t fmt = first & 0x1F;
+    uint8_t fmt = first & 0x1F;
+    if((-1 != twcc_id_) && (15 == fmt)) {
+#ifdef SRS_CXX14
+        if(srs_success != (err = twcc_controller.on_received_rtcp((uint8_t*)buf, nb_buf))) {
+            return srs_error_wrap(err, "handle twcc feedback rtcp");
+        }
+
+        float lossrate = 0.0;
+        int bitrate_bps = 0;
+        int delay_bitrate_bps = 0;
+        int rtt = 0;
+        if(srs_success != (err = twcc_controller.get_network_status(lossrate, bitrate_bps, delay_bitrate_bps, rtt))) {
+            return srs_error_wrap(err, "get twcc network status");
+        }
+        srs_verbose("twcc - lossrate:%f, bitrate:%d, delay_bitrate:%d, rtt:%d", lossrate, bitrate_bps, delay_bitrate_bps, rtt);
+#endif
+        return err;
+    }
 
     /*uint8_t payload_type = */stream->read_1bytes();
     /*uint16_t length = */stream->read_2bytes();
@@ -2007,6 +2082,7 @@ srs_error_t SrsRtcSession::start_play()
     uint32_t audio_ssrc = 0;
     uint16_t video_payload_type = 0;
     uint16_t audio_payload_type = 0;
+    int twcc_id = -1;
     for (size_t i = 0; i < local_sdp.media_descs_.size(); ++i) {
         const SrsMediaDesc& media_desc = local_sdp.media_descs_[i];
         if (media_desc.is_audio()) {
@@ -2015,10 +2091,17 @@ srs_error_t SrsRtcSession::start_play()
         } else if (media_desc.is_video()) {
             video_ssrc = media_desc.ssrc_infos_[0].ssrc_;
             video_payload_type = media_desc.payload_types_[0].payload_type_;
+            //TODO: just judgement video media whether to support twcc
+            std::map<int, std::string> exts = media_desc.get_extmaps();
+            for(std::map<int, std::string>::iterator it = exts.begin(); it != exts.end(); ++it) {
+                if(kTWCCExt == it->second) {
+                    twcc_id = it->first;
+                }
+            }
         }
     }
 
-    if ((err = player_->initialize(video_ssrc, audio_ssrc, video_payload_type, audio_payload_type)) != srs_success) {
+    if ((err = player_->initialize(video_ssrc, audio_ssrc, video_payload_type, audio_payload_type, twcc_id)) != srs_success) {
         return srs_error_wrap(err, "SrsRtcPlayer init");
     }
 

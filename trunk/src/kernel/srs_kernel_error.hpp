@@ -356,9 +356,14 @@
 #define ERROR_RTC_NO_SESSION                5022
 #define ERROR_RTC_INVALID_PARAMS            5023
 #define ERROR_RTC_DUMMY_BRIDGER             5024
+
 #define ERROR_RTC_JANUS_INVALID_PARAMETER   5100
 #define ERROR_RTC_JANUS_NO_SESSION          5101
 #define ERROR_RTC_JANUS_NO_CALL             5102
+
+#define ERROR_RTC_WEBRTC_CREATE_GCC         5800
+#define ERROR_RTC_PARSE_TWCC_FEEDBACK       5801
+#define ERROR_RTC_WEBRTC_GET_GCC            5802
 
 ///////////////////////////////////////////////////////
 // GB28181 API error.

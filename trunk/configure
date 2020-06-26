@@ -240,6 +240,77 @@ if [[ $SRS_FFMPEG_FIT == YES ]]; then
 fi
 PROTOCOL_INCS="src/protocol"; MODULE_DIR=${PROTOCOL_INCS} . auto/modules.sh
 PROTOCOL_OBJS="${MODULE_OBJS[@]}"
+
+#
+# WebRTC features.
+if [[ $SRS_RTC == YES && $SRS_CXX14 == YES ]]; then
+    MODULE_ID="WebRTC"
+    MODULE_DEPENDS=("CORE" "KERNEL" "PROTOCOL")
+    ModuleLibIncs=(${SRS_OBJS_DIR})
+    MODULE_FILES=(
+        "api/rtc_event_log/rtc_event"
+        "api/rtc_event_log/rtc_event_log"
+        "api/units/data_rate"
+        "api/units/data_size"
+        "api/units/time_delta"
+        "api/transport/field_trial_based_config"
+        "api/transport/network_types"
+        "logging/rtc_event_log/events/rtc_event_alr_state"
+        "logging/rtc_event_log/events/rtc_event_bwe_update_delay_based"
+        "logging/rtc_event_log/events/rtc_event_bwe_update_loss_based"
+        "logging/rtc_event_log/events/rtc_event_probe_cluster_created"
+        "logging/rtc_event_log/events/rtc_event_probe_result_failure"
+        "logging/rtc_event_log/events/rtc_event_probe_result_success"
+        "modules/congestion_controller/goog_cc/acknowledged_bitrate_estimator"
+        "modules/congestion_controller/goog_cc/alr_detector"
+        "modules/congestion_controller/goog_cc/bitrate_estimator"
+        "modules/congestion_controller/goog_cc/congestion_window_pushback_controller"
+        "modules/congestion_controller/goog_cc/delay_based_bwe"
+        "modules/congestion_controller/goog_cc/goog_cc_network_control"
+        "modules/congestion_controller/goog_cc/link_capacity_estimator"
+        "modules/congestion_controller/goog_cc/loss_based_bandwidth_estimation"
+        "modules/congestion_controller/goog_cc/median_slope_estimator"
+        "modules/congestion_controller/goog_cc/probe_bitrate_estimator"
+        "modules/congestion_controller/goog_cc/probe_controller"
+        "modules/congestion_controller/goog_cc/send_side_bandwidth_estimation"
+        "modules/congestion_controller/goog_cc/trendline_estimator"
+        "modules/congestion_controller/rtp/transport_feedback_adapter"
+        "modules/include/module_common_types_public"
+        "modules/pacing/interval_budget"
+        "modules/remote_bitrate_estimator/aimd_rate_control"
+        "modules/remote_bitrate_estimator/bwe_defines"
+        "modules/remote_bitrate_estimator/inter_arrival"
+        "modules/remote_bitrate_estimator/overuse_detector"
+        "modules/rtp_rtcp/include/rtp_rtcp_defines"
+        "modules/rtp_rtcp/source/rtcp_packet"
+        "modules/rtp_rtcp/source/rtcp_packet/common_header"
+        "modules/rtp_rtcp/source/rtcp_packet/rtpfb"
+        "modules/rtp_rtcp/source/rtcp_packet/transport_feedback"
+        "rtc_base/checks"
+        "rtc_base/critical_section"
+        "rtc_base/experiments/alr_experiment"
+        "rtc_base/experiments/field_trial_parser"
+        "rtc_base/experiments/field_trial_units"
+        "rtc_base/experiments/struct_parameters_parser"
+        "rtc_base/experiments/rate_control_settings"
+        "rtc_base/network/sent_packet"
+        "rtc_base/time_utils"
+        "rtc_base/race_checker"
+        "rtc_base/logging"
+        "rtc_base/strings/string_builder"
+        "rtc_base/string_encode"
+        "rtc_base/string_utils"
+        "rtc_base/platform_thread_types"
+        "srs_api/srs_webrtc_log"
+        "srs_api/srs_webrtc_api"
+        "system_wrappers/source/field_trial"
+        "system_wrappers/source/metrics"
+        "third_party/abseil-cpp/absl/types/bad_optional_access"
+    )
+    WebRTC_INCS="src/webrtc"; MODULE_DIR=${WebRTC_INCS} . auto/modules.sh
+    WebRTC_OBJS="${MODULE_OBJS[@]}"
+fi
+
 #
 #srt protocol features.
 if [ $SRS_SRT = YES ]; then
@@ -255,6 +326,9 @@ fi
 #App Module, for SRS server only.
 MODULE_ID="APP"
 MODULE_DEPENDS=("CORE" "KERNEL" "PROTOCOL")
+if [[ $SRS_RTC == YES && $SRS_CXX14 == YES ]]; then
+    MODULE_DEPENDS+=("WebRTC")
+fi
 ModuleLibIncs=(${SRS_OBJS_DIR} ${LibSTRoot} ${LibSSLRoot})
 if [ $SRS_GPERF = YES ]; then
     ModuleLibIncs+=(${LibGperfRoot})
@@ -298,23 +372,12 @@ APP_INCS="src/app"; MODULE_DIR=${APP_INCS} . auto/modules.sh
 APP_OBJS="${MODULE_OBJS[@]}"
 
 #
-# WebRTC features.
-if [ $SRS_RTC = YES ]; then
-    MODULE_ID="WebRTC"
-    MODULE_DEPENDS=("CORE" "KERNEL" "PROTOCOL" "APP")
-    ModuleLibIncs=(${SRS_OBJS_DIR})
-    MODULE_FILES=(
-        "rtc_base/constructor_magic" "api/rtc_event_log/rtc_event_log"
-        "modules/congestion_controller/goog_cc/goog_cc_network_control"
-    )
-    WebRTC_INCS="src/webrtc"; MODULE_DIR=${WebRTC_INCS} . auto/modules.sh
-    WebRTC_OBJS="${MODULE_OBJS[@]}"
-fi
-
-#
 #Server Module, for SRS only.
 MODULE_ID="SERVER"
 MODULE_DEPENDS=("CORE" "KERNEL" "PROTOCOL" "APP")
+if [[ $SRS_RTC == YES && $SRS_CXX14 == YES ]]; then
+    MODULE_DEPENDS+=("WebRTC")
+fi
 if [[ $SRS_SRT == YES ]]; then
     MODULE_DEPENDS+=("SRT")
 fi
@@ -380,6 +443,9 @@ if [[ $SRS_SRT == YES ]]; then
 fi
 # all depends objects
 MODULE_OBJS="${CORE_OBJS[@]} ${KERNEL_OBJS[@]} ${PROTOCOL_OBJS[@]} ${APP_OBJS[@]} ${SERVER_OBJS[@]}"
+if [[ $SRS_RTC == YES && $SRS_CXX14 == YES ]]; then
+    MODULE_OBJS="${MODULE_OBJS} ${WebRTC_OBJS[@]}"
+fi
 ModuleLibIncs=(${SRS_OBJS_DIR} ${LibSTRoot} ${LibGperfRoot} ${LibSSLRoot})
 if [[ $SRS_RTC == YES ]]; then
     MODULE_OBJS="${MODULE_OBJS} ${WebRTC_OBJS[@]}"
