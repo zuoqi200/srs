@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-
-#ifndef WEBRTC_BASE_CONSTRUCTOR_MAGIC
-#define WEBRTC_BASE_CONSTRUCTOR_MAGIC
-
-extern int webrtc_compile_base();
-
-#endif
-
-=======
 /*
  *  Copyright 2004 The WebRTC Project Authors. All rights reserved.
  *
@@ -42,4 +32,4 @@ extern int webrtc_compile_base();
   RTC_DISALLOW_COPY_AND_ASSIGN(TypeName)
 
 #endif  // RTC_BASE_CONSTRUCTOR_MAGIC_H_
->>>>>>> tenfold
+

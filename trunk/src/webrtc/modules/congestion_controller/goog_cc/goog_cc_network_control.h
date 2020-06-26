@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-
-#ifndef WEBRTC_MODULES_GCC_NETWORK_CONTROL
-#define WEBRTC_MODULES_GCC_NETWORK_CONTROL
-
-extern int webrtc_compile_gcc();
-
-#endif
-
-=======
 /*
  *  Copyright (c) 2018 The WebRTC project authors. All Rights Reserved.
  *
@@ -150,4 +140,4 @@ class GoogCcNetworkController : public NetworkControllerInterface {
 }  // namespace webrtc
 
 #endif  // MODULES_CONGESTION_CONTROLLER_GOOG_CC_GOOG_CC_NETWORK_CONTROL_H_
->>>>>>> tenfold
+

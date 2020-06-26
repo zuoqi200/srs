@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-
-#ifndef WEBRTC_API_RTC_EVENT_LOG
-#define WEBRTC_API_RTC_EVENT_LOG
-
-extern int webrtc_compile_api();
-
-#endif
-
-=======
 /*
  *  Copyright (c) 2015 The WebRTC project authors. All Rights Reserved.
  *
@@ -77,4 +67,4 @@ class RtcEventLogNull final : public RtcEventLog {
 }  // namespace webrtc
 
 #endif  // API_RTC_EVENT_LOG_RTC_EVENT_LOG_H_
->>>>>>> tenfold
+
