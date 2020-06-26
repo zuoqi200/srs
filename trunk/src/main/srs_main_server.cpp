@@ -127,12 +127,18 @@ srs_error_t do_main(int argc, char** argv)
     if ((err = _srs_config->initialize_cwd()) != srs_success) {
         return srs_error_wrap(err, "config cwd");
     }
+
+    // If log as JSON, reconfigure the log object.
+    if (_srs_config->get_log_json()) {
+        srs_freep(_srs_log);
+        _srs_log = new SrsJsonLog();
+    }
     
     // config parsed, initialize log.
     if ((err = _srs_log->initialize()) != srs_success) {
         return srs_error_wrap(err, "log initialize");
     }
-    
+
     // config already applied to log.
     srs_trace("%s, %s", RTMP_SIG_SRS_SERVER, RTMP_SIG_SRS_LICENSE);
     srs_trace("authors: %s", RTMP_SIG_SRS_AUTHORS);

@@ -3574,6 +3574,7 @@ srs_error_t SrsConfig::check_normal_config()
             && n != "ff_log_level" && n != "grace_final_wait" && n != "force_grace_quit"
             && n != "grace_start_wait" && n != "empty_ip_ok" && n != "disable_daemon_for_docker"
             && n != "inotify_auto_reload" && n != "auto_reload_for_docker" && n != "tcmalloc_release_rate"
+            && n != "srs_log_json"
             ) {
             return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "illegal directive %s", n.c_str());
         }
@@ -6728,6 +6729,18 @@ string SrsConfig::get_log_file()
     }
     
     return conf->arg0();
+}
+
+bool SrsConfig::get_log_json()
+{
+    static bool DEFAULT = false;
+
+    SrsConfDirective* conf = root->get("srs_log_json");
+    if (!conf || conf->arg0().empty()) {
+        return DEFAULT;
+    }
+
+    return SRS_CONF_PERFER_FALSE(conf->arg0());
 }
 
 bool SrsConfig::get_ff_log_enabled()
