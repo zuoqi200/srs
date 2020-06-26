@@ -69,8 +69,8 @@ srs_error_t run_hybrid_server();
 void show_macro_features();
 
 // @global log and context.
-ISrsLog* _srs_log = new SrsFastLog();
-ISrsThreadContext* _srs_context = new SrsThreadContext();
+ISrsLog* _srs_log = new SrsFileLog();
+ISrsContext* _srs_context = new SrsThreadContext();
 // @global config object for app module.
 SrsConfig* _srs_config = new SrsConfig();
 
@@ -127,12 +127,18 @@ srs_error_t do_main(int argc, char** argv)
     if ((err = _srs_config->initialize_cwd()) != srs_success) {
         return srs_error_wrap(err, "config cwd");
     }
+
+    // If log as JSON, reconfigure the log object.
+    if (_srs_config->get_log_json()) {
+        srs_freep(_srs_log);
+        _srs_log = new SrsJsonLog();
+    }
     
     // config parsed, initialize log.
     if ((err = _srs_log->initialize()) != srs_success) {
         return srs_error_wrap(err, "log initialize");
     }
-    
+
     // config already applied to log.
     srs_trace("%s, %s", RTMP_SIG_SRS_SERVER, RTMP_SIG_SRS_LICENSE);
     srs_trace("authors: %s", RTMP_SIG_SRS_AUTHORS);

@@ -879,6 +879,8 @@ public:
     virtual std::string get_log_level();
     // Get the log file path.
     virtual std::string get_log_file();
+    // Whether log as JSON format.
+    virtual bool get_log_json();
     // Whether ffmpeg log enabled
     virtual bool get_ff_log_enabled();
     // The ffmpeg log dir.

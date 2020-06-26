@@ -35,7 +35,7 @@
 // Use memory/disk cache and donot flush when write log.
 // it's ok to use it without config, which will log to console, and default trace level.
 // when you want to use different level, override this classs, set the protected _level.
-class SrsFastLog : public ISrsLog, public ISrsReloadHandler
+class SrsFileLog : public ISrsLog, public ISrsReloadHandler
 {
 private:
     // Defined in SrsLogLevel.
@@ -49,8 +49,8 @@ private:
     // Whether use utc time.
     bool utc;
 public:
-    SrsFastLog();
-    virtual ~SrsFastLog();
+    SrsFileLog();
+    virtual ~SrsFileLog();
 // Interface ISrsLog
 public:
     virtual srs_error_t initialize();
@@ -68,6 +68,42 @@ public:
     virtual srs_error_t on_reload_log_file();
 private:
     virtual void write_log(int& fd, char* str_log, int size, int level);
+    virtual void open_log_file();
+};
+
+class SrsJsonLog : public ISrsLog, public ISrsReloadHandler
+{
+private:
+    // Defined in SrsLogLevel.
+    SrsLogLevel level;
+private:
+    char* log_data;
+    // Log to file if specified srs_log_file
+    int fd;
+    // Whether log to file tank
+    bool log_to_file_tank;
+    // Whether use utc time.
+    bool utc;
+public:
+    SrsJsonLog();
+    virtual ~SrsJsonLog();
+// Interface ISrsLog
+public:
+    virtual srs_error_t initialize();
+    virtual void reopen();
+    virtual void verbose(const char* tag, const char* context_id, const char* fmt, ...);
+    virtual void info(const char* tag, const char* context_id, const char* fmt, ...);
+    virtual void trace(const char* tag, const char* context_id, const char* fmt, ...);
+    virtual void warn(const char* tag, const char* context_id, const char* fmt, ...);
+    virtual void error(const char* tag, const char* context_id, const char* fmt, ...);
+// Interface ISrsReloadHandler.
+public:
+    virtual srs_error_t on_reload_utc_time();
+    virtual srs_error_t on_reload_log_tank();
+    virtual srs_error_t on_reload_log_level();
+    virtual srs_error_t on_reload_log_file();
+private:
+    virtual void write_log(int& fd, char* str_log, int size, int level, const char* tag);
     virtual void open_log_file();
 };
 
