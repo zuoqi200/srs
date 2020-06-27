@@ -115,6 +115,27 @@ public:
     virtual void on_timeout(SrsRtcSession* rtc_session);
 };
 
+class SrsJanusUserConf
+{
+public:
+    bool stream_merge;
+    bool enable_forward_twcc;
+    bool need_unified_plan;
+    bool enable_bwe_status_report;
+    bool enable_video_nack_rs_v1;
+    bool no_extra_config_when_join;
+    bool is_mpu_client;
+    std::string web_sdk;
+    std::string channel_profile;
+public:
+    SrsJanusUserConf();
+    virtual ~SrsJanusUserConf();
+public:
+    bool is_web_sdk();
+public:
+    static SrsJanusUserConf* parse_janus_user_conf(SrsJsonObject* res);
+};
+
 class SrsJanusSession
 {
 public:
@@ -122,6 +143,7 @@ public:
     std::string channel_;
     std::string userid_;
     std::string sessionid_;
+    SrsJanusUserConf *user_conf_;
 private:
     std::map<uint64_t, SrsJanusCall*> calls_;
     std::vector<SrsJanusMessage*> msgs_;
