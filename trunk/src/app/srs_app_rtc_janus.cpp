@@ -309,22 +309,7 @@ srs_error_t SrsJanusServer::create(SrsJsonObject* req, SrsJanusMessage* msg, Srs
     if ((prop = req->get_property("configure")) == NULL || !prop->is_object()) {
         return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no configure");
     }
-    req = prop->to_object();
-
-    if ((prop = req->get_property("NeedSDPUnified")) == NULL || !prop->is_boolean()) {
-        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no NeedSDPUnified");
-    }
-    bool need_unified = prop->to_boolean();
-
-    if ((prop = req->ensure_property_string("WebSDK")) == NULL) {
-        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no WebSDK");
-    }
-    string websdk = prop->to_str();
-
-    if ((prop = req->ensure_property_string("channelprofile")) == NULL) {
-        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no channelprofile");
-    }
-    string profile = prop->to_str();
+    SrsJanusUserConf* user_conf = SrsJanusUserConf::parse_janus_user_conf(req->get_property("configure")->to_object());
 
     // Process message.
     SrsJanusSession* session = new SrsJanusSession(this);
@@ -332,6 +317,7 @@ srs_error_t SrsJanusServer::create(SrsJsonObject* req, SrsJanusMessage* msg, Srs
     session->channel_ = channel;
     session->userid_ = userid;
     session->sessionid_ = session_id;
+    session->user_conf_ = user_conf;
 
     // Switch to the session.
     _srs_context->set_id(session->cid_);
@@ -352,7 +338,8 @@ srs_error_t SrsJanusServer::create(SrsJsonObject* req, SrsJanusMessage* msg, Srs
 
     srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, appid=%s, channel=%s, userid=%s, session_id=%s, unified=%d, web=%s, profile=%s, session=%" PRId64,
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
-        appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), need_unified, websdk.c_str(), profile.c_str(), session->id_);
+        appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), user_conf->need_unified_plan, user_conf->web_sdk.c_str(),
+        user_conf->channel_profile.c_str(), session->id_);
 
     return err;
 }
@@ -439,6 +426,73 @@ void SrsJanusServer::on_timeout(SrsRtcSession* rtc_session)
     }
 }
 
+SrsJanusUserConf::SrsJanusUserConf()
+{
+}
+
+SrsJanusUserConf::~SrsJanusUserConf()
+{
+}
+
+bool SrsJanusUserConf::is_web_sdk()
+{
+    // If no configure info which client send to signaling when join,
+    // consider as old client.
+    if(no_extra_config_when_join) {
+        return true;
+    }
+
+    if (!web_sdk.empty()) {
+        return true;
+    }
+
+    return false;
+}
+
+SrsJanusUserConf* SrsJanusUserConf::parse_janus_user_conf(SrsJsonObject* req)
+{
+    SrsJanusUserConf* user_conf = new SrsJanusUserConf();
+    SrsJsonAny* prop = NULL;
+
+    if ((prop = req->get_property("DownlinkStreamMerge")) != NULL && prop->is_boolean()) {
+        user_conf->stream_merge = prop->to_boolean();
+    }
+
+    if ((prop = req->get_property("1v1TccForwardEnable")) != NULL && prop->is_boolean()) {
+        user_conf->enable_forward_twcc = prop->to_boolean();
+    }
+
+    if ((prop = req->get_property("NeedSDPUnified")) != NULL && prop->is_boolean()) {
+        user_conf->need_unified_plan = prop->to_boolean();
+    }
+
+    if ((prop = req->get_property("EnableBWEStatusReport")) != NULL && prop->is_boolean()) {
+        user_conf->enable_bwe_status_report = prop->to_boolean();
+    }
+
+    if ((prop = req->get_property("EnableVideoNackFECV1")) != NULL && prop->is_boolean()) {
+        user_conf->enable_video_nack_rs_v1 = prop->to_boolean();
+    }
+
+    if ((prop = req->get_property("NoExtraConfig")) != NULL && prop->is_boolean()) {
+        user_conf->no_extra_config_when_join = prop->to_boolean();
+    }
+
+    if ((prop = req->get_property("MPUSuperClientEnable")) != NULL && prop->is_boolean()) {
+        user_conf->no_extra_config_when_join = prop->to_boolean();
+    }
+
+    if ((prop = req->ensure_property_string("WebSDK")) != NULL && prop->is_string()) {
+        user_conf->web_sdk = prop->to_str();
+    }
+
+    if ((prop = req->ensure_property_string("channelprofile")) != NULL && prop->is_string()) {
+        user_conf->channel_profile = prop->to_str();
+    }
+
+    return user_conf;
+}
+
 SrsJanusSession::SrsJanusSession(SrsJanusServer* j)
 {
     id_ = 0;
@@ -462,6 +516,10 @@ SrsJanusSession::~SrsJanusSession()
             SrsJanusMessage* msg = *it;
             srs_freep(msg);
         }
+    }
+
+    if (user_conf_) {
+        srs_freep(user_conf_);
     }
 }
 
@@ -828,6 +886,12 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
 
     // Generate offer.
     SrsSdp local_sdp;
+    local_sdp.session_config_.dtls_role = _srs_config->get_rtc_dtls_role(request.vhost);
+    local_sdp.session_config_.dtls_version = _srs_config->get_rtc_dtls_version(request.vhost);
+    if (!session_->user_conf_->is_web_sdk()) {
+        local_sdp.session_config_.dtls_role = "active";
+        local_sdp.session_config_.dtls_version = "dtls1.0";
+    }
 
     if ((err = subscirber_build_offer(&request, callee, local_sdp)) != srs_success) {
         return srs_error_wrap(err, "build offer");
@@ -1093,6 +1157,13 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     }
 
     SrsSdp local_sdp;
+    local_sdp.session_config_.dtls_role = _srs_config->get_rtc_dtls_role(request.vhost);
+    local_sdp.session_config_.dtls_version = _srs_config->get_rtc_dtls_version(request.vhost);
+    if (!session_->user_conf_->is_web_sdk()) {
+        local_sdp.session_config_.dtls_role = "active";
+        local_sdp.session_config_.dtls_version = "dtls1.0";
+    }
+
     if ((err = publisher_exchange_sdp(&request, remote_sdp, local_sdp)) != srs_success) {
         return srs_error_wrap(err, "remote sdp have error or unsupport attributes");
     }
@@ -1248,7 +1319,7 @@ srs_error_t SrsJanusCall::publisher_exchange_sdp(SrsRequest* req, const SrsSdp& 
         } else if (remote_media_desc.session_info_.setup_ == "passive") {
             local_media_desc.session_info_.setup_ = "active";
         } else if (remote_media_desc.session_info_.setup_ == "actpass") {
-            local_media_desc.session_info_.setup_ = "passive";
+            local_media_desc.session_info_.setup_ = local_sdp.session_config_.dtls_role;
         } else {
             // @see: https://tools.ietf.org/html/rfc4145#section-4.1
             // The default value of the setup attribute in an offer/answer exchange
