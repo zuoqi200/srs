@@ -519,6 +519,52 @@ SrsJanusUserConf* SrsJanusUserConf::parse_janus_user_conf(SrsJsonObject* req)
     return user_conf;
 }
 
+SrsJanusStreamInfo::SrsJanusStreamInfo()
+{
+    temporal_layers_ = 0;
+    sub_streams_ = 0;
+}
+
+SrsJanusStreamInfo::~SrsJanusStreamInfo()
+{
+}
+
+SrsJanusStreamInfo SrsJanusStreamInfo::parse_stream_info(SrsJsonObject* stream)
+{
+    SrsJanusStreamInfo stream_info;
+    SrsJsonAny* prop = NULL;
+
+    if ((prop = stream->get_property("mslabel")) != NULL && prop->is_string()) {
+        stream_info.mslabel_ = prop->to_str();
+    }
+
+    if ((prop = stream->get_property("label")) != NULL && prop->is_string()) {
+        stream_info.label_ = prop->to_str();
+    }
+
+    if ((prop = stream->get_property("type")) != NULL && prop->is_string()) {
+        stream_info.type_ = prop->to_str();
+    }
+
+    if ((prop = stream->get_property("temporalLayer")) != NULL && prop->is_number()) {
+        stream_info.temporal_layers_ = prop->to_number();
+    }
+
+    if ((prop = stream->get_property("substream")) != NULL && prop->is_number()) {
+        stream_info.sub_streams_ = prop->to_number();
+    }
+
+    if ((prop = stream->get_property("videoprofile")) != NULL && prop->is_string()) {
+        stream_info.video_profile_ = prop->to_str();
+    }
+
+    if ((prop = stream->get_property("audioprofile")) != NULL && prop->is_string()) {
+        stream_info.audio_profile_ = prop->to_str();
+    }
+
+    return stream_info;
+}
+
 SrsJanusSession::SrsJanusSession(SrsJanusServer* j)
 {
     id_ = 0;
@@ -850,6 +896,11 @@ srs_error_t SrsJanusCall::trickle(SrsJsonObject* req, SrsJanusMessage* msg)
     return err;
 }
 
+SrsSdp* SrsJanusCall::get_remote_sdp()
+{
+    return rtc_session_->get_remote_sdp();
+}
+
 srs_error_t SrsJanusCall::on_join_message(SrsJsonObject* req, SrsJanusMessage* msg)
 {
     srs_error_t err = srs_success;
@@ -941,6 +992,12 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no streams");
     }
     SrsJsonArray* streams = prop->to_array();
+
+    // parser stream infos
+    for (int i = 0; i < streams->count(); i++) {
+        SrsJanusStreamInfo stream_info = SrsJanusStreamInfo::parse_stream_info(streams->at(i)->to_object());
+        stream_infos_.push_back(stream_info);
+    }
 
     // TODO: FIXME: We should apply appid.
     request.app = session_->channel_;
@@ -1034,83 +1091,177 @@ srs_error_t SrsJanusCall::subscirber_build_offer(SrsRequest* req, SrsJanusCall* 
 
     local_sdp.group_policy_ = "BUNDLE";
 
+    bool nack_enabled = _srs_config->get_rtc_nack_enabled(req->vhost);
+
     // TODO: FIXME: Avoid SSRC collision.
     if (!ssrc_num) {
         ssrc_num = ::getpid() * 10000 + ::getpid() * 100 + ::getpid();
     }
 
+    SrsSdp* remote_sdp = callee->get_remote_sdp();
     // The msid/mslabel for MediaStream, we use the callee.
     string mslabel = callee->callid_;
 
-    if (true) {
-        local_sdp.media_descs_.push_back(SrsMediaDesc("audio"));
-        SrsMediaDesc& audio = local_sdp.media_descs_.back();
+    for (size_t i = 0; i < remote_sdp->media_descs_.size(); ++i) {
+        const SrsMediaDesc& remote_media_desc = remote_sdp->media_descs_[i];
 
-        audio.mid_ = "audio";
-        local_sdp.groups_.push_back(audio.mid_);
+        if (remote_media_desc.is_audio()) {
+            local_sdp.media_descs_.push_back(SrsMediaDesc("audio"));
+        } else if (remote_media_desc.is_video()) {
+            local_sdp.media_descs_.push_back(SrsMediaDesc("video"));
+        }
 
-        audio.port_ = 9;
-        audio.protos_ = "UDP/TLS/RTP/SAVPF";
+        SrsMediaDesc& local_media_desc = local_sdp.media_descs_.back();
+        map<int, std::string> extmap = remote_media_desc.get_extmaps();
+        for(map<int, std::string>::iterator it = extmap.begin(); it != extmap.end(); ++it) {
+            if(kTWCCExt == it->second) {
+                local_media_desc.extmaps_[it->first] = kTWCCExt;
+            }
+        }
+
+        if (remote_media_desc.is_audio()) {
+            std::vector<SrsMediaPayloadType> payloads = remote_media_desc.find_media_with_encoding_name("red");
+            for (std::vector<SrsMediaPayloadType>::iterator iter = payloads.begin(); iter != payloads.end(); ++iter) {
+                local_media_desc.payload_types_.push_back(*iter);
+                // Only choose one match opus red codec.
+                break;
+            }
+
+            payloads = remote_media_desc.find_media_with_encoding_name("opus");
+            for (std::vector<SrsMediaPayloadType>::iterator iter = payloads.begin(); iter != payloads.end(); ++iter) {
+                local_media_desc.payload_types_.push_back(*iter);
+                SrsMediaPayloadType& payload_type = local_media_desc.payload_types_.back();
+
+                // TODO: FIXME: add support some transport algorithms. e.g. nack, nack pli, transport cc...
+                vector<string> rtcp_fb;
+                payload_type.rtcp_fb_.swap(rtcp_fb);
+                for (int j = 0; j < (int)rtcp_fb.size(); j++) {
+                    if (nack_enabled) {
+                        if (rtcp_fb.at(j) == "nack" || rtcp_fb.at(j) == "nack pli") {
+                            payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
+                        }
+                    }
+                }
+                // Only choose one match opus codec.
+                break;
+            }
+
+            if (local_media_desc.payload_types_.empty()) {
+                return srs_error_new(ERROR_RTC_SDP_EXCHANGE, "no found valid opus payload type");
+            }
+        } else if (remote_media_desc.is_video()) {
+            std::deque<SrsMediaPayloadType> backup_payloads;
+            std::vector<SrsMediaPayloadType> payloads = remote_media_desc.find_media_with_encoding_name("H264");
+
+            for (std::vector<SrsMediaPayloadType>::iterator iter = payloads.begin(); iter != payloads.end(); ++iter) {
+                if (iter->format_specific_param_.empty()) {
+                    backup_payloads.push_front(*iter);
+                    continue;
+                }
+                H264SpecificParam h264_param;
+                if ((err = srs_parse_h264_fmtp(iter->format_specific_param_, h264_param)) != srs_success) {
+                    srs_error_reset(err); continue;
+                }
+
+                // Try to pick the "best match" H.264 payload type.
+                if (h264_param.packetization_mode == "1" && h264_param.level_asymmerty_allow == "1") {
+                    local_media_desc.payload_types_.push_back(*iter);
+                    SrsMediaPayloadType& payload_type = local_media_desc.payload_types_.back();
+
+                    // TODO: FIXME: add support some transport algorithms. e.g. nack, nack pli, transport cc...
+                    vector<string> rtcp_fb;
+                    payload_type.rtcp_fb_.swap(rtcp_fb);
+                    for (int j = 0; j < (int)rtcp_fb.size(); j++) {
+                        if (nack_enabled) {
+                            if (rtcp_fb.at(j) == "nack" || rtcp_fb.at(j) == "nack pli") {
+                                payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
+                            }
+                        }
+                    }
+                    // Only choose first match H.264 payload type.
+                    break;
+                }
+
+                backup_payloads.push_back(*iter);
+            }
+            // Try my best to pick at least one media payload type.
+            if (local_media_desc.payload_types_.empty() && ! backup_payloads.empty()) {
+                srs_warn("choose backup H.264 payload type=%d", backup_payloads.front().payload_type_);
+                local_media_desc.payload_types_.push_back(backup_payloads.front());
+            }
+
+            if (local_media_desc.payload_types_.empty()) {
+                return srs_error_new(ERROR_RTC_SDP_EXCHANGE, "no found valid H.264 payload type");
+            }
+        }
+
+        local_media_desc.mid_ = remote_media_desc.mid_;
+        local_sdp.groups_.push_back(local_media_desc.mid_);
+
+        local_media_desc.port_ = 9;
+        local_media_desc.protos_ = "UDP/TLS/RTP/SAVPF";
+
         // Offerer must use actpass value for setup attribute.
-        audio.session_info_.setup_ = "actpass";
-        audio.rtcp_mux_ = true;
+        local_media_desc.session_info_.setup_ = "actpass";
+        local_media_desc.rtcp_mux_ = true;
         // For subscriber, we are sendonly.
-        audio.sendonly_ = true;
-        audio.recvonly_ = false;
-        audio.sendrecv_ = false;
+        local_media_desc.sendonly_ = true;
+        local_media_desc.recvonly_ = false;
+        local_media_desc.sendrecv_ = false;
+        local_media_desc.rtcp_rsize_ = false;
 
-        audio.payload_types_.push_back(SrsMediaPayloadType(111));
-        SrsMediaPayloadType& opus = audio.payload_types_.back();
+        // find sub_stream
+        std::vector<SrsSSRCInfo> sub_specified_streams;
+        std::vector<SrsSSRCInfo>::const_iterator it;
+        for (it = remote_media_desc.ssrc_infos_.begin(); it != remote_media_desc.ssrc_infos_.end(); ++it) {
+            if (it->msid_tracker_ == "") {
+                sub_specified_streams.push_back(*it);
+                SrsSSRCInfo& ssrc_info = sub_specified_streams.back();
+                ssrc_info.ssrc_ = ++ssrc_num;
+                continue;
+            }
 
-        opus.encoding_name_ = "opus";
-        opus.clock_rate_ = 48000;
-        opus.encoding_param_ = "2";
-        opus.format_specific_param_ = "minptime=10;useinbandfec=1";
+            std::vector<SrsJanusStreamInfo>::iterator it_stream;
+            for (it_stream = stream_infos_.begin(); it_stream != stream_infos_.end(); ++it_stream) {
+                if(remote_media_desc.is_audio() && it_stream->type_ == "audio") {
+                    if (it_stream->label_ == it->label_) {
+                        sub_specified_streams.push_back(*it);
+                        SrsSSRCInfo& ssrc_info = sub_specified_streams.back();
+                        ssrc_info.ssrc_ = ++ssrc_num;
+                    }
+                } else if (remote_media_desc.is_video() && it_stream->type_ == "video") {
+                    if (it_stream->label_ == it->label_) {
+                        sub_specified_streams.push_back(*it);
+                        SrsSSRCInfo& ssrc_info = sub_specified_streams.back();
+                        ssrc_info.ssrc_ = ++ssrc_num;
+                    }
+                }
+            }
+        }
 
-        audio.ssrc_infos_.push_back(SrsSSRCInfo());
-        SrsSSRCInfo& ssrc = audio.ssrc_infos_.back();
-
-        ssrc.ssrc_ = ++ssrc_num;
-        ssrc.cname_ = "sophonaudio";
-        ssrc.label_ = gen_random_str(16);
-        ssrc.mslabel_ = mslabel;
-        ssrc.msid_ = ssrc.mslabel_;
-        ssrc.msid_tracker_ = ssrc.label_;
-    }
-
-    if (true) {
-        local_sdp.media_descs_.push_back(SrsMediaDesc("video"));
-        SrsMediaDesc& video = local_sdp.media_descs_.back();
-
-        video.mid_ = "video";
-        local_sdp.groups_.push_back(video.mid_);
-
-        video.port_ = 9;
-        video.protos_ = "UDP/TLS/RTP/SAVPF";
-        // Offerer must use actpass value for setup attribute.
-        video.session_info_.setup_ = "actpass";
-        video.rtcp_mux_ = true;
-        // For subscriber, we are sendonly.
-        video.sendonly_ = true;
-        video.recvonly_ = false;
-        video.sendrecv_ = false;
-
-        video.payload_types_.push_back(SrsMediaPayloadType(102));
-        SrsMediaPayloadType& h264 = video.payload_types_.back();
-
-        h264.encoding_name_ = "H264";
-        h264.clock_rate_ = 90000;
-        h264.format_specific_param_ = "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f";
-
-        video.ssrc_infos_.push_back(SrsSSRCInfo());
-        SrsSSRCInfo& ssrc = video.ssrc_infos_.back();
-
-        ssrc.ssrc_ = ++ssrc_num;
-        ssrc.cname_ = "sophonvideo";
-        ssrc.label_ = gen_random_str(16);
-        ssrc.mslabel_ = mslabel;
-        ssrc.msid_ = ssrc.mslabel_;
-        ssrc.msid_tracker_ = ssrc.label_;
+        if (sub_specified_streams.size()) {
+            // Native-SDK
+            sub_specified_streams.swap(local_media_desc.ssrc_infos_);
+        } else {
+            // H5Demo
+            SrsSSRCInfo ssrc_info;
+            ssrc_info.ssrc_ = ++ssrc_num;
+            if (remote_media_desc.is_audio()) {
+                ssrc_info.cname_ = "sophonaudio";
+                ssrc_info.label_ = gen_random_str(16);
+                ssrc_info.mslabel_ = mslabel;
+                ssrc_info.msid_ = ssrc_info.mslabel_;
+                ssrc_info.msid_tracker_ = ssrc_info.label_;
+            } else if (remote_media_desc.is_video()){
+                ssrc_info.cname_ = "sophonvideo";
+                ssrc_info.label_ = gen_random_str(16);
+                ssrc_info.mslabel_ = mslabel;
+                ssrc_info.msid_ = ssrc_info.mslabel_;
+                ssrc_info.msid_tracker_ = ssrc_info.label_;
+            }
+        
+            local_media_desc.ssrc_infos_.push_back(ssrc_info);
+        }
     }
 
     return err;
@@ -1337,6 +1488,14 @@ srs_error_t SrsJanusCall::publisher_exchange_sdp(SrsRequest* req, const SrsSdp& 
                 break;
             }
 
+            map<int, string> extmaps = remote_media_desc.get_extmaps();
+            for(map<int, string>::iterator it_ext = extmaps.begin(); it_ext != extmaps.end(); ++it_ext) {
+                if (it_ext->second == kTWCCExt) {
+                    local_media_desc.extmaps_[it_ext->first] = kTWCCExt;
+                    break;
+                }
+            }
+
             if (local_media_desc.payload_types_.empty()) {
                 return srs_error_new(ERROR_RTC_SDP_EXCHANGE, "no valid found opus payload type");
             }
@@ -1374,6 +1533,14 @@ srs_error_t SrsJanusCall::publisher_exchange_sdp(SrsRequest* req, const SrsSdp& 
                 }
 
                 backup_payloads.push_back(*iter);
+            }
+
+            map<int, string> extmaps = remote_media_desc.get_extmaps();
+            for(map<int, string>::iterator it_ext = extmaps.begin(); it_ext != extmaps.end(); ++it_ext) {
+                if (it_ext->second == kTWCCExt) {
+                    local_media_desc.extmaps_[it_ext->first] = kTWCCExt;
+                    break;
+                }
             }
 
             // Try my best to pick at least one media payload type.

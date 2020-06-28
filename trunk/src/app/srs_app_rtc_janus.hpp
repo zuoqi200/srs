@@ -137,6 +137,32 @@ public:
     static SrsJanusUserConf* parse_janus_user_conf(SrsJsonObject* res);
 };
 
+class SrsJanusStreamInfo
+{
+public:
+    // mslabel:
+    std::string mslabel_;
+    // label:
+    std::string label_;
+    // type:
+    std::string type_;
+    // state:
+    std::string state_;
+    // temporalLayers:
+    int temporal_layers_;
+    // substreams:
+    int sub_streams_;
+    // videoprofile:
+    std::string video_profile_;
+    // audioprofile:
+    std::string audio_profile_;
+public:
+    SrsJanusStreamInfo();
+    virtual ~SrsJanusStreamInfo();
+public:
+    static SrsJanusStreamInfo parse_stream_info(SrsJsonObject* stream);
+};
+
 class SrsJanusSession
 {
 public:
@@ -183,6 +209,7 @@ public:
     uint64_t id_;
     uint64_t feed_id_;
     std::string display_;
+    std::vector<SrsJanusStreamInfo> stream_infos_;
 public:
     SrsJanusCall(SrsJanusSession* s);
     virtual ~SrsJanusCall();
@@ -190,6 +217,7 @@ public:
     void destroy();
     srs_error_t message(SrsJsonObject* req, SrsJanusMessage* msg);
     srs_error_t trickle(SrsJsonObject* req, SrsJanusMessage* msg);
+    SrsSdp* get_remote_sdp();
 private:
     srs_error_t on_join_message(SrsJsonObject* req, SrsJanusMessage* msg);
     srs_error_t on_join_as_subscriber(SrsJsonObject* req, SrsJanusMessage* msg);
