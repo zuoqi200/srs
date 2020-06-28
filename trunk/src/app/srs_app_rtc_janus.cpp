@@ -226,6 +226,13 @@ srs_error_t SrsGoApiRtcJanus::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpM
         if ((err = call->trickle(req, &req_msg)) != srs_success) {
             return srs_error_wrap(err, "body %s", req_json.c_str());
         }
+    } else if (req_msg.janus == "detach") {
+        if (!session) {
+            return srs_error_new(ERROR_RTC_JANUS_NO_SESSION, "detach, no session id=%" PRId64, janus_session_id);
+        }
+        if ((err = session->detach(&req_msg, janus_handler_id)) != srs_success) {
+            return srs_error_wrap(err, "body %s", req_json.c_str());
+        }
     } else if (req_msg.janus == "destroy") {
         if (!session) {
             return srs_error_new(ERROR_RTC_JANUS_NO_SESSION, "destroy, no session id=%" PRId64, janus_session_id);
@@ -370,6 +377,22 @@ void SrsJanusServer::do_destroy(SrsJanusSession* session)
     srs_freep(session);
 }
 
+void SrsJanusServer::do_destroy_rtc_session(SrsJanusSession* session, SrsRtcSession* rtc_session) {
+    session->destroy_call(rtc_session);
+
+    if (!session->calls_empty()) {
+        return;
+    }
+
+    // Remove session from server and destroy it.
+    map<uint64_t, SrsJanusSession*>::iterator it = sessions_.find(session->id_);
+    if (it != sessions_.end()) {
+        sessions_.erase(it);
+    }
+
+    srs_freep(session);
+}
+
 SrsJanusSession* SrsJanusServer::fetch(uint64_t sid)
 {
     map<uint64_t, SrsJanusSession*>::iterator it = sessions_.find(sid);
@@ -421,7 +444,7 @@ void SrsJanusServer::on_timeout(SrsRtcSession* rtc_session)
         srs_trace("RTC janus timeout remove, appid=%s, channel=%s, userid=%s, session_id=%s, session=%" PRId64,
             appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), session->id_);
 
-        do_destroy(session);
+        do_destroy_rtc_session(session, rtc_session);
         return;
     }
 }
@@ -579,10 +602,16 @@ srs_error_t SrsJanusSession::polling(SrsJsonObject* req, SrsJsonObject* res)
             // Answer as subscriber.
             data->set("videoroom", SrsJsonAny::str("event"));
             data->set("started", SrsJsonAny::str("ok"));
+        } else if (msg->videoroom == "event") {
         }
 
         srs_trace("RTC polling, session=%" PRId64 ", janus=%s, sender=%" PRId64 ", transaction=%s, feed=%" PRId64 ", private=%u",
             id_, msg->janus.c_str(), msg->sender, msg->transaction.c_str(), msg->feed_id, msg->private_id);
+    } else if (msg->janus == "webrtcup") {
+    } else if (msg->janus == "media") {
+    } else if (msg->janus == "keepalive") {
+    } else if (msg->janus == "hangup") {
+    } else if (msg->janus == "detached") {
     }
 
     return err;
@@ -648,6 +677,29 @@ srs_error_t SrsJanusSession::attach(SrsJsonObject* req, SrsJanusMessage* msg, Sr
     return err;
 }
 
+srs_error_t SrsJanusSession::detach(SrsJanusMessage* msg, uint64_t callid) 
+{
+    srs_error_t err = srs_success;
+    map<uint64_t, SrsJanusCall*>::iterator it = calls_.find(callid);
+    if (it == calls_.end()) {
+        return err;
+    }
+
+    SrsJanusCall* call = it->second;
+    if (call->publisher_) {
+        janus_->destroy_callee(call);
+    }
+    
+    call->destroy();
+    calls_.erase(it);
+    srs_freep(call);
+
+    srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, call=%" PRId64,
+        msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(), callid);
+    
+    return err;
+}
+
 SrsJanusCall* SrsJanusSession::fetch(uint64_t sid)
 {
     map<uint64_t, SrsJanusCall*>::iterator it = calls_.find(sid);
@@ -670,6 +722,10 @@ SrsJanusCall* SrsJanusSession::find(SrsRtcSession* session)
     return NULL;
 }
 
+bool SrsJanusSession::calls_empty() {
+    return calls_.empty();
+}
+
 void SrsJanusSession::destroy()
 {
     map<uint64_t, SrsJanusCall*>::iterator it;
@@ -682,6 +738,27 @@ void SrsJanusSession::destroy()
         }
 
         call->destroy();
+    }
+}
+
+void SrsJanusSession::destroy_call(SrsRtcSession* session) {
+    map<uint64_t, SrsJanusCall*>::iterator it;
+    for (it = calls_.begin(); it != calls_.end();++it) {
+        SrsJanusCall* call = it->second;
+        if (call->rtc_session_ != session) {
+            continue;
+        } 
+        
+        // For publisher, destroy the callee in server.
+        if (call->publisher_) {
+            janus_->destroy_callee(call);
+        }
+
+        call->destroy();
+        calls_.erase(it++);
+        srs_freep(call);
+        
+        return;  
     }
 }
 
