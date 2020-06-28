@@ -277,9 +277,6 @@ SrsRtcPlayer::SrsRtcPlayer(SrsRtcSession* s, string parent_cid)
 
     session_ = s;
 
-    audio_sequence = 0;
-    video_sequence = 0;
-    sequence_delta = 0;
     mw_msgs = 0;
     realtime = true;
 
@@ -289,7 +286,6 @@ SrsRtcPlayer::SrsRtcPlayer(SrsRtcSession* s, string parent_cid)
 
     nn_simulate_nack_drop = 0;
     nack_enabled_ = false;
-    keep_sequence_ = false;
 
     twcc_id_ = -1;
 
@@ -317,18 +313,8 @@ srs_error_t SrsRtcPlayer::initialize(const uint32_t& vssrc, const uint32_t& assr
 
     // TODO: FIXME: Support reload.
     nack_enabled_ = _srs_config->get_rtc_nack_enabled(session_->req->vhost);
-    keep_sequence_ = _srs_config->get_rtc_keep_sequence(session_->req->vhost);
-    if (!session_->sequence_startup.empty()) {
-        audio_sequence = video_sequence = uint16_t(::atoi(session_->sequence_startup.c_str()));
-    }
-    if (!session_->sequence_delta.empty()) {
-        sequence_delta = uint16_t(::atoi(session_->sequence_delta.c_str()));
-    }
-    if (!session_->sequence_keep.empty()) {
-        keep_sequence_ = (session_->sequence_keep == "true");
-    }
-    srs_trace("RTC player video(ssrc=%d, pt=%d), audio(ssrc=%d, pt=%d), nack=%d, keep-seq=%d, sequence(audio=%u,video=%u,delta=%u)",
-        video_ssrc, video_payload_type, audio_ssrc, audio_payload_type, nack_enabled_, keep_sequence_, audio_sequence, video_sequence, sequence_delta);
+    srs_trace("RTC player video(ssrc=%d, pt=%d), audio(ssrc=%d, pt=%d), nack=%d",
+        video_ssrc, video_payload_type, audio_ssrc, audio_payload_type, nack_enabled_);
 
     twcc_id_ = twcc_id;
 #ifdef SRS_CXX14
@@ -523,7 +509,6 @@ srs_error_t SrsRtcPlayer::send_packets(SrsRtcSource* source, const vector<SrsRtp
         // Update stats.
         info.nn_bytes += pkt->nb_bytes();
 
-        uint16_t oseq = pkt->header.get_sequence();
 #ifdef SRS_CXX14
         // set twcc sn
         if(-1 != twcc_id_) {
@@ -534,33 +519,19 @@ srs_error_t SrsRtcPlayer::send_packets(SrsRtcSource* source, const vector<SrsRtp
         // For audio, we transcoded AAC to opus in extra payloads.
         if (pkt->is_audio()) {
             info.nn_audios++;
-
-            if (!keep_sequence_) {
-                // TODO: FIXME: Should keep the order by original sequence.
-                pkt->header.set_sequence(sequence_delta + audio_sequence++);
-            } else {
-                pkt->header.set_sequence(sequence_delta + oseq);
-            }
             pkt->header.set_ssrc(audio_ssrc);
             pkt->header.set_payload_type(audio_payload_type);
 
             // TODO: FIXME: Padding audio to the max payload in RTP packets.
         } else {
             info.nn_videos++;
-
-            if (!keep_sequence_) {
-                // TODO: FIXME: Should keep the order by original sequence.
-                pkt->header.set_sequence(sequence_delta + video_sequence++);
-            } else {
-                pkt->header.set_sequence(sequence_delta + oseq);
-            }
             pkt->header.set_ssrc(video_ssrc);
             pkt->header.set_payload_type(video_payload_type);
         }
 
         // Detail log, should disable it in release version.
-        srs_info("RTC: Update PT=%u, SSRC=%#x, OSEQ=%u, SEQ=%u, Time=%u, %u bytes", pkt->header.get_payload_type(), pkt->header.get_ssrc(),
-            oseq, pkt->header.get_sequence(), pkt->header.get_timestamp(), pkt->nb_bytes());
+        srs_info("RTC: Update PT=%u, SSRC=%#x, Time=%u, %u bytes", pkt->header.get_payload_type(), pkt->header.get_ssrc(),
+            pkt->header.get_timestamp(), pkt->nb_bytes());
     }
 
     // By default, we send packets by sendmmsg.
