@@ -377,10 +377,13 @@ void SrsJanusServer::do_destroy(SrsJanusSession* session)
     srs_freep(session);
 }
 
-void SrsJanusServer::do_destroy_rtc_session(SrsJanusSession* session, SrsRtcSession* rtc_session) {
-    session->destroy_call(rtc_session);
+void SrsJanusServer::do_destroy_calls(SrsJanusSession* session, SrsRtcSession* rtc_session)
+{
+    // Destroy the call which binding to rtc_session.
+    session->destroy_calls(rtc_session);
 
-    if (!session->calls_empty()) {
+    // If exists calls in session, do not destroy it.
+    if (session->nn_calls()) {
         return;
     }
 
@@ -444,7 +447,7 @@ void SrsJanusServer::on_timeout(SrsRtcSession* rtc_session)
         srs_trace("RTC janus timeout remove, appid=%s, channel=%s, userid=%s, session_id=%s, session=%" PRId64,
             appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), session->id_);
 
-        do_destroy_rtc_session(session, rtc_session);
+        do_destroy_calls(session, rtc_session);
         return;
     }
 }
@@ -722,8 +725,9 @@ SrsJanusCall* SrsJanusSession::find(SrsRtcSession* session)
     return NULL;
 }
 
-bool SrsJanusSession::calls_empty() {
-    return calls_.empty();
+int SrsJanusSession::nn_calls()
+{
+    return (int)calls_.size();
 }
 
 void SrsJanusSession::destroy()
@@ -741,7 +745,8 @@ void SrsJanusSession::destroy()
     }
 }
 
-void SrsJanusSession::destroy_call(SrsRtcSession* session) {
+void SrsJanusSession::destroy_calls(SrsRtcSession* session)
+{
     map<uint64_t, SrsJanusCall*>::iterator it;
     for (it = calls_.begin(); it != calls_.end();++it) {
         SrsJanusCall* call = it->second;

@@ -107,7 +107,7 @@ public:
     void destroy(SrsJanusSession* session, SrsJanusMessage* msg);
 private:
     void do_destroy(SrsJanusSession* session);
-    void do_destroy_rtc_session(SrsJanusSession* session, SrsRtcSession* rtc_session);
+    void do_destroy_calls(SrsJanusSession* session, SrsRtcSession* rtc_session);
 public:
     SrsJanusSession* fetch(uint64_t sid);
     void set_callee(SrsJanusCall* call);
@@ -163,9 +163,9 @@ public:
     srs_error_t detach(SrsJanusMessage* msg, uint64_t callid);
     SrsJanusCall* fetch(uint64_t sid);
     SrsJanusCall* find(SrsRtcSession* session);
-    bool calls_empty();
+    int nn_calls();
     void destroy();
-    void destroy_call(SrsRtcSession* session);
+    void destroy_calls(SrsRtcSession* session);
 };
 
 class SrsJanusCall
