@@ -5059,7 +5059,9 @@ std::string SrsConfig::get_rtc_dtls_version(string vhost)
 
 int SrsConfig::get_rtc_drop_for_pt(string vhost)
 {
-    static int DEFAULT = 0;
+    // AliRTC client use PT=63 as padding packet.
+    // We config to ignore it after processing the RTP header(TWCC).
+    static int DEFAULT = 63;
 
     SrsConfDirective* conf = get_vhost(vhost);
     if (!conf) {
