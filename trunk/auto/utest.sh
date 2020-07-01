@@ -51,6 +51,9 @@ CPPFLAGS += -I\$(GTEST_DIR)/include
 # Flags passed to the C++ compiler.
 CXXFLAGS += ${CXXFLAGS} -Wextra ${UTEST_EXTRA_DEFINES}
 
+# Always use c++98, because c++14 will fail for CentOS7(GCC6).
+CXXFLAGS += -std=c++98
+
 # All tests produced by this Makefile.  Remember to add new tests you
 # created to the list.
 TESTS = ${SRS_TRUNK_PREFIX}/${SRS_OBJS_DIR}/${APP_NAME}

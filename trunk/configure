@@ -275,7 +275,7 @@ if [[ $SRS_RTC == YES && $SRS_CXX14 == YES ]]; then
         "modules/congestion_controller/goog_cc/send_side_bandwidth_estimation"
         "modules/congestion_controller/goog_cc/trendline_estimator"
         "modules/congestion_controller/rtp/transport_feedback_adapter"
-        "modules/include/module_common_types_public"
+        "modules/include/module_common_types"
         "modules/pacing/interval_budget"
         "modules/remote_bitrate_estimator/aimd_rate_control"
         "modules/remote_bitrate_estimator/bwe_defines"
@@ -509,10 +509,16 @@ if [ $SRS_UTEST = YES ]; then
         ModuleLibFiles+=("${LibSRTfile[*]}")
     fi
     MODULE_DEPENDS=("CORE" "KERNEL" "PROTOCOL" "APP")
+    if [[ $SRS_RTC == YES && $SRS_CXX14 == YES ]]; then
+        MODULE_DEPENDS+=("WebRTC")
+    fi
     if [[ $SRS_SRT == YES ]]; then
         MODULE_DEPENDS+=("SRT")
     fi
     MODULE_OBJS="${CORE_OBJS[@]} ${KERNEL_OBJS[@]} ${PROTOCOL_OBJS[@]} ${APP_OBJS[@]} ${SRT_OBJS[@]}"
+    if [[ $SRS_RTC == YES && $SRS_CXX14 == YES ]]; then
+        MODULE_OBJS="${MODULE_OBJS} ${WebRTC_OBJS[@]}"
+    fi
     LINK_OPTIONS="-lpthread ${SrsLinkOptions}" MODULE_DIR="src/utest" APP_NAME="srs_utest" . auto/utest.sh
 fi
 
