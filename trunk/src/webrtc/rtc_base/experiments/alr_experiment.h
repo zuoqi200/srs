@@ -10,6 +10,7 @@
 
 #ifndef RTC_BASE_EXPERIMENTS_ALR_EXPERIMENT_H_
 #define RTC_BASE_EXPERIMENTS_ALR_EXPERIMENT_H_
+#include <srs_core.hpp>
 
 #include <stdint.h>
 

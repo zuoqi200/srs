@@ -9,6 +9,7 @@
  */
 #ifndef RTC_BASE_EXPERIMENTS_FIELD_TRIAL_PARSER_H_
 #define RTC_BASE_EXPERIMENTS_FIELD_TRIAL_PARSER_H_
+#include <srs_core.hpp>
 
 #include <stdint.h>
 
