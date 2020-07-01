@@ -339,7 +339,6 @@ class string_view {
   size_type copy(char* buf, size_type n, size_type pos = 0) const {
     if (ABSL_PREDICT_FALSE(pos > length_)) {
       base_internal::ThrowStdOutOfRange("absl::string_view::copy");
-      //return -1;
     }
     size_type rlen = (std::min)(length_ - pos, n);
     if (rlen > 0) {
@@ -357,7 +356,6 @@ class string_view {
   string_view substr(size_type pos, size_type n = npos) const {
     if (ABSL_PREDICT_FALSE(pos > length_))
       base_internal::ThrowStdOutOfRange("absl::string_view::substr");
-      //return string_view("");
     n = (std::min)(n, length_ - pos);
     return string_view(ptr_ + pos, n);
   }
