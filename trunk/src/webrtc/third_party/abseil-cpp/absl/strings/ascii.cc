@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/strings/ascii.h"
+#include "third_party/abseil-cpp/absl/strings/ascii.h"
 
 namespace absl {
 namespace ascii_internal {

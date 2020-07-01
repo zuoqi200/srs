@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/strings/internal/memutil.h"
+#include "third_party/abseil-cpp/absl/strings/internal/memutil.h"
 
 #include <cstdlib>
 

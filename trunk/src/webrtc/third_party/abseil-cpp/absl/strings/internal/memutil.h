@@ -66,7 +66,7 @@
 #include <cstring>
 
 #include "third_party/abseil-cpp/absl/base/port.h"  // disable some warnings on Windows
-#include "absl/strings/ascii.h"  // for absl::ascii_tolower
+#include "third_party/abseil-cpp/absl/strings/ascii.h"  // for absl::ascii_tolower
 
 namespace absl {
 namespace strings_internal {

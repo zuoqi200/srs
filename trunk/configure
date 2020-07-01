@@ -305,6 +305,10 @@ if [[ $SRS_RTC == YES && $SRS_CXX14 == YES ]]; then
         "srs_api/srs_webrtc_api"
         "system_wrappers/source/field_trial"
         "system_wrappers/source/metrics"
+        "third_party/abseil-cpp/absl/base/internal/throw_delegate"
+        "third_party/abseil-cpp/absl/strings/ascii"
+        "third_party/abseil-cpp/absl/strings/string_view"
+        "third_party/abseil-cpp/absl/strings/internal/memutil"
         "third_party/abseil-cpp/absl/types/bad_optional_access"
     )
     WebRTC_INCS="src/webrtc"; MODULE_DIR=${WebRTC_INCS} . auto/modules.sh
