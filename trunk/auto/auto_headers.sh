@@ -90,7 +90,7 @@ fi
 if [[ $SRS_OSX == YES ]]; then
     srs_define_macro "WEBRTC_MAC" $SRS_AUTO_HEADERS_H
 else
-    srs_undefine_macro "WEBRTC_MAC" $SRS_AUTO_HEADERS_H
+    srs_define_macro "WEBRTC_LINUX" $SRS_AUTO_HEADERS_H
 fi
 
 if [ $SRS_RTC = YES ]; then

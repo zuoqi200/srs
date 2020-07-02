@@ -29,7 +29,8 @@
 
 #include <algorithm>
 #include "third_party/abseil-cpp/absl/base/config.h"
-#define ABSL_HAVE_STD_STRING_VIEW
+
+#undef ABSL_HAVE_STD_STRING_VIEW
 #ifdef ABSL_HAVE_STD_STRING_VIEW
 
 #include <string_view>  // IWYU pragma: export
@@ -48,7 +49,7 @@ using std::string_view;
 #include <limits>
 #include <string>
 
-#include "absl/base/internal/throw_delegate.h"
+#include "third_party/abseil-cpp/absl/base/internal/throw_delegate.h"
 #include "third_party/abseil-cpp/absl/base/macros.h"
 #include "third_party/abseil-cpp/absl/base/optimization.h"
 #include "third_party/abseil-cpp/absl/base/port.h"

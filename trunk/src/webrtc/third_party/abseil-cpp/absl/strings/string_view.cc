@@ -21,7 +21,7 @@
 #include <cstring>
 #include <ostream>
 
-#include "absl/strings/internal/memutil.h"
+#include "third_party/abseil-cpp/absl/strings/internal/memutil.h"
 
 namespace absl {
 

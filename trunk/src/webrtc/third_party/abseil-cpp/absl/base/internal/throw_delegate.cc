@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "absl/base/internal/throw_delegate.h"
+#include "third_party/abseil-cpp/absl/base/internal/throw_delegate.h"
 
 #include <cstdlib>
 #include <functional>
 #include <new>
 #include <stdexcept>
 #include "third_party/abseil-cpp/absl/base/config.h"
-#include "third_party/abseil-cpp/absl/base/internal/raw_logging.h"
+//#include "third_party/abseil-cpp/absl/base/internal/raw_logging.h"
 
 namespace absl {
 namespace base_internal {
@@ -30,7 +30,7 @@ template <typename T>
 #ifdef ABSL_HAVE_EXCEPTIONS
   throw error;
 #else
-  ABSL_RAW_LOG(FATAL, "%s", error.what());
+  //ABSL_RAW_LOG(FATAL, "%s", error.what());
   std::abort();
 #endif
 }

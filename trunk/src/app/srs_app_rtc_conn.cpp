@@ -313,8 +313,8 @@ srs_error_t SrsRtcPlayer::initialize(const uint32_t& vssrc, const uint32_t& assr
 
     // TODO: FIXME: Support reload.
     nack_enabled_ = _srs_config->get_rtc_nack_enabled(session_->req->vhost);
-    srs_trace("RTC player video(ssrc=%d, pt=%d), audio(ssrc=%d, pt=%d), nack=%d",
-        video_ssrc, video_payload_type, audio_ssrc, audio_payload_type, nack_enabled_);
+    srs_trace("RTC player video(ssrc=%d, pt=%d), audio(ssrc=%d, pt=%d), nack=%d, twcc=%u",
+        video_ssrc, video_payload_type, audio_ssrc, audio_payload_type, nack_enabled_, twcc_id);
 
     twcc_id_ = twcc_id;
 #ifdef SRS_CXX14
