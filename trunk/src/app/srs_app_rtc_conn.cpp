@@ -287,7 +287,7 @@ SrsRtcPlayer::SrsRtcPlayer(SrsRtcSession* s, string parent_cid)
     nn_simulate_nack_drop = 0;
     nack_enabled_ = false;
 
-    twcc_id_ = -1;
+    twcc_id_ = 0;
 
     _srs_config->subscribe(this);
 }
@@ -301,7 +301,7 @@ SrsRtcPlayer::~SrsRtcPlayer()
     srs_freep(video_queue_);
 }
 
-srs_error_t SrsRtcPlayer::initialize(const uint32_t& vssrc, const uint32_t& assrc, const uint16_t& v_pt, const uint16_t& a_pt, const int twcc_id)
+srs_error_t SrsRtcPlayer::initialize(uint32_t vssrc, uint32_t assrc, uint16_t v_pt, uint16_t a_pt, int twcc_id)
 {
     srs_error_t err = srs_success;
 
@@ -312,13 +312,18 @@ srs_error_t SrsRtcPlayer::initialize(const uint32_t& vssrc, const uint32_t& assr
     audio_payload_type = a_pt;
 
     // TODO: FIXME: Support reload.
+    // The TWCC ID is the ext-map ID in local SDP, and we set to enable GCC.
+    // Whatever the ext-map, we will disable GCC when config disable it.
+    bool gcc_enabled = _srs_config->get_rtc_gcc_enabled(session_->req->vhost);
+    if (gcc_enabled) {
+        twcc_id_ = twcc_id;
+    }
     nack_enabled_ = _srs_config->get_rtc_nack_enabled(session_->req->vhost);
-    srs_trace("RTC player video(ssrc=%d, pt=%d), audio(ssrc=%d, pt=%d), nack=%d, twcc=%u",
-        video_ssrc, video_payload_type, audio_ssrc, audio_payload_type, nack_enabled_, twcc_id);
+    srs_trace("RTC player video(ssrc=%d, pt=%d), audio(ssrc=%d, pt=%d), nack=%d, gcc=%u/%d",
+        video_ssrc, video_payload_type, audio_ssrc, audio_payload_type, nack_enabled_, gcc_enabled, twcc_id);
 
-    twcc_id_ = twcc_id;
 #ifdef SRS_CXX14
-    if(-1 != twcc_id_) {
+    if(twcc_id_) {
         if(srs_success != (err = create_twcc_handler())) {
             return srs_error_wrap(err, "create twcc hanlder");
         }
@@ -511,7 +516,7 @@ srs_error_t SrsRtcPlayer::send_packets(SrsRtcSource* source, const vector<SrsRtp
 
 #ifdef SRS_CXX14
         // set twcc sn
-        if(-1 != twcc_id_) {
+        if(twcc_id_) {
             pkt->header.set_twcc_sequence_number(twcc_id_, twcc_controller.allocate_twcc_sn());
         }
 #endif
@@ -572,7 +577,7 @@ srs_error_t SrsRtcPlayer::do_send_packets(const std::vector<SrsRtpPacket2*>& pkt
             iov->iov_len = stream.pos();
 
 #ifdef SRS_CXX14
-            if(-1 != twcc_id_) {
+            if(twcc_id_) {
                 //store rtp in twcc adaptor
                 if(srs_success != (err = pkt->header.get_twcc_sequence_number(twcc_sn))) {
                     return srs_error_wrap(err, "get twcc sn");
@@ -637,7 +642,7 @@ srs_error_t SrsRtcPlayer::do_send_packets(const std::vector<SrsRtpPacket2*>& pkt
             pkt->header.get_sequence(), pkt->header.get_timestamp(), pkt->nb_bytes(), iov->iov_len);
 
 #ifdef SRS_CXX14
-        if(-1 != twcc_id_) {
+        if(twcc_id_) {
             if(srs_success != (err = twcc_controller.on_sent_packet(twcc_sn))) {
                 return srs_error_wrap(err, "set sent event of rtp pkt in twcc");
             }
@@ -785,7 +790,7 @@ srs_error_t SrsRtcPlayer::on_rtcp_feedback(char* buf, int nb_buf)
     //uint8_t version = first & 0xC0;
     //uint8_t padding = first & 0x20;
     uint8_t fmt = first & 0x1F;
-    if((-1 != twcc_id_) && (15 == fmt)) {
+    if(twcc_id_ && (15 == fmt)) {
 #ifdef SRS_CXX14
         if(srs_success != (err = twcc_controller.on_received_rtcp((uint8_t*)buf, nb_buf))) {
             return srs_error_wrap(err, "handle twcc feedback rtcp");
@@ -933,7 +938,7 @@ SrsRtcPublisher::SrsRtcPublisher(SrsRtcSession* session)
     pt_to_drop_ = 0;
 
     nn_audio_frames = 0;
-    twcc_ext_id_ = 0;
+    twcc_id_ = 0;
     last_twcc_feedback_time_ = 0;
     twcc_fb_count_ = 0;
 }
@@ -953,25 +958,28 @@ SrsRtcPublisher::~SrsRtcPublisher()
     srs_freep(audio_queue_);
 }
 
-srs_error_t SrsRtcPublisher::initialize(uint32_t vssrc, uint32_t assrc, uint8_t twcc_ext_id, SrsRequest* r)
+srs_error_t SrsRtcPublisher::initialize(uint32_t vssrc, uint32_t assrc, int twcc_id, SrsRequest* r)
 {
     srs_error_t err = srs_success;
 
     video_ssrc = vssrc;
     audio_ssrc = assrc;
-    twcc_ext_id_ = twcc_ext_id;
-    rtcp_twcc_.set_media_ssrc(video_ssrc);
     req = r;
 
-    if (twcc_ext_id_ != 0) {
-        extension_types_.register_by_uri(twcc_ext_id_, kTWCCExt);
-    }
     // TODO: FIXME: Support reload.
     nack_enabled_ = _srs_config->get_rtc_nack_enabled(session_->req->vhost);
     pt_to_drop_ = (uint16_t)_srs_config->get_rtc_drop_for_pt(session_->req->vhost);
+    bool twcc_enabled = _srs_config->get_rtc_twcc_enabled(req->vhost);
+    if (twcc_enabled) {
+        twcc_id_ = twcc_id;
+    }
+    srs_trace("RTC publisher video(ssrc=%u), audio(ssrc=%u), nack=%d, pt-drop=%u, twcc=%u/%d",
+        video_ssrc, audio_ssrc, nack_enabled_, pt_to_drop_, twcc_enabled, twcc_id);
 
-    srs_trace("RTC publisher video(ssrc=%u), audio(ssrc=%u), nack=%d, pt-drop=%u",
-        video_ssrc, audio_ssrc, nack_enabled_, pt_to_drop_);
+    if (twcc_id_) {
+        extension_types_.register_by_uri(twcc_id_, kTWCCExt);
+        rtcp_twcc_.set_media_ssrc(video_ssrc);
+    }
 
     if ((err = report_timer->tick(0 * SRS_UTIME_MILLISECONDS)) != srs_success) {
         return srs_error_wrap(err, "hourglass tick");
@@ -1224,7 +1232,7 @@ srs_error_t SrsRtcPublisher::on_rtp(char* data, int nb_data)
 
     // Decode the header first.
     SrsRtpHeader h;
-    if (pt_to_drop_ && twcc_ext_id_) {
+    if (pt_to_drop_ && twcc_id_) {
         SrsBuffer b(data, nb_data);
         h.ignore_padding(true); h.set_extensions(&extension_types_);
         if ((err = h.decode(&b)) != srs_success) {
@@ -1236,7 +1244,7 @@ srs_error_t SrsRtcPublisher::on_rtp(char* data, int nb_data)
     //      1. Client may send some padding packets with invalid SequenceNumber, which causes the SRTP fail.
     //      2. Server may send multiple duplicated NACK to client, and got more than one ARQ packet, which also fail SRTP.
     // so, we must parse the header before SRTP unprotect(which may fail and drop packet).
-    if (twcc_ext_id_) {
+    if (twcc_id_) {
         uint16_t twcc_sn = 0;
         if ((err = h.get_twcc_sequence_number(twcc_sn)) == srs_success) {
             if((err = on_twcc(twcc_sn)) != srs_success) {
@@ -2081,7 +2089,11 @@ srs_error_t SrsRtcSession::start_play()
 {
     srs_error_t err = srs_success;
 
-    srs_freep(player_);
+    // If player is initialized, we think the session is started.
+    // To prevent play multiple times for the DTLS ARQ packet.
+    if (player_) {
+        return err;
+    }
     player_ = new SrsRtcPlayer(this, _srs_context->get_id());
 
     uint32_t video_ssrc = 0;
@@ -2122,8 +2134,13 @@ srs_error_t SrsRtcSession::start_publish()
 {
     srs_error_t err = srs_success;
 
-    srs_freep(publisher_);
+    // If publisher is initialized, we think the session is started.
+    // To prevent publish multiple times for the DTLS ARQ packet.
+    if (publisher_) {
+        return err;
+    }
     publisher_ = new SrsRtcPublisher(this);
+
     // Request PLI for exists players?
     //publisher_->request_keyframe();
 
