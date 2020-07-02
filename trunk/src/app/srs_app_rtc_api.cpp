@@ -280,27 +280,26 @@ srs_error_t SrsGoApiRtcPlay::exchange_sdp(SrsRequest* req, const SrsSdp& remote_
 
         SrsMediaDesc& local_media_desc = local_sdp.media_descs_.back();
 
-         // check extmap
-        bool use_twcc = false;
-        map<int, std::string> extmap = remote_media_desc.get_extmaps();
-        for(map<int, std::string>::iterator it = extmap.begin(); it != extmap.end(); ++it) {
-            if(kTWCCExt == it->second) {
-                local_media_desc.extmaps_[it->first] = kTWCCExt;
-                use_twcc = true;
+        // Whether feature enabled in remote extmap.
+        int remote_twcc_id = 0;
+        if (true) {
+            map<int, std::string> extmap = remote_media_desc.get_extmaps();
+            for(map<int, std::string>::iterator it = extmap.begin(); it != extmap.end(); ++it) {
+                if(kTWCCExt == it->second) {
+                    remote_twcc_id = it->first;
+                    break;
+                }
             }
         }
-
-        if (use_twcc && !gcc_enabled) {
-            use_twcc = false;
-            srs_trace("Disable %s GCC for config is off", local_media_desc.type_.c_str());
-        }
-
 #ifndef SRS_CXX14
-        if (use_twcc) {
-            use_twcc = false;
-            srs_warn("Disable %s GCC for C++14 disabled", local_media_desc.type_.c_str());
+        if (gcc_enabled) {
+            gcc_enabled = false;
+            srs_warn("Disable %s TWCC(no C++14), remote=%u", local_media_desc.type_.c_str(), remote_twcc_id);
         }
 #endif
+        if (remote_twcc_id && gcc_enabled) {
+            local_media_desc.extmaps_[remote_twcc_id] = kTWCCExt;
+        }
 
         if (remote_media_desc.is_audio()) {
             // TODO: check opus format specific param
@@ -318,7 +317,7 @@ srs_error_t SrsGoApiRtcPlay::exchange_sdp(SrsRequest* req, const SrsSdp& remote_
                             payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
                         }
                     }
-                    if (use_twcc) {
+                    if (remote_twcc_id && gcc_enabled) {
                         if (rtcp_fb.at(j) == "transport-cc") {
                             payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
                         }
@@ -359,7 +358,7 @@ srs_error_t SrsGoApiRtcPlay::exchange_sdp(SrsRequest* req, const SrsSdp& remote_
                                 payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
                             }
                         }
-                        if (use_twcc) {
+                        if (remote_twcc_id && gcc_enabled) {
                             if (rtcp_fb.at(j) == "transport-cc") {
                                 payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
                             }
@@ -666,6 +665,21 @@ srs_error_t SrsGoApiRtcPublish::exchange_sdp(SrsRequest* req, const SrsSdp& remo
 
         SrsMediaDesc& local_media_desc = local_sdp.media_descs_.back();
 
+        // Whether feature enabled in remote extmap.
+        int remote_twcc_id = 0;
+        if (true) {
+            map<int, string> extmaps = remote_media_desc.get_extmaps();
+            for(map<int, string>::iterator it = extmaps.begin(); it != extmaps.end(); ++it) {
+                if (it->second == kTWCCExt) {
+                    remote_twcc_id = it->first;
+                    break;
+                }
+            }
+        }
+        if (twcc_enabled && remote_twcc_id) {
+            local_media_desc.extmaps_[remote_twcc_id] = kTWCCExt;
+        }
+
         if (remote_media_desc.is_audio()) {
             // TODO: check opus format specific param
             std::vector<SrsMediaPayloadType> payloads = remote_media_desc.find_media_with_encoding_name("opus");
@@ -682,7 +696,7 @@ srs_error_t SrsGoApiRtcPublish::exchange_sdp(SrsRequest* req, const SrsSdp& remo
                             payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
                         }
                     }
-                    if (twcc_enabled) {
+                    if (twcc_enabled && remote_twcc_id) {
                         if (rtcp_fb.at(j) == "transport-cc") {
                             payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
                         }
@@ -691,13 +705,6 @@ srs_error_t SrsGoApiRtcPublish::exchange_sdp(SrsRequest* req, const SrsSdp& remo
 
                 // Only choose one match opus codec.
                 break;
-            }
-            map<int, string> extmaps = remote_media_desc.get_extmaps();
-            for(map<int, string>::iterator it_ext = extmaps.begin(); it_ext != extmaps.end(); ++it_ext) {
-                if (it_ext->second == kTWCCExt) {
-                    local_media_desc.extmaps_[it_ext->first] = kTWCCExt;
-                    break;
-                }
             }
 
             if (local_media_desc.payload_types_.empty()) {
@@ -731,7 +738,7 @@ srs_error_t SrsGoApiRtcPublish::exchange_sdp(SrsRequest* req, const SrsSdp& remo
                                 payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
                             }
                         }
-                        if (twcc_enabled) {
+                        if (twcc_enabled && remote_twcc_id) {
                             if (rtcp_fb.at(j) == "transport-cc") {
                                 payload_type.rtcp_fb_.push_back(rtcp_fb.at(j));
                             }
@@ -743,13 +750,6 @@ srs_error_t SrsGoApiRtcPublish::exchange_sdp(SrsRequest* req, const SrsSdp& remo
                 }
 
                 backup_payloads.push_back(*iter);
-            }
-            map<int, string> extmaps = remote_media_desc.get_extmaps();
-            for(map<int, string>::iterator it_ext = extmaps.begin(); it_ext != extmaps.end(); ++it_ext) {
-                if (it_ext->second == kTWCCExt) {
-                    local_media_desc.extmaps_[it_ext->first] = kTWCCExt;
-                    break;
-                }
             }
 
             // Try my best to pick at least one media payload type.
