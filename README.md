@@ -159,6 +159,8 @@ For previous versions, please read:
 
 ## V4 changes
 
+* v4.0, 2020-07-04, Fix some bugs for RTC. 4.0.34
+* v4.0, 2020-07-03, Merge [#1830][bug #1830] to fix bugs in GB28181. 4.0.33
 * v4.0, 2020-06-24, Support static link c++ libraries. 4.0.32
 * v4.0, 2020-06-23, Change log cid from int to string. 4.0.31
 * v4.0, 2020-06-13, GB28181 with JitterBuffer support. 4.0.30
@@ -195,6 +197,7 @@ For previous versions, please read:
 
 ## V3 changes
 
+* <strong>v3.0, 2020-06-27, [3.0 release0(3.0.141)][r3.0r0] released. 122674 lines.</strong>
 * v3.0, 2020-03-30, For [#1672][bug #1672], fix dvr close file failed bug. 3.0.140
 * <strong>v3.0, 2020-03-29, [3.0 beta4(3.0.139)][r3.0b4] released. 122674 lines.</strong>
 * v3.0, 2020-03-28, Support multiple OS/Platform build cache. 3.0.139
@@ -809,6 +812,7 @@ For previous versions, please read:
 
 ## Releases
 
+* 2020-06-27, [Release v3.0-r0][r3.0r0], 3.0 release0, 3.0.141, 122674 lines.
 * 2020-03-29, [Release v3.0-b3][r3.0b4], 3.0 beta4, 3.0.139, 122674 lines.
 * 2020-03-18, [Release v3.0-b3][r3.0b3], 3.0 beta3, 3.0.134, 122509 lines.
 * 2020-03-05, [Release v3.0-b2][r3.0b2], 3.0 beta2, 3.0.123, 122170 lines.
@@ -1755,10 +1759,12 @@ Winlin
 [bug #1612]: https://github.com/ossrs/srs/issues/1612
 [bug #1636]: https://github.com/ossrs/srs/issues/1636
 [bug #1657]: https://github.com/ossrs/srs/issues/1657
+[bug #1830]: https://github.com/ossrs/srs/issues/1830
 [bug #zzzzzzzzzzzzz]: https://github.com/ossrs/srs/issues/zzzzzzzzzzzzz
 
 [exo #828]: https://github.com/google/ExoPlayer/pull/828
 
+[r3.0r0]: https://github.com/ossrs/srs/releases/tag/v3.0-r0
 [r3.0b4]: https://github.com/ossrs/srs/releases/tag/v3.0-b4
 [r3.0b3]: https://github.com/ossrs/srs/releases/tag/v3.0-b3
 [r3.0b2]: https://github.com/ossrs/srs/releases/tag/v3.0-b2
