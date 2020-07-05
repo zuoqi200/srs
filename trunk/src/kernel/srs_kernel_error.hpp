@@ -421,7 +421,7 @@ private:
     std::string file;
     int line;
     
-    std::string cid;
+    SrsContextId cid;
     int rerrno;
     
     std::string desc;
