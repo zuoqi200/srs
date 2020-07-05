@@ -96,7 +96,7 @@ void SrsFileLog::reopen()
     open_log_file();
 }
 
-void SrsFileLog::verbose(const char* tag, const char* context_id, const char* fmt, ...)
+void SrsFileLog::verbose(const char* tag, SrsContextId context_id, const char* fmt, ...)
 {
     if (level > SrsLogLevelVerbose) {
         return;
@@ -116,7 +116,7 @@ void SrsFileLog::verbose(const char* tag, const char* context_id, const char* fm
     write_log(fd, log_data, size, SrsLogLevelVerbose);
 }
 
-void SrsFileLog::info(const char* tag, const char* context_id, const char* fmt, ...)
+void SrsFileLog::info(const char* tag, SrsContextId context_id, const char* fmt, ...)
 {
     if (level > SrsLogLevelInfo) {
         return;
@@ -136,7 +136,7 @@ void SrsFileLog::info(const char* tag, const char* context_id, const char* fmt, 
     write_log(fd, log_data, size, SrsLogLevelInfo);
 }
 
-void SrsFileLog::trace(const char* tag, const char* context_id, const char* fmt, ...)
+void SrsFileLog::trace(const char* tag, SrsContextId context_id, const char* fmt, ...)
 {
     if (level > SrsLogLevelTrace) {
         return;
@@ -156,7 +156,7 @@ void SrsFileLog::trace(const char* tag, const char* context_id, const char* fmt,
     write_log(fd, log_data, size, SrsLogLevelTrace);
 }
 
-void SrsFileLog::warn(const char* tag, const char* context_id, const char* fmt, ...)
+void SrsFileLog::warn(const char* tag, SrsContextId context_id, const char* fmt, ...)
 {
     if (level > SrsLogLevelWarn) {
         return;
@@ -176,7 +176,7 @@ void SrsFileLog::warn(const char* tag, const char* context_id, const char* fmt, 
     write_log(fd, log_data, size, SrsLogLevelWarn);
 }
 
-void SrsFileLog::error(const char* tag, const char* context_id, const char* fmt, ...)
+void SrsFileLog::error(const char* tag, SrsContextId context_id, const char* fmt, ...)
 {
     if (level > SrsLogLevelError) {
         return;
@@ -377,7 +377,7 @@ void SrsJsonLog::reopen()
     open_log_file();
 }
 
-void SrsJsonLog::verbose(const char* tag, const char* context_id, const char* fmt, ...)
+void SrsJsonLog::verbose(const char* tag, SrsContextId context_id, const char* fmt, ...)
 {
     if (level > SrsLogLevelVerbose) {
         return;
@@ -392,7 +392,7 @@ void SrsJsonLog::verbose(const char* tag, const char* context_id, const char* fm
     write_log(fd, log_data, size, SrsLogLevelVerbose, tag);
 }
 
-void SrsJsonLog::info(const char* tag, const char* context_id, const char* fmt, ...)
+void SrsJsonLog::info(const char* tag, SrsContextId context_id, const char* fmt, ...)
 {
     if (level > SrsLogLevelInfo) {
         return;
@@ -407,7 +407,7 @@ void SrsJsonLog::info(const char* tag, const char* context_id, const char* fmt, 
     write_log(fd, log_data, size, SrsLogLevelInfo, tag);
 }
 
-void SrsJsonLog::trace(const char* tag, const char* context_id, const char* fmt, ...)
+void SrsJsonLog::trace(const char* tag, SrsContextId context_id, const char* fmt, ...)
 {
     if (level > SrsLogLevelTrace) {
         return;
@@ -422,7 +422,7 @@ void SrsJsonLog::trace(const char* tag, const char* context_id, const char* fmt,
     write_log(fd, log_data, size, SrsLogLevelTrace, tag);
 }
 
-void SrsJsonLog::warn(const char* tag, const char* context_id, const char* fmt, ...)
+void SrsJsonLog::warn(const char* tag, SrsContextId context_id, const char* fmt, ...)
 {
     if (level > SrsLogLevelWarn) {
         return;
@@ -437,7 +437,7 @@ void SrsJsonLog::warn(const char* tag, const char* context_id, const char* fmt, 
     write_log(fd, log_data, size, SrsLogLevelWarn, tag);
 }
 
-void SrsJsonLog::error(const char* tag, const char* context_id, const char* fmt, ...)
+void SrsJsonLog::error(const char* tag, SrsContextId context_id, const char* fmt, ...)
 {
     if (level > SrsLogLevelError) {
         return;

@@ -275,7 +275,7 @@ SrsRtcOutgoingInfo::~SrsRtcOutgoingInfo()
 {
 }
 
-SrsRtcPlayer::SrsRtcPlayer(SrsRtcSession* s, string parent_cid)
+SrsRtcPlayer::SrsRtcPlayer(SrsRtcSession* s, SrsContextId parent_cid)
 {
     _parent_cid = parent_cid;
     trd = new SrsDummyCoroutine();
@@ -378,7 +378,7 @@ srs_error_t SrsRtcPlayer::on_reload_vhost_realtime(string vhost)
     return on_reload_vhost_play(vhost);
 }
 
-std::string SrsRtcPlayer::cid()
+SrsContextId SrsRtcPlayer::cid()
 {
     return trd->cid();
 }
@@ -1804,8 +1804,8 @@ block  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 void SrsRtcPublisher::request_keyframe()
 {
-    std::string scid = _srs_context->get_id();
-    std::string pcid = session_->context_id();
+    SrsContextId scid = _srs_context->get_id();
+    SrsContextId pcid = session_->context_id();
     srs_trace("RTC play=[%d][%s] request keyframe from publish=[%d][%s]", ::getpid(), scid.c_str(), ::getpid(), pcid.c_str());
 
     request_keyframe_ = true;
@@ -1846,7 +1846,6 @@ void SrsRtcPublisher::simulate_drop_packet(SrsRtpHeader* h, int nn_bytes)
 SrsRtcSession::SrsRtcSession(SrsRtcServer* s)
 {
     req = NULL;
-    cid = "";
     is_publisher_ = false;
     encrypt = true;
 
@@ -1939,12 +1938,12 @@ void SrsRtcSession::switch_to_context()
     _srs_context->set_id(cid);
 }
 
-std::string SrsRtcSession::context_id()
+SrsContextId SrsRtcSession::context_id()
 {
     return cid;
 }
 
-srs_error_t SrsRtcSession::initialize(SrsRtcSource* source, SrsRequest* r, bool is_publisher, string username, std::string context_id)
+srs_error_t SrsRtcSession::initialize(SrsRtcSource* source, SrsRequest* r, bool is_publisher, string username, SrsContextId context_id)
 {
     srs_error_t err = srs_success;
 
