@@ -2,6 +2,7 @@
 #include <srs_app_rtc_native_signaling.hpp>
 #include <srs_kernel_error.hpp>
 #include <srs_kernel_log.hpp>
+#include <srs_core_autofree.hpp>
 
 using namespace std;
 
@@ -2501,45 +2502,697 @@ srs_error_t SrsRtcNativeSubscribeResponse::encode(SrsBuffer *buffer)
     return err;
 }
 
-SrsRtcNativeHeartbeatRequest::SrsRtcNativeHeartbeatRequest()
+SrsRtcNativePublishUpdateRequest::SrsRtcNativePublishUpdateRequest()
 {
     msg_type_ = SrsRTCNativeMsgType_request;
+    msid_cmd_.clear();
+    sdp_ = NULL;
 }
 
-SrsRtcNativeHeartbeatRequest::~SrsRtcNativeHeartbeatRequest()
+SrsRtcNativePublishUpdateRequest::~SrsRtcNativePublishUpdateRequest()
 {
+    if(NULL != sdp_) {
+        srs_freep(sdp_);
+        sdp_ = NULL;
+    }
+}
+    
+string& SrsRtcNativePublishUpdateRequest::get_url()
+{
+    return url_;
 }
 
-SrsRtcNativeHeartbeatResponse::SrsRtcNativeHeartbeatResponse(): code_(0)
+vector<SrsRtcNativeMsidCMD>& SrsRtcNativePublishUpdateRequest::get_msid_cmd()
+{
+    return msid_cmd_;
+}
+
+SrsRtcNativeMiniSDP* SrsRtcNativePublishUpdateRequest::get_mini_sdp()
+{
+    if(NULL == sdp_) {
+        sdp_ = new SrsRtcNativeMiniSDP();
+    }
+    return sdp_;
+}
+
+void SrsRtcNativePublishUpdateRequest::set_url(std::string url)
+{
+    url_ = url;
+}
+
+void SrsRtcNativePublishUpdateRequest::add_msid_cmd(SrsRtcNativeMsidCMD& cmd)
+{
+    msid_cmd_.push_back(cmd);
+}
+
+srs_error_t SrsRtcNativePublishUpdateRequest::decode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    // header
+    if((err = decode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to decode header");
+    }
+
+    SrsTLV tlv;
+    while(0 != buffer->left()) {
+        if(srs_success != (err = tlv.decode(buffer))) {
+            if(ERROR_RTC_NATIVE_TLV_TYPE_0 == srs_error_code(err)) {
+                err = srs_success;
+                continue;
+            }
+            return srs_error_wrap(err, "decode tlv error");
+        }
+
+        if(SrsRTCNativeType_url == tlv.get_type()) {
+            url_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else if(SrsRTCNativeType_minisdp == tlv.get_type()) {
+            SrsBuffer miniBuf((char*)tlv.get_value(), tlv.get_len());
+            if(NULL == sdp_) {
+                sdp_ = new SrsRtcNativeMiniSDP();
+            }
+            if(srs_success != (err = sdp_->decode(&miniBuf))) {
+                return srs_error_wrap(err, "fail to decode mini sdp in subscribe request");
+            }
+        } else if(SrsRTCNativeType_msid_cmd == tlv.get_type()) {
+            uint8_t* p = tlv.get_value();
+            SrsRtcNativeMsidCMD msid_cmd;
+            msid_cmd.cmd = *p;
+            p++;
+            msid_cmd.msid = string((char*)p, tlv.get_len() - 1);
+            msid_cmd_.push_back(msid_cmd);
+        } else {
+            srs_warn("Subscribe request, unkonw type:%d", tlv.get_type());
+        }
+    }
+
+    return err;  
+}
+    
+int SrsRtcNativePublishUpdateRequest::nb_bytes()
+{
+    int len  = SrsRtcNativeHeader::nb_bytes();
+    len += 3 + url_.length();
+    // mini sdp
+    if(NULL != sdp_) {
+        len += 3 + sdp_->nb_bytes();
+    }
+
+    // msid cmd
+    for(int i = 0; i < msid_cmd_.size(); ++i) {
+        len += 3 + sizeof(msid_cmd_.at(i).cmd) + msid_cmd_.at(i).msid.length();
+    }
+    
+    return len;
+}
+
+srs_error_t SrsRtcNativePublishUpdateRequest::encode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    if(!buffer->require(nb_bytes())) {
+        return srs_error_new(ERROR_RTC_NATIVE_ECODE, 
+            "encode buffer is not enough. need:%d, buffer:%d", nb_bytes(), buffer->left());
+    }
+
+    if((err = encode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to encode header");
+    }
+    
+    uint8_t tmp[2048];
+    SrsTLV tlv;
+
+    // encode url
+    tlv.set_type(SrsRTCNativeType_url);
+    tlv.set_value(url_.length(), (uint8_t*)url_.c_str());
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode url");
+    }
+    
+    // msid cmd
+    for(int i =0; i < msid_cmd_.size(); ++i) {
+        tlv.set_type(SrsRTCNativeType_msid_cmd);
+        int len = msid_cmd_.at(i).msid.length() + 1;
+        srs_assert(len < sizeof(tmp));
+        memcpy(tmp, &msid_cmd_.at(i).cmd, 1);
+        memcpy(tmp+1, msid_cmd_.at(i).msid.c_str(), msid_cmd_.at(i).msid.length());
+
+        tlv.set_value(len, tmp);
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode msid:%s, cmd:%d", msid_cmd_.at(i).msid.c_str(), msid_cmd_.at(i).cmd);
+        }
+    }
+    
+
+    // miniSDP
+    if(NULL != sdp_) {
+        tlv.set_type(SrsRTCNativeType_minisdp);
+        memset(tmp, 0, sizeof(tmp));
+        SrsBuffer sdpBuf((char*)tmp, sizeof(tmp));
+        if(srs_success != (err = sdp_->encode(&sdpBuf))) {
+            return srs_error_wrap(err, "encode mini sdp");
+        }
+        tlv.set_value(sdpBuf.pos(), tmp);
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode mini sdp tlv");
+        }
+    }
+
+    return err;
+}
+
+SrsRtcNativePublishUpdateResponse::SrsRtcNativePublishUpdateResponse()
 {
     msg_type_ = SrsRTCNativeMsgType_final_resp;
+    mini_sdp_ = NULL;
 }
 
-SrsRtcNativeHeartbeatResponse::~SrsRtcNativeHeartbeatResponse()
+SrsRtcNativePublishUpdateResponse::~SrsRtcNativePublishUpdateResponse()
 {
+    if(NULL != mini_sdp_) {
+        srs_freep(mini_sdp_);
+        mini_sdp_ = NULL;
+    }
 }
 
-const uint16_t SrsRtcNativeHeartbeatResponse::get_code() const
+SrsRtcNativeMiniSDP* SrsRtcNativePublishUpdateResponse::get_sdp()
+{
+    if(NULL == mini_sdp_) {
+        mini_sdp_ = new SrsRtcNativeMiniSDP();
+    }
+    return mini_sdp_;
+}
+
+const uint16_t SrsRtcNativePublishUpdateResponse::get_code() const
 {
     return code_;
 }
 
-const string& SrsRtcNativeHeartbeatResponse::get_msg() const
+const string& SrsRtcNativePublishUpdateResponse::get_msg() const
 {
     return msg_;
 }
 
-void SrsRtcNativeHeartbeatResponse::set_code(uint16_t code)
+std::vector<std::string>& SrsRtcNativePublishUpdateResponse::get_msid()
 {
-    code_= code;
+    return msids_;
+}
+    
+void SrsRtcNativePublishUpdateResponse::set_code(uint16_t code)
+{
+    code_ = code;
 }
 
-void SrsRtcNativeHeartbeatResponse::set_msg(std::string& msg)
+void SrsRtcNativePublishUpdateResponse::set_msg(std::string& msg)
 {
     msg_ = msg;
 }
 
-srs_error_t SrsRtcNativeHeartbeatResponse::decode(SrsBuffer *buffer)
+void SrsRtcNativePublishUpdateResponse::add_msid(std::string& msid)
+{
+    if(msid.empty()) {
+        return;
+    }
+    msids_.push_back(msid);
+}
+
+srs_error_t SrsRtcNativePublishUpdateResponse::decode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    // header
+    if((err = decode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to decode header");
+    }
+
+    SrsTLV tlv;
+    while(0 != buffer->left()) {
+        if(srs_success != (err = tlv.decode(buffer))) {
+            if(ERROR_RTC_NATIVE_TLV_TYPE_0 == srs_error_code(err)) {
+                err = srs_success;
+                continue;
+            }
+            return srs_error_wrap(err, "decode tlv error");
+        }
+
+        if(SrsRTCNativeType_code == tlv.get_type()) {
+            code_ = ntohs(*((uint16_t*)tlv.get_value()));
+        } else if(SrsRTCNativeType_minisdp == tlv.get_type()) {
+            SrsBuffer miniBuf((char*)tlv.get_value(), tlv.get_len());
+            if(NULL == mini_sdp_) {
+                mini_sdp_ = new SrsRtcNativeMiniSDP();
+            }
+            if(srs_success != (err = mini_sdp_->decode(&miniBuf))) {
+                return srs_error_wrap(err, "fail to decode mini sdp in subscribe response");
+            }
+        } else if(SrsRTCNativeType_msg == tlv.get_type()) {
+            msg_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else if(SrsRTCNativeType_msid == tlv.get_type()) {
+            string msid = string((char*)tlv.get_value(), tlv.get_len());
+            msids_.push_back(msid);
+        } else {
+            srs_warn("Subscribe response, unkonw type:%d", tlv.get_type());
+        }
+    }
+
+    return err;   
+}
+
+int SrsRtcNativePublishUpdateResponse::nb_bytes()
+{
+    int len = SrsRtcNativeHeader::nb_bytes();
+    len += 3 + sizeof(code_);
+    if(NULL != mini_sdp_) {
+        len += 3 + mini_sdp_->nb_bytes();
+    }
+    if(!msg_.empty()) {
+        len += 3 + msg_.length();
+    }
+    if(!msids_.empty()) {
+        for(vector<string>::iterator it = msids_.begin(); it != msids_.end(); ++it) {
+            len += 3 + it->length();
+        }
+    }
+    return len;
+}
+
+srs_error_t SrsRtcNativePublishUpdateResponse::encode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    if(!buffer->require(nb_bytes())) {
+        return srs_error_new(ERROR_RTC_NATIVE_ECODE, 
+            "encode buffer is not enough. need:%d, buffer:%d", nb_bytes(), buffer->left());
+    }
+
+    if((err = encode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to encode header");
+    }
+
+    uint8_t tmp[2048];
+    SrsTLV tlv;
+
+    // encode code
+    tlv.set_type(SrsRTCNativeType_code);
+    uint16_t code = htons(code_);
+    tlv.set_value(sizeof(code_), (uint8_t*)&code);
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode code");
+    }
+
+    if(!msg_.empty()) {
+        // encode msg
+        tlv.set_type(SrsRTCNativeType_msg);
+        tlv.set_value(msg_.length(), (uint8_t*)msg_.c_str());
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode msg");
+        }
+    }
+
+    // miniSDP
+    if(NULL != mini_sdp_) {
+        tlv.set_type(SrsRTCNativeType_minisdp);
+        memset(tmp, 0, sizeof(tmp));
+        SrsBuffer sdpBuf((char*)tmp, sizeof(tmp));
+        if(srs_success != (err = mini_sdp_->encode(&sdpBuf))) {
+            return srs_error_wrap(err, "encode mini sdp");
+        }
+        tlv.set_value(sdpBuf.pos(), tmp);
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode mini sdp tlv");
+        }
+    }
+
+     if(!msids_.empty()) {
+        for(vector<string>::iterator it=msids_.begin(); it != msids_.end(); ++it) {
+            tlv.set_type(SrsRTCNativeType_msid);
+            tlv.set_value(it->length(), (uint8_t*)it->c_str());
+            if(srs_success != (err = tlv.encode(buffer))) {
+                return srs_error_wrap(err, "encode msid:%s", it->c_str());
+            }
+        }
+    }
+
+    return err;
+}
+
+SrsRtcNativeSubscribeUpdateRequest::SrsRtcNativeSubscribeUpdateRequest()
+{
+    msg_type_ = SrsRTCNativeMsgType_request;
+    msid_cmd_.clear();
+    sdp_ = NULL;
+}
+ 
+SrsRtcNativeSubscribeUpdateRequest::~SrsRtcNativeSubscribeUpdateRequest()
+{
+    if(NULL != sdp_) {
+        srs_freep(sdp_);
+        sdp_ = NULL;
+    }
+}
+
+string& SrsRtcNativeSubscribeUpdateRequest::get_url()
+{
+    return url_;
+}
+
+vector<SrsRtcNativeMsidCMD>& SrsRtcNativeSubscribeUpdateRequest::get_msid_cmd()
+{
+    return msid_cmd_;
+}
+
+SrsRtcNativeMiniSDP* SrsRtcNativeSubscribeUpdateRequest::get_mini_sdp()
+{
+    if(NULL == sdp_) {
+        sdp_ = new SrsRtcNativeMiniSDP();
+    }
+    return sdp_;
+}
+
+void SrsRtcNativeSubscribeUpdateRequest::set_url(std::string url)
+{
+    url_ = url;
+}
+
+void SrsRtcNativeSubscribeUpdateRequest::add_msid_cmd(SrsRtcNativeMsidCMD& cmd)
+{
+    msid_cmd_.push_back(cmd);
+}
+
+srs_error_t SrsRtcNativeSubscribeUpdateRequest::decode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    // header
+    if((err = decode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to decode header");
+    }
+
+    SrsTLV tlv;
+    while(0 != buffer->left()) {
+        if(srs_success != (err = tlv.decode(buffer))) {
+            if(ERROR_RTC_NATIVE_TLV_TYPE_0 == srs_error_code(err)) {
+                err = srs_success;
+                continue;
+            }
+            return srs_error_wrap(err, "decode tlv error");
+        }
+
+        if(SrsRTCNativeType_url == tlv.get_type()) {
+            url_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else if(SrsRTCNativeType_minisdp == tlv.get_type()) {
+            SrsBuffer miniBuf((char*)tlv.get_value(), tlv.get_len());
+            if(NULL == sdp_) {
+                sdp_ = new SrsRtcNativeMiniSDP();
+            }
+            if(srs_success != (err = sdp_->decode(&miniBuf))) {
+                return srs_error_wrap(err, "fail to decode mini sdp in subscribe request");
+            }
+        } else if(SrsRTCNativeType_msid_cmd == tlv.get_type()) {
+            uint8_t* p = tlv.get_value();
+            SrsRtcNativeMsidCMD msid_cmd;
+            msid_cmd.cmd = *p;
+            p++;
+            msid_cmd.msid = string((char*)p, tlv.get_len() - 1);
+            msid_cmd_.push_back(msid_cmd);
+        } else {
+            srs_warn("Subscribe request, unkonw type:%d", tlv.get_type());
+        }
+    }
+
+    return err; 
+}
+
+int SrsRtcNativeSubscribeUpdateRequest::nb_bytes()
+{
+    int len  = SrsRtcNativeHeader::nb_bytes();
+    len += 3 + url_.length();
+    // mini sdp
+    if(NULL != sdp_) {
+        len += 3 + sdp_->nb_bytes();
+    }
+
+    // msid cmd
+    for(int i = 0; i < msid_cmd_.size(); ++i) {
+        len += 3 + sizeof(msid_cmd_.at(i).cmd) + msid_cmd_.at(i).msid.length();
+    }
+    return len;
+}
+
+srs_error_t SrsRtcNativeSubscribeUpdateRequest::encode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    if(!buffer->require(nb_bytes())) {
+        return srs_error_new(ERROR_RTC_NATIVE_ECODE, 
+            "encode buffer is not enough. need:%d, buffer:%d", nb_bytes(), buffer->left());
+    }
+
+    if((err = encode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to encode header");
+    }
+    
+    uint8_t tmp[2048];
+    SrsTLV tlv;
+
+    // encode url
+    tlv.set_type(SrsRTCNativeType_url);
+    tlv.set_value(url_.length(), (uint8_t*)url_.c_str());
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode url");
+    }
+    
+    // msid cmd
+    for(int i =0; i < msid_cmd_.size(); ++i) {
+        tlv.set_type(SrsRTCNativeType_msid_cmd);
+        int len = msid_cmd_.at(i).msid.length() + 1;
+        srs_assert(len < sizeof(tmp));
+        memcpy(tmp, &msid_cmd_.at(i).cmd, 1);
+        memcpy(tmp+1, msid_cmd_.at(i).msid.c_str(), msid_cmd_.at(i).msid.length());
+
+        tlv.set_value(len, tmp);
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode msid:%s, cmd:%d", msid_cmd_.at(i).msid.c_str(), msid_cmd_.at(i).cmd);
+        }
+    }
+    
+
+    // miniSDP
+    if(NULL != sdp_) {
+        tlv.set_type(SrsRTCNativeType_minisdp);
+        memset(tmp, 0, sizeof(tmp));
+        SrsBuffer sdpBuf((char*)tmp, sizeof(tmp));
+        if(srs_success != (err = sdp_->encode(&sdpBuf))) {
+            return srs_error_wrap(err, "encode mini sdp");
+        }
+        tlv.set_value(sdpBuf.pos(), tmp);
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode mini sdp tlv");
+        }
+    }
+
+    return err;
+}
+
+
+SrsRtcNativeSubscribeUpdateResponse::SrsRtcNativeSubscribeUpdateResponse()
+{
+    msg_type_ = SrsRTCNativeMsgType_final_resp;
+    mini_sdp_ = NULL;
+}
+
+SrsRtcNativeSubscribeUpdateResponse::~SrsRtcNativeSubscribeUpdateResponse()
+{
+    if(NULL != mini_sdp_) {
+        srs_freep(mini_sdp_);
+        mini_sdp_ = NULL;
+    }
+}
+
+SrsRtcNativeMiniSDP* SrsRtcNativeSubscribeUpdateResponse::get_sdp()
+{
+    if(NULL == mini_sdp_) {
+        mini_sdp_ = new SrsRtcNativeMiniSDP();
+    }
+    return mini_sdp_;
+}
+
+const uint16_t SrsRtcNativeSubscribeUpdateResponse::get_code() const
+{
+    return code_;
+}
+
+const string& SrsRtcNativeSubscribeUpdateResponse::get_msg() const
+{
+    return msg_;
+}
+
+std::vector<std::string>& SrsRtcNativeSubscribeUpdateResponse::get_msid()
+{
+    return msids_;
+}
+    
+void SrsRtcNativeSubscribeUpdateResponse::set_code(uint16_t code)
+{
+    code_ = code;
+}
+
+void SrsRtcNativeSubscribeUpdateResponse::set_msg(std::string& msg)
+{
+    msg_ = msg;
+}
+
+void SrsRtcNativeSubscribeUpdateResponse::add_msid(std::string& msid)
+{
+    if(msid.empty()) {
+        return;
+    }
+    msids_.push_back(msid);
+}
+
+srs_error_t SrsRtcNativeSubscribeUpdateResponse::decode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    // header
+    if((err = decode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to decode header");
+    }
+
+    SrsTLV tlv;
+    while(0 != buffer->left()) {
+        if(srs_success != (err = tlv.decode(buffer))) {
+            if(ERROR_RTC_NATIVE_TLV_TYPE_0 == srs_error_code(err)) {
+                err = srs_success;
+                continue;
+            }
+            return srs_error_wrap(err, "decode tlv error");
+        }
+
+        if(SrsRTCNativeType_code == tlv.get_type()) {
+            code_ = ntohs(*((uint16_t*)tlv.get_value()));
+        } else if(SrsRTCNativeType_minisdp == tlv.get_type()) {
+            SrsBuffer miniBuf((char*)tlv.get_value(), tlv.get_len());
+            if(NULL == mini_sdp_) {
+                mini_sdp_ = new SrsRtcNativeMiniSDP();
+            }
+            if(srs_success != (err = mini_sdp_->decode(&miniBuf))) {
+                return srs_error_wrap(err, "fail to decode mini sdp in subscribe response");
+            }
+        } else if(SrsRTCNativeType_msg == tlv.get_type()) {
+            msg_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else if(SrsRTCNativeType_msid == tlv.get_type()) {
+            string msid = string((char*)tlv.get_value(), tlv.get_len());
+            msids_.push_back(msid);
+        } else {
+            srs_warn("Subscribe response, unkonw type:%d", tlv.get_type());
+        }
+    }
+
+    return err;   
+}
+
+int SrsRtcNativeSubscribeUpdateResponse::nb_bytes()
+{
+    int len = SrsRtcNativeHeader::nb_bytes();
+    len += 3 + sizeof(code_);
+    if(NULL != mini_sdp_) {
+        len += 3 + mini_sdp_->nb_bytes();
+    }
+    if(!msg_.empty()) {
+        len += 3 + msg_.length();
+    }
+    if(!msids_.empty()) {
+        for(vector<string>::iterator it = msids_.begin(); it != msids_.end(); ++it) {
+            len += 3 + it->length();
+        }
+    }
+    return len;
+}
+
+srs_error_t SrsRtcNativeSubscribeUpdateResponse::encode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    if(!buffer->require(nb_bytes())) {
+        return srs_error_new(ERROR_RTC_NATIVE_ECODE, 
+            "encode buffer is not enough. need:%d, buffer:%d", nb_bytes(), buffer->left());
+    }
+
+    if((err = encode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to encode header");
+    }
+
+    uint8_t tmp[2048];
+    SrsTLV tlv;
+
+    // encode code
+    tlv.set_type(SrsRTCNativeType_code);
+    uint16_t code = htons(code_);
+    tlv.set_value(sizeof(code_), (uint8_t*)&code);
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode code");
+    }
+
+    if(!msg_.empty()) {
+        // encode msg
+        tlv.set_type(SrsRTCNativeType_msg);
+        tlv.set_value(msg_.length(), (uint8_t*)msg_.c_str());
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode msg");
+        }
+    }
+
+    // miniSDP
+    if(NULL != mini_sdp_) {
+        tlv.set_type(SrsRTCNativeType_minisdp);
+        memset(tmp, 0, sizeof(tmp));
+        SrsBuffer sdpBuf((char*)tmp, sizeof(tmp));
+        if(srs_success != (err = mini_sdp_->encode(&sdpBuf))) {
+            return srs_error_wrap(err, "encode mini sdp");
+        }
+        tlv.set_value(sdpBuf.pos(), tmp);
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode mini sdp tlv");
+        }
+    }
+
+     if(!msids_.empty()) {
+        for(vector<string>::iterator it=msids_.begin(); it != msids_.end(); ++it) {
+            tlv.set_type(SrsRTCNativeType_msid);
+            tlv.set_value(it->length(), (uint8_t*)it->c_str());
+            if(srs_success != (err = tlv.encode(buffer))) {
+                return srs_error_wrap(err, "encode msid:%s", it->c_str());
+            }
+        }
+    }
+
+    return err;
+}
+
+SrsRtcNativeCommonResponse::SrsRtcNativeCommonResponse(): code_(0)
+{
+    msg_type_ = SrsRTCNativeMsgType_final_resp;
+}
+
+SrsRtcNativeCommonResponse::~SrsRtcNativeCommonResponse()
+{
+}
+
+
+const uint16_t SrsRtcNativeCommonResponse::get_code() const
+{
+    return code_;
+}
+
+const string& SrsRtcNativeCommonResponse::get_msg() const
+{
+    return msg_;
+}
+
+void SrsRtcNativeCommonResponse::set_code(uint16_t code)
+{
+    code_= code;
+}
+
+void SrsRtcNativeCommonResponse::set_msg(std::string& msg)
+{
+    msg_ = msg;
+}
+
+srs_error_t SrsRtcNativeCommonResponse::decode(SrsBuffer *buffer)
 {
     srs_error_t err = srs_success;
     // header
@@ -2569,7 +3222,7 @@ srs_error_t SrsRtcNativeHeartbeatResponse::decode(SrsBuffer *buffer)
     return err;
 }
 
-int SrsRtcNativeHeartbeatResponse::nb_bytes()
+int SrsRtcNativeCommonResponse::nb_bytes()
 {
     int len = SrsRtcNativeHeader::nb_bytes();
     len += 3 + sizeof(code_);
@@ -2579,7 +3232,7 @@ int SrsRtcNativeHeartbeatResponse::nb_bytes()
     return len;
 }
 
-srs_error_t SrsRtcNativeHeartbeatResponse::encode(SrsBuffer *buffer)
+srs_error_t SrsRtcNativeCommonResponse::encode(SrsBuffer *buffer)
 {
     srs_error_t err = srs_success;
     if(!buffer->require(nb_bytes())) {
@@ -2613,5 +3266,578 @@ srs_error_t SrsRtcNativeHeartbeatResponse::encode(SrsBuffer *buffer)
     return err;
 }
 
+SrsRtcNativeStopRequest::SrsRtcNativeStopRequest(): code_(0)
+{
+}
+    
+SrsRtcNativeStopRequest::~SrsRtcNativeStopRequest()
+{
+}
+
+const string& SrsRtcNativeStopRequest::get_url() const
+{
+    return url_;
+}
+
+const uint16_t SrsRtcNativeStopRequest::get_code() const
+{
+    return code_;
+}
+
+const string& SrsRtcNativeStopRequest::get_msg() const
+{
+    return msg_;
+}
+
+void SrsRtcNativeStopRequest::set_url(std::string url)
+{
+    url_ = url;
+}
+
+void SrsRtcNativeStopRequest::set_code(uint16_t code)
+{
+    code_ = code;
+}
+
+void SrsRtcNativeStopRequest::set_msg(std::string msg)
+{
+    msg_ = msg;
+}
+    
+srs_error_t SrsRtcNativeStopRequest::decode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    // header
+    if((err = decode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to decode header");
+    }
+
+    SrsTLV tlv;
+    while(0 != buffer->left()) {
+        if(srs_success != (err = tlv.decode(buffer))) {
+            if(ERROR_RTC_NATIVE_TLV_TYPE_0 == srs_error_code(err)) {
+                err = srs_success;
+                continue;
+            }
+            return srs_error_wrap(err, "decode tlv error");
+        }
+
+        if(SrsRTCNativeType_code == tlv.get_type()) {
+            code_ = ntohs(*((uint16_t*)tlv.get_value()));
+        } else if(SrsRTCNativeType_msg == tlv.get_type()) {
+            msg_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else if(SrsRTCNativeType_url == tlv.get_type()) {
+            url_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else {
+            srs_warn("in SrsRtcNativeHeartbeatResponse, unkonw type:%d", tlv.get_type());
+        }
+    }
+
+    return err;
+}
+
+int SrsRtcNativeStopRequest::nb_bytes()
+{
+    int len = SrsRtcNativeHeader::nb_bytes();
+    len += 3 + sizeof(code_);
+    if(!msg_.empty()) {
+        len += 3 + msg_.length();
+    }
+    if(!url_.empty()) {
+        len += 3 + url_.length();
+    }
+    return len;
+}
+
+srs_error_t SrsRtcNativeStopRequest::encode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    if(!buffer->require(nb_bytes())) {
+        return srs_error_new(ERROR_RTC_NATIVE_ECODE, 
+            "encode buffer is not enough. need:%d, buffer:%d", nb_bytes(), buffer->left());
+    }
+
+    if((err = encode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to encode header");
+    }
+
+    SrsTLV tlv;
+
+    // encode code
+    tlv.set_type(SrsRTCNativeType_code);
+    uint16_t code = htons(code_);
+    tlv.set_value(sizeof(code_), (uint8_t*)&code);
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode code");
+    }
+
+    if(!msg_.empty()) {
+        // encode msg
+        tlv.set_type(SrsRTCNativeType_msg);
+        tlv.set_value(msg_.length(), (uint8_t*)msg_.c_str());
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode msg");
+        }
+    }
+
+    if(!url_.empty()) {
+        // encode url
+        tlv.set_type(SrsRTCNativeType_url);
+        tlv.set_value(url_.length(), (uint8_t*)url_.c_str());
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode url - %s", url_.c_str());
+        }
+    }
+
+    return err;
+}
+SrsRtcNativeStopResponse::SrsRtcNativeStopResponse()
+{
+}
+
+SrsRtcNativeStopResponse::~SrsRtcNativeStopResponse()
+{
+}
+
+SrsRtcNativeDisconnectRequest::SrsRtcNativeDisconnectRequest()
+{
+}
+
+SrsRtcNativeDisconnectRequest::~SrsRtcNativeDisconnectRequest()
+{
+}
+
+SrsRtcNativeDisconnectResponse::SrsRtcNativeDisconnectResponse()
+{
+}
+
+SrsRtcNativeDisconnectResponse::~SrsRtcNativeDisconnectResponse()
+{
+}
+
+SrsRtcNativeHeartbeatRequest::SrsRtcNativeHeartbeatRequest()
+{
+    msg_type_ = SrsRTCNativeMsgType_request;
+}
+
+SrsRtcNativeHeartbeatRequest::~SrsRtcNativeHeartbeatRequest()
+{
+}
+
+SrsRtcNativeHeartbeatResponse::SrsRtcNativeHeartbeatResponse()
+{
+}
+
+SrsRtcNativeHeartbeatResponse::~SrsRtcNativeHeartbeatResponse()
+{
+}
+
+SrsRtcNativeMediaControlRequest::SrsRtcNativeMediaControlRequest(): sequence_(0)
+{
+    msg_type_ = SrsRTCNativeMsgType_request;
+}
+
+SrsRtcNativeMediaControlRequest::~SrsRtcNativeMediaControlRequest()
+{
+}
+
+const string& SrsRtcNativeMediaControlRequest::get_url() const
+{
+    return url_;
+}
+
+vector<string>& SrsRtcNativeMediaControlRequest::get_msid()
+{
+    return msids_;
+}
+
+const uint32_t SrsRtcNativeMediaControlRequest::get_sequence() const
+{
+    return sequence_;
+}
+
+void SrsRtcNativeMediaControlRequest::set_url(std::string& url)
+{
+    url_ = url;
+}
+
+void SrsRtcNativeMediaControlRequest::add_msid(std::string& id)
+{
+    if(id.length()) {
+        return;
+    }
+    msids_.push_back(id);
+}
+
+void SrsRtcNativeMediaControlRequest::set_sequence(uint32_t sn)
+{
+    sequence_ = sn;
+}
+
+srs_error_t SrsRtcNativeMediaControlRequest::decode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    // header
+    if((err = decode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to decode header");
+    }
+
+    SrsTLV tlv;
+    while(0 != buffer->left()) {
+        if(srs_success != (err = tlv.decode(buffer))) {
+            if(ERROR_RTC_NATIVE_TLV_TYPE_0 == srs_error_code(err)) {
+                err = srs_success;
+                continue;
+            }
+            return srs_error_wrap(err, "decode tlv error");
+        }
+
+        if(SrsRTCNativeType_sequenceid == tlv.get_type()) {
+            sequence_ = ntohl(*((uint32_t*)tlv.get_value()));
+        } else if(SrsRTCNativeType_msid == tlv.get_type()) {
+            msids_.push_back(string((char*)tlv.get_value(), tlv.get_len()));
+        } else if(SrsRTCNativeType_url == tlv.get_type()) {
+            url_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else {
+            srs_warn("in SrsRtcNativeHeartbeatResponse, unkonw type:%d", tlv.get_type());
+        }
+    }
+
+    return err;
+}
+int SrsRtcNativeMediaControlRequest::nb_bytes()
+{
+    int len = SrsRtcNativeHeader::nb_bytes();
+    len += 3 + sizeof(sequence_);
+    if(!url_.empty()) {
+        len += 3 + url_.length();
+    }
+    for(int i = 0; i < msids_.size(); ++i) {
+        len += 3 + msids_.at(i).length();
+    }
+    return len;
+}
+
+srs_error_t SrsRtcNativeMediaControlRequest::encode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    if(!buffer->require(nb_bytes())) {
+        return srs_error_new(ERROR_RTC_NATIVE_ECODE, 
+            "encode buffer is not enough. need:%d, buffer:%d", nb_bytes(), buffer->left());
+    }
+
+    if((err = encode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to encode header");
+    }
+
+    SrsTLV tlv;
+
+    // encode code
+    tlv.set_type(SrsRTCNativeType_sequenceid);
+    uint32_t sn = htonl(sequence_);
+    tlv.set_value(sizeof(sequence_), (uint8_t*)&sn);
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode code");
+    }
+
+    for(int i = 0; i < msids_.size(); ++i) {
+        // encode msg
+        tlv.set_type(SrsRTCNativeType_msg);
+        tlv.set_value(msids_.at(i).length(), (uint8_t*)msids_.at(i).c_str());
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode msg");
+        }
+    }
+
+    if(!url_.empty()) {
+        // encode url
+        tlv.set_type(SrsRTCNativeType_url);
+        tlv.set_value(url_.length(), (uint8_t*)url_.c_str());
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode url - %s", url_.c_str());
+        }
+    }
+
+    return err;
+}
+
+SrsRtcNativeMediaControlReponse::SrsRtcNativeMediaControlReponse()
+{
+}
+
+SrsRtcNativeMediaControlReponse::~SrsRtcNativeMediaControlReponse()
+{
+}
+
+SrsRtcNativeNotifyRequest::SrsRtcNativeNotifyRequest(): need_response_(1)
+{
+    msg_type_ = SrsRTCNativeMsgType_request;
+}
+
+SrsRtcNativeNotifyRequest::~SrsRtcNativeNotifyRequest()
+{
+
+}
+
+const uint8_t SrsRtcNativeNotifyRequest::get_type() const
+{
+    return type_;
+}
+    
+const bool SrsRtcNativeNotifyRequest::need_response() const
+{
+    return need_response_ != 0 ? true : false;
+}
+
+const string& SrsRtcNativeNotifyRequest::get_info() const
+{
+    return info_;
+}
+
+const uint32_t SrsRtcNativeNotifyRequest::get_recv_ssrc() const
+{
+    return recv_ssrc_;
+}
+
+void SrsRtcNativeNotifyRequest::set_type(uint8_t type)
+{
+    type_ = type;
+}
+
+void SrsRtcNativeNotifyRequest::need_response(bool enable)
+{
+    need_response_ = enable;
+}
+
+void SrsRtcNativeNotifyRequest::set_info(std::string& info)
+{
+    info_ = info;
+}
+
+void SrsRtcNativeNotifyRequest::set_recv_ssrc(uint32_t ssrc)
+{
+    recv_ssrc_ = ssrc;
+}
+
+srs_error_t SrsRtcNativeNotifyRequest::decode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    // header
+    if((err = decode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to decode header");
+    }
+
+    SrsTLV tlv;
+    while(0 != buffer->left()) {
+        if(srs_success != (err = tlv.decode(buffer))) {
+            if(ERROR_RTC_NATIVE_TLV_TYPE_0 == srs_error_code(err)) {
+                err = srs_success;
+                continue;
+            }
+            return srs_error_wrap(err, "decode tlv error");
+        }
+
+        if(SrsRTCNativeType_notify_recvSSRC == tlv.get_type()) {
+            recv_ssrc_ = ntohl(*((uint32_t*)tlv.get_value()));
+        } else if(SrsRTCNativeType_notify_info == tlv.get_type()) {
+            info_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else if(SrsRTCNativeType_notify_type == tlv.get_type()) {
+            type_ = *tlv.get_value();
+        } else if(SrsRTCNativeType_need_resp == tlv.get_type()) {
+            need_response_ = *tlv.get_value();
+        } else {
+            srs_warn("in SrsRtcNativeHeartbeatResponse, unkonw type:%d", tlv.get_type());
+        }
+    }
+
+    return err;
+}
+
+int SrsRtcNativeNotifyRequest::nb_bytes()
+{
+    int len = SrsRtcNativeHeader::nb_bytes();
+    len += 3 + sizeof(type_);
+    len += 3 + sizeof(need_response_);
+    len += 3 + info_.length();
+    if( 0 != recv_ssrc_) {
+        len += 3 + sizeof(recv_ssrc_);
+    }
+    return len;
+}
+
+srs_error_t SrsRtcNativeNotifyRequest::encode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    if(!buffer->require(nb_bytes())) {
+        return srs_error_new(ERROR_RTC_NATIVE_ECODE, 
+            "encode buffer is not enough. need:%d, buffer:%d", nb_bytes(), buffer->left());
+    }
+
+    if((err = encode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to encode header");
+    }
+
+    SrsTLV tlv;
+
+    // encode type
+    tlv.set_type(SrsRTCNativeType_notify_type);
+    tlv.set_value(sizeof(type_), (uint8_t*)&type_);
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode type");
+    }
+
+    // encode need response
+    tlv.set_type(SrsRTCNativeType_need_resp);
+    tlv.set_value(sizeof(need_response_), (uint8_t*)&need_response_);
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode need response");
+    }
+
+    // encode receiver ssrc
+    tlv.set_type(SrsRTCNativeType_notify_recvSSRC);
+    uint32_t ssrc = htonl(recv_ssrc_);
+    tlv.set_value(sizeof(recv_ssrc_), (uint8_t*)&ssrc);
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode receiver ssrc");
+    }
+
+    if(!info_.empty()) {
+        // encode info
+        tlv.set_type(SrsRTCNativeType_notify_info);
+        tlv.set_value(info_.length(), (uint8_t*)info_.c_str());
+        if(srs_success != (err = tlv.encode(buffer))) {
+            return srs_error_wrap(err, "encode info - %s", info_.c_str());
+        }
+    }
+
+    return err;
+}
+
+SrsRtcNativeNotifyResponse::SrsRtcNativeNotifyResponse()
+{
+}
+ 
+SrsRtcNativeNotifyResponse::~SrsRtcNativeNotifyResponse()
+{
+}
+
+SrsRtcNativeSwitchMsidRequest::SrsRtcNativeSwitchMsidRequest()
+{
+    msg_type_ = SrsRTCNativeMsgType_request;
+}
+
+SrsRtcNativeSwitchMsidRequest::~SrsRtcNativeSwitchMsidRequest()
+{
+}
+
+const string& SrsRtcNativeSwitchMsidRequest::get_url() const
+{
+    return url_;
+}
+    
+const string& SrsRtcNativeSwitchMsidRequest::get_old_msid() const
+{
+    return old_msid_;
+}
+
+const string& SrsRtcNativeSwitchMsidRequest::get_new_msid() const
+{
+    return new_msid_;
+}
+
+void SrsRtcNativeSwitchMsidRequest::set_url(std::string& url)
+{
+    url_ = url;
+}
+
+void SrsRtcNativeSwitchMsidRequest::set_old_msid(std::string& msid)
+{
+    old_msid_ = msid;
+}
+    
+void SrsRtcNativeSwitchMsidRequest::set_new_msid(std::string& msid)
+{
+    new_msid_ = msid;
+}
+
+srs_error_t SrsRtcNativeSwitchMsidRequest::decode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    // header
+    if((err = decode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to decode header");
+    }
+
+    SrsTLV tlv;
+    while(0 != buffer->left()) {
+        if(srs_success != (err = tlv.decode(buffer))) {
+            if(ERROR_RTC_NATIVE_TLV_TYPE_0 == srs_error_code(err)) {
+                err = srs_success;
+                continue;
+            }
+            return srs_error_wrap(err, "decode tlv error");
+        }
+
+        if(SrsRTCNativeType_url == tlv.get_type()) {
+            url_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else if(SrsRTCNativeType_msid == tlv.get_type()) {
+            old_msid_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else if(SrsRTCNativeType_new_msid == tlv.get_type()) {
+            new_msid_ = string((char*)tlv.get_value(), tlv.get_len());
+        } else {
+            srs_warn("in SrsRtcNativeHeartbeatResponse, unkonw type:%d", tlv.get_type());
+        }
+    }
+
+    return err;
+}
+
+int SrsRtcNativeSwitchMsidRequest::nb_bytes()
+{
+    int len = SrsRtcNativeHeader::nb_bytes();
+    len += 3 + url_.length();
+    len += 3 + old_msid_.length();
+    len += 3 + new_msid_.length();
+    
+    return len;
+}
+
+srs_error_t SrsRtcNativeSwitchMsidRequest::encode(SrsBuffer *buffer)
+{
+    srs_error_t err = srs_success;
+    if(!buffer->require(nb_bytes())) {
+        return srs_error_new(ERROR_RTC_NATIVE_ECODE, 
+            "encode buffer is not enough. need:%d, buffer:%d", nb_bytes(), buffer->left());
+    }
+
+    if((err = encode_native_header(buffer)) != srs_success) {
+        return srs_error_wrap(err, "fail to encode header");
+    }
+
+    SrsTLV tlv;
+
+    // encode url
+    tlv.set_type(SrsRTCNativeType_url);
+    tlv.set_value(url_.length(), (uint8_t*)url_.c_str());
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode url - %s", url_.c_str());
+    }
+
+    // encode old msid
+    tlv.set_type(SrsRTCNativeType_msid);
+    tlv.set_value(old_msid_.length(), (uint8_t*)old_msid_.c_str());
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode old msid - %s", old_msid_.c_str());
+    }
+
+    // encode new msid
+    tlv.set_type(SrsRTCNativeType_new_msid);
+    tlv.set_value(new_msid_.length(), (uint8_t*)new_msid_.c_str());
+    if(srs_success != (err = tlv.encode(buffer))) {
+        return srs_error_wrap(err, "encode new msid - %s", new_msid_.c_str());
+    }
+
+    return err;
+}
 
 

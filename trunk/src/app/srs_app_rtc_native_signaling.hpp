@@ -78,6 +78,7 @@ enum SrsRTCNativeType {
     SrsRTCNativeType_session_param         =       23,
     SrsRTCNativeType_hold_mode             =       24,
     SrsRTCNativeType_notify_recvSSRC       =       25,
+    SrsRTCNativeType_new_msid              =       26,
 };
 
 
@@ -541,6 +542,8 @@ public:
     void set_url(std::string url);
     void set_mode(uint8_t mode);
 
+public:
+    //SrsRtcNativeHeader
     virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublish; }
     virtual std::string get_name() { return "PUB"; }
 public:
@@ -553,9 +556,9 @@ public:
 class SrsRtcNativePublishResponse : public SrsRtcNativeHeader
 {
 private:
-    SrsRtcNativeMiniSDP* mini_sdp_;
     uint16_t code_;
     std::string msg_;
+    SrsRtcNativeMiniSDP* mini_sdp_;
     std::string pub_config_;
     std::string trace_id_;
     SrsRtcNativeSessionParam* session_param_;
@@ -575,6 +578,8 @@ public:
     void set_pub_config(std::string& config);
     void set_trace_id(std::string& id);
 
+public:
+    //SrsRtcNativeHeader
     virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublish; }
     virtual std::string get_name() { return "PUB"; }
 public:
@@ -606,6 +611,8 @@ public:
     void add_msid(std::string& msid);
     void set_mode(uint8_t mode);
 
+public:
+    //SrsRtcNativeHeader
     virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeSubscribe; }
     virtual std::string get_name() { return "SUB"; }
 public:
@@ -641,6 +648,8 @@ public:
     void set_play_config(std::string& config);
     void set_trace_id(std::string& id);
 
+public:
+    //SrsRtcNativeHeader
     virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeSubscribe; }
     virtual std::string get_name() { return "SUB"; }
 public:
@@ -650,31 +659,34 @@ public:
     virtual srs_error_t encode(SrsBuffer *buffer);
 };
 
-class SrsRtcNativeHeartbeatRequest : public SrsRtcNativeHeader
+struct SrsRtcNativeMsidCMD
 {
-public:
-    SrsRtcNativeHeartbeatRequest();
-    virtual ~SrsRtcNativeHeartbeatRequest();
-    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeHeartbeat; }
-    virtual std::string get_name() { return "HEBT"; }
+    uint8_t cmd;
+    std::string msid;
 };
 
-class SrsRtcNativeHeartbeatResponse : public SrsRtcNativeHeader
+class SrsRtcNativePublishUpdateRequest : public SrsRtcNativeHeader
 {
 private:
-    uint16_t code_;
-    std::string msg_;
+    std::string url_;
+    std::vector<SrsRtcNativeMsidCMD> msid_cmd_;
+    SrsRtcNativeMiniSDP *sdp_;
+
 public:
-    SrsRtcNativeHeartbeatResponse();
-    virtual ~SrsRtcNativeHeartbeatResponse();
+    SrsRtcNativePublishUpdateRequest();
+    virtual ~SrsRtcNativePublishUpdateRequest();
+    
+    std::string& get_url();
+    std::vector<SrsRtcNativeMsidCMD>& get_msid_cmd();
+    SrsRtcNativeMiniSDP* get_mini_sdp();
 
-    const uint16_t get_code() const;
-    const std::string& get_msg() const;
-    void set_code(uint16_t code);
-    void set_msg(std::string& msg);
+    void set_url(std::string url);
+    void add_msid_cmd(SrsRtcNativeMsidCMD& cmd);
 
-    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeHeartbeat; }
-    virtual std::string get_name() { return "HEBT"; }
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublishUpadte; }
+    virtual std::string get_name() { return "PUBU"; }
 public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer *buffer);
@@ -682,5 +694,329 @@ public:
     virtual srs_error_t encode(SrsBuffer *buffer);   
 };
 
+class SrsRtcNativePublishUpdateResponse : public SrsRtcNativeHeader
+{
+private:
+    SrsRtcNativeMiniSDP* mini_sdp_;
+    std::vector<std::string> msids_;
+    uint16_t code_;
+    std::string msg_;
+public:
+    SrsRtcNativePublishUpdateResponse();
+    virtual ~SrsRtcNativePublishUpdateResponse();
+
+    SrsRtcNativeMiniSDP* get_sdp();
+    const uint16_t get_code() const;
+    const std::string& get_msg() const;
+    std::vector<std::string>& get_msid();
+    
+    void set_code(uint16_t code);
+    void set_msg(std::string& msg);
+    void add_msid(std::string& msid);
+
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublishUpadte; }
+    virtual std::string get_name() { return "PUBU"; }
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer);
+};
+
+class SrsRtcNativeSubscribeUpdateRequest : public SrsRtcNativeHeader
+{
+private:
+    std::string url_;
+    std::vector<SrsRtcNativeMsidCMD> msid_cmd_;
+    SrsRtcNativeMiniSDP *sdp_;
+
+public:
+    SrsRtcNativeSubscribeUpdateRequest();
+    virtual ~SrsRtcNativeSubscribeUpdateRequest();
+
+    std::string& get_url();
+    std::vector<SrsRtcNativeMsidCMD>& get_msid_cmd();
+    SrsRtcNativeMiniSDP* get_mini_sdp();
+
+    void set_url(std::string url);
+    void add_msid_cmd(SrsRtcNativeMsidCMD& cmd);
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer);
+
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeSubscribeUpdate; }
+    virtual std::string get_name() { return "SUBU"; }
+};
+
+class SrsRtcNativeSubscribeUpdateResponse : public SrsRtcNativeHeader
+{
+private:
+    SrsRtcNativeMiniSDP* mini_sdp_;
+    std::vector<std::string> msids_;
+    uint16_t code_;
+    std::string msg_;
+public:
+    SrsRtcNativeSubscribeUpdateResponse();
+    virtual ~SrsRtcNativeSubscribeUpdateResponse();
+
+    SrsRtcNativeMiniSDP* get_sdp();
+    const uint16_t get_code() const;
+    const std::string& get_msg() const;
+    std::vector<std::string>& get_msid();
+    
+    void set_code(uint16_t code);
+    void set_msg(std::string& msg);
+    void add_msid(std::string& msid);
+
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublishUpadte; }
+    virtual std::string get_name() { return "SUBU"; }
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer);
+};
+
+class SrsRtcNativeCommonResponse : public SrsRtcNativeHeader
+{
+protected:
+    uint16_t code_;
+    std::string msg_;
+public:
+    SrsRtcNativeCommonResponse();
+    virtual ~SrsRtcNativeCommonResponse();
+
+    const uint16_t get_code() const;
+    const std::string& get_msg() const;
+    void set_code(uint16_t code);
+    void set_msg(std::string& msg);
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer); 
+};
+
+class SrsRtcNativeStopRequest : public SrsRtcNativeHeader
+{
+private:
+    std::string url_;
+    uint16_t code_;
+    std::string msg_;
+public:
+    SrsRtcNativeStopRequest();
+    virtual ~SrsRtcNativeStopRequest();
+
+    const std::string& get_url() const;
+    const uint16_t get_code() const;
+    const std::string& get_msg() const;
+    void set_url(std::string url);
+    void set_code(uint16_t code);
+    void set_msg(std::string msg);
+    
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer); 
+
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeStop; }
+    virtual std::string get_name() { return "STOP"; }
+};
+
+class SrsRtcNativeStopResponse : public SrsRtcNativeCommonResponse
+{
+public:
+    SrsRtcNativeStopResponse();
+    virtual ~SrsRtcNativeStopResponse();
+
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeStop; }
+    virtual std::string get_name() { return "STOP"; }
+};
+
+class SrsRtcNativeDisconnectRequest : public SrsRtcNativeCommonResponse
+{
+public:
+    SrsRtcNativeDisconnectRequest();
+    virtual ~SrsRtcNativeDisconnectRequest();
+    
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeDisconnect; }
+    virtual std::string get_name() { return "DISC"; }
+};
+
+class SrsRtcNativeDisconnectResponse : public SrsRtcNativeCommonResponse
+{
+public:
+    SrsRtcNativeDisconnectResponse();
+    virtual ~SrsRtcNativeDisconnectResponse();
+
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeDisconnect; }
+    virtual std::string get_name() { return "DISC"; }
+};
+
+class SrsRtcNativeHeartbeatRequest : public SrsRtcNativeHeader
+{
+public:
+    SrsRtcNativeHeartbeatRequest();
+    virtual ~SrsRtcNativeHeartbeatRequest();
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeHeartbeat; }
+    virtual std::string get_name() { return "HEBT"; }
+};
+
+class SrsRtcNativeHeartbeatResponse : public SrsRtcNativeCommonResponse
+{
+public:
+    SrsRtcNativeHeartbeatResponse();
+    virtual ~SrsRtcNativeHeartbeatResponse();
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeHeartbeat; }
+    virtual std::string get_name() { return "HEBT"; }   
+};
+
+class SrsRtcNativeMediaControlRequest : public SrsRtcNativeHeader
+{
+private:
+    std::string url_;
+    std::vector<std::string> msids_;
+    uint32_t sequence_;
+public:
+    SrsRtcNativeMediaControlRequest();
+    virtual ~SrsRtcNativeMediaControlRequest();
+
+    const std::string& get_url() const;
+    std::vector<std::string>& get_msid();
+    const uint32_t get_sequence() const;
+
+    void set_url(std::string& url);
+    void add_msid(std::string& id);
+    void set_sequence(uint32_t sn);
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer); 
+
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeMediaControl; }
+    virtual std::string get_name() { return "CTRL"; }
+};
+
+class SrsRtcNativeMediaControlReponse : public SrsRtcNativeCommonResponse
+{
+
+public:
+    SrsRtcNativeMediaControlReponse();
+    virtual ~SrsRtcNativeMediaControlReponse();
+
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeMediaControl; }
+    virtual std::string get_name() { return "CTRL"; }   
+};
+
+class SrsRtcNativeNotifyRequest : public SrsRtcNativeHeader
+{
+private:
+    uint8_t type_;
+    uint8_t need_response_;
+    std::string info_;
+    uint32_t recv_ssrc_;
+public:
+    SrsRtcNativeNotifyRequest();
+    virtual ~SrsRtcNativeNotifyRequest();
+
+    const uint8_t get_type() const;
+    const bool need_response() const;
+    const std::string& get_info() const;
+    const uint32_t get_recv_ssrc() const;
+
+    void set_type(uint8_t type);
+    void need_response(bool enable);
+    void set_info(std::string& info);
+    void set_recv_ssrc(uint32_t ssrc);
+
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer); 
+
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeNotify; }
+    virtual std::string get_name() { return "NOTI"; }
+};
+
+class SrsRtcNativeNotifyResponse : public SrsRtcNativeCommonResponse
+{
+public:
+    SrsRtcNativeNotifyResponse();
+    virtual ~SrsRtcNativeNotifyResponse();
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeNotify; }
+    virtual std::string get_name() { return "NOTI"; }   
+};
+
+class SrsRtcNativeSwitchMsidRequest : public SrsRtcNativeHeader
+{
+private:
+    std::string url_;
+    std::string old_msid_;
+    std::string new_msid_;
+
+public:
+    SrsRtcNativeSwitchMsidRequest();
+    virtual ~SrsRtcNativeSwitchMsidRequest();
+
+    const std::string& get_url() const;
+    const std::string& get_old_msid() const;
+    const std::string& get_new_msid() const;
+
+    void set_url(std::string& url);
+    void set_old_msid(std::string& msid);
+    void set_new_msid(std::string& msid);
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer); 
+
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeSwitchMSID; }
+    virtual std::string get_name() { return "SWTC"; }
+};
+
+class SrsRtcNativeSwitchMsidResponse : public SrsRtcNativeCommonResponse
+{
+public:
+    SrsRtcNativeSwitchMsidResponse();
+    virtual ~SrsRtcNativeSwitchMsidResponse();
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeSwitchMSID; }
+    virtual std::string get_name() { return "SWTC"; } 
+};
 
 #endif
