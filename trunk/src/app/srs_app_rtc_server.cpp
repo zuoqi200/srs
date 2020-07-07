@@ -158,9 +158,9 @@ SrsRtcServer::~SrsRtcServer()
     }
 
     if (true) {
-        std::vector<SrsRtcSession*>::iterator it;
+        std::vector<SrsRtcConnection*>::iterator it;
         for (it = zombies_.begin(); it != zombies_.end(); ++it) {
-            SrsRtcSession* session = *it;
+            SrsRtcConnection* session = *it;
             srs_freep(session);
         }
     }
@@ -225,7 +225,7 @@ srs_error_t SrsRtcServer::on_udp_packet(SrsUdpMuxSocket* skt)
     srs_error_t err = srs_success;
 
     char* data = skt->data(); int size = skt->size();
-    SrsRtcSession* session = find_session_by_peer_id(skt->peer_id());
+    SrsRtcConnection* session = find_session_by_peer_id(skt->peer_id());
 
     if (session) {
         // Now, we got the RTC session to handle the packet, switch to its context
@@ -300,7 +300,7 @@ srs_error_t SrsRtcServer::listen_api()
 
 srs_error_t SrsRtcServer::create_session(
     SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp, const std::string& mock_eip, bool publish,
-    SrsRtcSession** psession
+    SrsRtcConnection** psession
 ) {
     srs_error_t err = srs_success;
 
@@ -342,7 +342,7 @@ srs_error_t SrsRtcServer::create_session(
         }
     }
 
-    SrsRtcSession* session = new SrsRtcSession(this);
+    SrsRtcConnection* session = new SrsRtcConnection(this);
     session->set_remote_sdp(remote_sdp);
     // We must setup the local SDP, then initialize the session object.
     session->set_local_sdp(local_sdp);
@@ -361,7 +361,7 @@ srs_error_t SrsRtcServer::create_session(
     return err;
 }
 
-srs_error_t SrsRtcServer::create_session2(SrsSdp& local_sdp, SrsRtcSession** psession)
+srs_error_t SrsRtcServer::create_session2(SrsSdp& local_sdp, SrsRtcConnection** psession)
 {
     srs_error_t err = srs_success;
 
@@ -369,7 +369,7 @@ srs_error_t SrsRtcServer::create_session2(SrsSdp& local_sdp, SrsRtcSession** pse
     // TODO: FIXME: Collision detect.
     std::string local_ufrag = gen_random_str(8);
 
-    SrsRtcSession* session = new SrsRtcSession(this);
+    SrsRtcConnection* session = new SrsRtcConnection(this);
     *psession = session;
 
     local_sdp.set_ice_ufrag(local_ufrag);
@@ -389,7 +389,7 @@ srs_error_t SrsRtcServer::create_session2(SrsSdp& local_sdp, SrsRtcSession** pse
     return err;
 }
 
-srs_error_t SrsRtcServer::setup_session2(SrsRtcSession* session, SrsRequest* req, const SrsSdp& remote_sdp)
+srs_error_t SrsRtcServer::setup_session2(SrsRtcConnection* session, SrsRequest* req, const SrsSdp& remote_sdp)
 {
     srs_error_t err = srs_success;
 
@@ -418,14 +418,14 @@ srs_error_t SrsRtcServer::setup_session2(SrsRtcSession* session, SrsRequest* req
     return err;
 }
 
-void SrsRtcServer::destroy(SrsRtcSession* session)
+void SrsRtcServer::destroy(SrsRtcConnection* session)
 {
     if (session->disposing_) {
         return;
     }
     session->disposing_ = true;
 
-    std::map<std::string, SrsRtcSession*>::iterator it;
+    std::map<std::string, SrsRtcConnection*>::iterator it;
 
     if ((it = map_username_session.find(session->username())) != map_username_session.end()) {
         map_username_session.erase(it);
@@ -438,16 +438,16 @@ void SrsRtcServer::destroy(SrsRtcSession* session)
     zombies_.push_back(session);
 }
 
-bool SrsRtcServer::insert_into_id_sessions(const string& peer_id, SrsRtcSession* session)
+bool SrsRtcServer::insert_into_id_sessions(const string& peer_id, SrsRtcConnection* session)
 {
     return map_id_session.insert(make_pair(peer_id, session)).second;
 }
 
 void SrsRtcServer::check_and_clean_timeout_session()
 {
-    map<string, SrsRtcSession*>::iterator iter = map_username_session.begin();
+    map<string, SrsRtcConnection*>::iterator iter = map_username_session.begin();
     while (iter != map_username_session.end()) {
-        SrsRtcSession* session = iter->second;
+        SrsRtcConnection* session = iter->second;
         srs_assert(session);
 
         if (!session->is_stun_timeout()) {
@@ -478,9 +478,9 @@ int SrsRtcServer::nn_sessions()
     return (int)map_username_session.size();
 }
 
-SrsRtcSession* SrsRtcServer::find_session_by_peer_id(const string& peer_id)
+SrsRtcConnection* SrsRtcServer::find_session_by_peer_id(const string& peer_id)
 {
-    map<string, SrsRtcSession*>::iterator iter = map_id_session.find(peer_id);
+    map<string, SrsRtcConnection*>::iterator iter = map_id_session.find(peer_id);
     if (iter == map_id_session.end()) {
         return NULL;
     }
@@ -488,9 +488,9 @@ SrsRtcSession* SrsRtcServer::find_session_by_peer_id(const string& peer_id)
     return iter->second;
 }
 
-SrsRtcSession* SrsRtcServer::find_session_by_username(const std::string& username)
+SrsRtcConnection* SrsRtcServer::find_session_by_username(const std::string& username)
 {
-    map<string, SrsRtcSession*>::iterator iter = map_username_session.find(username);
+    map<string, SrsRtcConnection*>::iterator iter = map_username_session.find(username);
     if (iter == map_username_session.end()) {
         return NULL;
     }
@@ -510,12 +510,12 @@ srs_error_t SrsRtcServer::notify(int type, srs_utime_t interval, srs_utime_t tic
         return err;
     }
 
-    std::vector<SrsRtcSession*> zombies;
+    std::vector<SrsRtcConnection*> zombies;
     zombies.swap(zombies_);
 
-    std::vector<SrsRtcSession*>::iterator it;
+    std::vector<SrsRtcConnection*>::iterator it;
     for (it = zombies.begin(); it != zombies.end(); ++it) {
-        SrsRtcSession* session = *it;
+        SrsRtcConnection* session = *it;
         srs_freep(session);
     }
 
