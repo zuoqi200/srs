@@ -41,7 +41,7 @@ class SrsJanusSession;
 class SrsJanusCall;
 class SrsRequest;
 class SrsSdp;
-class SrsRtcSession;
+class SrsRtcConnection;
 
 struct SrsJanusMessage
 {
@@ -107,13 +107,13 @@ public:
     void destroy(SrsJanusSession* session, SrsJanusMessage* msg);
 private:
     void do_destroy(SrsJanusSession* session);
-    void do_destroy_calls(SrsJanusSession* session, SrsRtcSession* rtc_session);
+    void do_destroy_calls(SrsJanusSession* session, SrsRtcConnection* rtc_session);
 public:
     SrsJanusSession* fetch(uint64_t sid);
     void set_callee(SrsJanusCall* call);
     void destroy_callee(SrsJanusCall* call);
     SrsJanusCall* callee(std::string appid, std::string channel, uint64_t feed_id);
-    virtual void on_timeout(SrsRtcSession* rtc_session);
+    virtual void on_timeout(SrsRtcConnection* rtc_session);
 };
 
 class SrsJanusUserConf
@@ -188,10 +188,10 @@ public:
     srs_error_t attach(SrsJsonObject* req, SrsJanusMessage* msg, SrsJsonObject* res);
     srs_error_t detach(SrsJanusMessage* msg, uint64_t callid);
     SrsJanusCall* fetch(uint64_t sid);
-    SrsJanusCall* find(SrsRtcSession* session);
+    SrsJanusCall* find(SrsRtcConnection* session);
     int nn_calls();
     void destroy();
-    void destroy_calls(SrsRtcSession* session);
+    void destroy_calls(SrsRtcConnection* session);
 };
 
 class SrsJanusCall
@@ -199,7 +199,7 @@ class SrsJanusCall
     friend class SrsJanusSession;
 private:
     // TODO: FIXME: For subscriber, should free session if no answer.
-    SrsRtcSession* rtc_session_;
+    SrsRtcConnection* rtc_session_;
     SrsRequest request;
     static uint32_t ssrc_num;
 public:
