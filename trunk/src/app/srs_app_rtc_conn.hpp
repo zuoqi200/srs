@@ -186,7 +186,8 @@ public:
     virtual ~SrsRtcOutgoingInfo();
 };
 
-class SrsRtcPlayer : virtual public ISrsCoroutineHandler, virtual public ISrsReloadHandler
+// A RTC play stream, client pull and play stream from SRS.
+class SrsRtcPlayStream : virtual public ISrsCoroutineHandler, virtual public ISrsReloadHandler
 {
 protected:
     SrsContextId _parent_cid;
@@ -218,8 +219,8 @@ private:
     SrsWebRtcTwcc twcc_controller;
 #endif
 public:
-    SrsRtcPlayer(SrsRtcConnection* s, SrsContextId parent_cid);
-    virtual ~SrsRtcPlayer();
+    SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid);
+    virtual ~SrsRtcPlayStream();
 public:
     srs_error_t initialize(uint32_t vssrc, uint32_t assrc, uint16_t v_pt, uint16_t a_pt, int twcc_id);
 // interface ISrsReloadHandler
@@ -255,7 +256,8 @@ private:
 #endif
 };
 
-class SrsRtcPublisher : virtual public ISrsHourGlass, virtual public ISrsRtpPacketDecodeHandler, virtual public ISrsRtcPublishStream
+// A RTC publish stream, client push and publish stream to SRS.
+class SrsRtcPublishStream : virtual public ISrsHourGlass, virtual public ISrsRtpPacketDecodeHandler, virtual public ISrsRtcPublishStream
 {
 private:
     SrsHourGlass* report_timer;
@@ -288,8 +290,8 @@ private:
     SrsRtcpTWCC rtcp_twcc_;
     SrsRtpExtensionTypes extension_types_;
 public:
-    SrsRtcPublisher(SrsRtcConnection* session);
-    virtual ~SrsRtcPublisher();
+    SrsRtcPublishStream(SrsRtcConnection* session);
+    virtual ~SrsRtcPublishStream();
 public:
     srs_error_t initialize(uint32_t vssrc, uint32_t assrc, int twcc_id, SrsRequest* req);
 private:
@@ -330,16 +332,16 @@ private:
 class SrsRtcConnection
 {
     friend class SrsSecurityTransport;
-    friend class SrsRtcPlayer;
-    friend class SrsRtcPublisher;
+    friend class SrsRtcPlayStream;
+    friend class SrsRtcPublishStream;
 public:
     bool disposing_;
 private:
     SrsRtcServer* server_;
     SrsRtcConnectionStateType state_;
     SrsSecurityTransport* transport_;
-    SrsRtcPlayer* player_;
-    SrsRtcPublisher* publisher_;
+    SrsRtcPlayStream* player_;
+    SrsRtcPublishStream* publisher_;
     bool is_publisher_;
 private:
     SrsUdpMuxSocket* sendonly_skt;
@@ -415,13 +417,13 @@ public:
     virtual ~ISrsRtcHijacker();
 public:
     // When start publisher by RTC.
-    virtual srs_error_t on_start_publish(SrsRtcConnection* session, SrsRtcPublisher* publisher, SrsRequest* req) = 0;
+    virtual srs_error_t on_start_publish(SrsRtcConnection* session, SrsRtcPublishStream* publisher, SrsRequest* req) = 0;
     // When got RTP plaintext packet.
-    virtual srs_error_t on_rtp_packet(SrsRtcConnection* session, SrsRtcPublisher* publisher, SrsRequest* req, SrsRtpPacket2* pkt) = 0;
+    virtual srs_error_t on_rtp_packet(SrsRtcConnection* session, SrsRtcPublishStream* publisher, SrsRequest* req, SrsRtpPacket2* pkt) = 0;
     // When start player by RTC.
-    virtual srs_error_t on_start_play(SrsRtcConnection* session, SrsRtcPlayer* player, SrsRequest* req) = 0;
+    virtual srs_error_t on_start_play(SrsRtcConnection* session, SrsRtcPlayStream* player, SrsRequest* req) = 0;
     // When start consuming for player for RTC.
-    virtual srs_error_t on_start_consume(SrsRtcConnection* session, SrsRtcPlayer* player, SrsRequest* req, SrsRtcConsumer* consumer) = 0;
+    virtual srs_error_t on_start_consume(SrsRtcConnection* session, SrsRtcPlayStream* player, SrsRequest* req, SrsRtcConsumer* consumer) = 0;
 };
 
 extern ISrsRtcHijacker* _srs_rtc_hijacker;
