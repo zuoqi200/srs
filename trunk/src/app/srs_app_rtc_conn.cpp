@@ -344,20 +344,6 @@ srs_error_t SrsRtcPlayStream::initialize(uint32_t vssrc, uint32_t assrc, uint16_
     return err;
 }
 
-<<<<<<< HEAD
-#ifdef SRS_CXX14
-srs_error_t SrsRtcPlayer::create_twcc_handler()
-{
-    srs_error_t err = srs_success;
-
-    if(srs_success != (err = twcc_controller.initialize())) {
-        return srs_error_wrap(err, "fail to initial twcc controller");
-    }
-
-    return err;
-}
-#endif
-
 srs_error_t SrsRtcPlayStream::on_reload_vhost_play(string vhost)
 {
     SrsRequest* req = session_->req;
@@ -926,6 +912,19 @@ srs_error_t SrsRtcPlayStream::on_rtcp_rr(char* data, int nb_data)
     // TODO: FIXME: Implements it.
     return err;
 }
+
+#ifdef SRS_CXX14
+srs_error_t SrsRtcPlayStream::create_twcc_handler()
+{
+    srs_error_t err = srs_success;
+
+    if(srs_success != (err = twcc_controller.initialize())) {
+        return srs_error_wrap(err, "fail to initial twcc controller");
+    }
+
+    return err;
+}
+#endif
 
 SrsRtcPublishStream::SrsRtcPublishStream(SrsRtcConnection* session)
 {
