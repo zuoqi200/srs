@@ -255,7 +255,7 @@ private:
 #endif
 };
 
-class SrsRtcPublisher : virtual public ISrsHourGlass, virtual public ISrsRtpPacketDecodeHandler, virtual public ISrsRtcPublisher
+class SrsRtcPublisher : virtual public ISrsHourGlass, virtual public ISrsRtpPacketDecodeHandler, virtual public ISrsRtcPublishStream
 {
 private:
     SrsHourGlass* report_timer;
