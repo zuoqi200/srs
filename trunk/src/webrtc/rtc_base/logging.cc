@@ -457,7 +457,7 @@ bool LogMessage::IsNoop(LoggingSeverity severity) {
 void LogMessage::FinishPrintStream() {
   if (!extra_.empty())
     print_stream_ << " : " << extra_;
-  print_stream_ << "\n";
+  //print_stream_ << "\n";
 }
 
 namespace webrtc_logging_impl {
