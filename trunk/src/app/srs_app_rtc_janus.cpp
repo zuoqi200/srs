@@ -999,11 +999,11 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         stream_infos_.push_back(stream_info);
     }
 
-    // TODO: FIXME: We should apply appid.
+    request.vhost = session_->appid_;
     request.app = session_->channel_;
-    request.stream = callee->callid_;
-    srs_trace("RTC janus play stream=/%s/%s, feed_id=%" PRId64 ", self=%" PRId64,
-        request.app.c_str(), request.stream.c_str(), callee->feed_id_, feed_id_);
+    request.stream = session_->sessionid_ + "/" + callid_;
+    srs_trace("RTC janus play vhost=%s, app=%s, stream=%s, feed_id=%" PRId64 ", self=%" PRId64,
+        request.vhost.c_str(), request.app.c_str(), request.stream.c_str(), callee->feed_id_, feed_id_);
 
     // TODO: FIXME: Parse vhost.
     // discovery vhost, resolve the vhost from config
@@ -1359,11 +1359,11 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     // For client to specifies the EIP of server.
     string eip;
 
-    // TODO: FIXME: We should apply appid.
+    request.vhost = session_->appid_;
     request.app = session_->channel_;
-    request.stream = callid_;
-    srs_trace("RTC janus publish stream=/%s/%s, feed_id=%" PRId64,
-        request.app.c_str(), request.stream.c_str(), feed_id_);
+    request.stream = session_->sessionid_ + "/" + callid_;
+    srs_trace("RTC janus publish vhost=%s, app=%s, stream=%s, feed_id=%" PRId64,
+        request.vhost.c_str(), request.app.c_str(), request.stream.c_str(), feed_id_);
 
     // TODO: FIXME: Parse vhost.
     // discovery vhost, resolve the vhost from config
