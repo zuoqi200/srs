@@ -61,20 +61,6 @@ using namespace std;
 #include <srs_api/srs_webrtc_api.hpp>
 #endif
 
-// TODO: FIXME: Move to utility.
-string gen_random_str(int len)
-{
-    static string random_table = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-    string ret;
-    ret.reserve(len);
-    for (int i = 0; i < len; ++i) {
-        ret.append(1, random_table[random() % random_table.size()]);
-    }
-
-    return ret;
-}
-
 uint64_t SrsNtp::kMagicNtpFractionalUnit = 1ULL << 32;
 
 SrsNtp::SrsNtp()
