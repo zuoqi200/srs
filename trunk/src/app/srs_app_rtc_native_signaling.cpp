@@ -37,7 +37,7 @@ const uint16_t SrsRtcNativeHeader::get_msg_id() const
 srs_error_t SrsRtcNativeHeader::set_version(uint8_t v)
 {
     if(2 != v && 3 != v){
-        return srs_error_new(ERROR_RTC_NATIVE_PARAM_ILLEGAL, "version is illegal - %d", v);
+        return srs_error_new(ERROR_RTC_NATIVE_INVALID_PARAM, "invalid version - %d", v);
     }
     version_ = v;
     return srs_success;
@@ -46,7 +46,7 @@ srs_error_t SrsRtcNativeHeader::set_version(uint8_t v)
 srs_error_t SrsRtcNativeHeader::set_tlv_version(uint8_t v)
 {
     if(0 != v){
-        return srs_error_new(ERROR_RTC_NATIVE_PARAM_ILLEGAL, "tlv version is illegal - %d", v);
+        return srs_error_new(ERROR_RTC_NATIVE_INVALID_PARAM, "invalid tlv version - %d", v);
     }
     tlv_ver_ = v;
     return srs_success;
@@ -55,7 +55,7 @@ srs_error_t SrsRtcNativeHeader::set_tlv_version(uint8_t v)
 srs_error_t SrsRtcNativeHeader::set_msg_type(uint8_t type)
 {
     if(0 != type && 1 != type && 2 != type && 3 != type && 4 != type) {
-        return srs_error_new(ERROR_RTC_NATIVE_PARAM_ILLEGAL, "msg type is illegal - %d", type);
+        return srs_error_new(ERROR_RTC_NATIVE_INVALID_PARAM, "valid msg type - %d", type);
     }
     msg_type_ = type;
     return srs_success;
@@ -70,19 +70,22 @@ srs_error_t SrsRtcNativeHeader::set_msg_id(uint16_t id)
 srs_error_t SrsRtcNativeHeader::decode_native_header(SrsBuffer *buffer)
 {
     srs_error_t err = srs_success;
+    if(!buffer->require(4)) {
+        return srs_error_new(ERROR_RTC_NATIVE_INVALID_PARAM, "required %d bytes", 4);
+    }
     version_ = buffer->read_1bytes();
     if(2 != version_ && 3 != version_) {
-        return srs_error_new(ERROR_RTC_NATIVE_PARAM_ILLEGAL, "version is not support - %d", version_);
+        return srs_error_new(ERROR_RTC_NATIVE_INVALID_PARAM, "invalid version - %d", version_);
     }
 
     uint8_t type = buffer->read_1bytes();
     tlv_ver_ = (type & 0xF0) >> 4;
     if(0 != tlv_ver_) {
-        return srs_error_new(ERROR_RTC_NATIVE_PARAM_ILLEGAL, "tlv version is not support - %d", tlv_ver_);
+        return srs_error_new(ERROR_RTC_NATIVE_INVALID_PARAM, "invalid tlv version - %d", tlv_ver_);
     }
     msg_type_ = type & 0x0F;
-    if(0 != msg_type_ && 1 != msg_type_ && 2 != msg_type_ && 3 != msg_type_ && 4 != msg_type_) {
-        return srs_error_new(ERROR_RTC_NATIVE_PARAM_ILLEGAL, "msg type is not support - %d", msg_type_);
+    if(4 < msg_type_) {
+        return srs_error_new(ERROR_RTC_NATIVE_INVALID_PARAM, "invalid msg type - %d", msg_type_);
     }
     msg_id_ = buffer->read_2bytes();
     return err;
@@ -149,7 +152,7 @@ srs_error_t SrsTLV::set_type(uint8_t type)
 srs_error_t SrsTLV::set_value(uint16_t len, uint8_t* value)
 {
     if(kRtcpPacketSize <= len) {
-        return srs_error_new(ERROR_RTC_NATIVE_PARAM_ILLEGAL, "tlv len is more than %d. len:%d", kRtcpPacketSize, len);
+        return srs_error_new(ERROR_RTC_NATIVE_INVALID_PARAM, "tlv len is more than %d. len:%d", kRtcpPacketSize, len);
     }
     len_ = len;
     value_ = value;
@@ -159,7 +162,9 @@ srs_error_t SrsTLV::set_value(uint16_t len, uint8_t* value)
 
 srs_error_t SrsTLV::decode(SrsBuffer *buffer)
 {
-   
+    if(!buffer->require(1)) {
+        return srs_error_new(ERROR_RTC_NATIVE_TLV_FORMAT, "required 1 byte");
+    }
     type_ = buffer->read_1bytes();
     if(0 == type_) {
         return srs_error_new(ERROR_RTC_NATIVE_TLV_TYPE_0, "ignore 0 type");
@@ -169,6 +174,9 @@ srs_error_t SrsTLV::decode(SrsBuffer *buffer)
         return srs_error_new(ERROR_RTC_NATIVE_TLV_FORMAT, "buffer length is less than 2. len:%d", buffer->left());
     }
     len_ = buffer->read_2bytes();
+    if(!buffer->require(len_)) {
+        return srs_error_new(ERROR_RTC_NATIVE_TLV_FORMAT, "required %d bytes", len_);
+    }
     value_ = (uint8_t*)buffer->head();
     buffer->skip(len_);
 
@@ -244,7 +252,7 @@ srs_error_t SrsRtcNativeTempResponse::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     // encode trace id
@@ -252,7 +260,7 @@ srs_error_t SrsRtcNativeTempResponse::encode(SrsBuffer *buffer)
     tlv.set_type(SrsRTCNativeType_traceid);
     tlv.set_value(trace_id_.length(), (uint8_t *)trace_id_.c_str());
     if((err = tlv.encode(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode tlv");
+        return srs_error_wrap(err, "encode tlv. trace id %s", trace_id_.c_str());
     }
     return err;
 }
@@ -298,10 +306,10 @@ SrsRtcNativeAudioMediaParam::~SrsRtcNativeAudioMediaParam()
     }
 }
 
- const uint8_t SrsRtcNativeAudioMediaParam::get_pt() const
- {
-     return pt_;
- }
+const uint8_t SrsRtcNativeAudioMediaParam::get_pt() const
+{
+    return pt_;
+}
 
 const string& SrsRtcNativeAudioMediaParam::get_msid() const
 {
@@ -650,14 +658,14 @@ srs_error_t SrsRtcNativeAudioMediaParam::encode(SrsBuffer *buffer)
     tlv.set_type(SrsRtcNativeAudioMediaParam::SrsRTCNativeType_payload_type);
     tlv.set_value(sizeof(pt_), &pt_);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "fail to encode pt");
+        return srs_error_wrap(err, "encode pt: %d", pt_);
     }
 
     // encode msid
     tlv.set_type(SrsRtcNativeAudioMediaParam::SrsRTCNativeType_msid);
     tlv.set_value(msid_.length(), (uint8_t*)msid_.c_str());
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "fail to encode msid");
+        return srs_error_wrap(err, "encode msid: %s", msid_.c_str());
     }
 
     // encode ssrc
@@ -665,7 +673,7 @@ srs_error_t SrsRtcNativeAudioMediaParam::encode(SrsBuffer *buffer)
     net32 = htonl(ssrc_);
     tlv.set_value(sizeof(ssrc_), (uint8_t*)(&net32));
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "fail to encode ssrc");
+        return srs_error_wrap(err, "encode ssrc: %d", ssrc_);
     }
 
     // encode audio config
@@ -677,7 +685,8 @@ srs_error_t SrsRtcNativeAudioMediaParam::encode(SrsBuffer *buffer)
     memcpy(tmp + sizeof(audio_config_.codec) + sizeof(net32), &audio_config_.channel, sizeof(audio_config_.channel));
     tlv.set_value(sizeof(audio_config_.codec) + sizeof(net32) + sizeof(audio_config_.channel), tmp);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "fail to encode audio config");
+        return srs_error_wrap(err, "encode audio config. codec: %d, sample: %d, channel: %d",
+            audio_config_.codec, audio_config_.sample, audio_config_.channel);
     }
 
     // encode opus config
@@ -686,7 +695,8 @@ srs_error_t SrsRtcNativeAudioMediaParam::encode(SrsBuffer *buffer)
         tmp[0] = (opus_config_->inband_fec & 0x03) << 6 | (opus_config_->dtx & 0x03) << 4;
         tlv.set_value(1, tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode opus config");
+            return srs_error_wrap(err, "encode opus config: inband_fec: %d, dtx: %d",
+                opus_config_->inband_fec, opus_config_->dtx);
         }
     }
 
@@ -697,7 +707,8 @@ srs_error_t SrsRtcNativeAudioMediaParam::encode(SrsBuffer *buffer)
     tmp[1] = (trans_config_.red & 0x03)<<6 | 0x00;
     tlv.set_value(2, tmp);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "fail to encode trans config");
+        return srs_error_wrap(err, "encode trans config. direction: %d, nack: %d, rtx: %d, fec: %d, red: %d",
+            trans_config_.direction, trans_config_.nack, trans_config_.rtx, trans_config_.fec);
     }
 
     // encode fec type
@@ -705,7 +716,7 @@ srs_error_t SrsRtcNativeAudioMediaParam::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRtcNativeAudioMediaParam::SrsRTCNativeType_FEC_type);
         tlv.set_value(1, fec_type_);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode trans config");
+            return srs_error_wrap(err, "encode fec type: %d", *fec_type_);
         }
     }
 
@@ -718,7 +729,8 @@ srs_error_t SrsRtcNativeAudioMediaParam::encode(SrsBuffer *buffer)
         memcpy(tmp+2, (uint8_t*)(&net32), sizeof(net32));
         tlv.set_value(2+4, tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode rtx config");
+            return srs_error_wrap(err, "encode rtx config. pt: %d, apt: %d, rtx_ssrc:%d",
+                rtx_config_->pt, rtx_config_->apt, rtx_config_->rtx_ssrc);
         }
     }
 
@@ -733,7 +745,8 @@ srs_error_t SrsRtcNativeAudioMediaParam::encode(SrsBuffer *buffer)
         memcpy(tmp + 6, (uint8_t*)(&net32), 4);
         tlv.set_value(1 + 1 + 4 + 4, tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode flex fec config");
+            return srs_error_wrap(err, "encode flex fec config. type: %d, pt: %d, prime_ssrc: %d, fec_ssrc: %d",
+                flex_fec_->type, flex_fec_->pt, flex_fec_->prime_ssrc, flex_fec_->fec_ssrc);
         }
     }
 
@@ -744,7 +757,8 @@ srs_error_t SrsRtcNativeAudioMediaParam::encode(SrsBuffer *buffer)
         tmp[1] = red_->pt;
         tlv.set_value(2, tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode red config");
+            return srs_error_wrap(err, "encode red config. type: %d, pt: %d",
+                red_->type, red_->pt);
         }
     }
 
@@ -1080,14 +1094,14 @@ srs_error_t SrsRtcNativeVideoMediaParam::encode(SrsBuffer *buffer)
     tlv.set_type(SrsRtcNativeVideoMediaParam::SrsRTCNativeType_payload_type);
     tlv.set_value(sizeof(pt_), &pt_);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "fail to encode pt");
+        return srs_error_wrap(err, "encode pt: %d", pt_);
     }
 
     // encode msid
     tlv.set_type(SrsRtcNativeVideoMediaParam::SrsRTCNativeType_msid);
     tlv.set_value(msid_.length(), (uint8_t*)msid_.c_str());
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "fail to encode msid");
+        return srs_error_wrap(err, "encode msid: %s", msid_.c_str());
     }
 
     // encode ssrc
@@ -1095,14 +1109,14 @@ srs_error_t SrsRtcNativeVideoMediaParam::encode(SrsBuffer *buffer)
     net32 = htonl(ssrc_);
     tlv.set_value(sizeof(ssrc_), (uint8_t*)(&net32));
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "fail to encode ssrc");
+        return srs_error_wrap(err, "encode ssrc: %d", ssrc_);
     }
 
-    // encode audio config
+    // encode codec config
     tlv.set_type(SrsRtcNativeVideoMediaParam::SrsRTCNativeType_codec);
     tlv.set_value(sizeof(codec_), &codec_);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "fail to encode audio config");
+        return srs_error_wrap(err, "encode codec: %d", codec_);
     }
 
     // encode trans config
@@ -1112,7 +1126,8 @@ srs_error_t SrsRtcNativeVideoMediaParam::encode(SrsBuffer *buffer)
     tmp[1] = (trans_config_.red & 0x03)<<6 | 0x00;
     tlv.set_value(2, tmp);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "fail to encode trans config");
+        return srs_error_wrap(err, "encode trans config. direction: %d, nack: %d, rtx: %d, fec: %d, red: %d",
+            trans_config_.direction, trans_config_.nack, trans_config_.rtx, trans_config_.fec, trans_config_.red);
     }
 
     // encode fec type
@@ -1120,7 +1135,7 @@ srs_error_t SrsRtcNativeVideoMediaParam::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRtcNativeVideoMediaParam::SrsRTCNativeType_FEC_type);
         tlv.set_value(1, fec_type_);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode trans config");
+            return srs_error_wrap(err, "encode fec type: %d", *fec_type_);
         }
     }
 
@@ -1133,7 +1148,8 @@ srs_error_t SrsRtcNativeVideoMediaParam::encode(SrsBuffer *buffer)
         memcpy(tmp+2, (uint8_t*)(&net32), sizeof(net32));
         tlv.set_value(2+4, tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode rtx config");
+            return srs_error_wrap(err, "encode rtx config. pt: %d, apt: %d, rtx_ssrc: %d",
+                rtx_config_->pt, rtx_config_->apt, rtx_config_->rtx_ssrc);
         }
     }
 
@@ -1148,7 +1164,8 @@ srs_error_t SrsRtcNativeVideoMediaParam::encode(SrsBuffer *buffer)
         memcpy(tmp + 6, (uint8_t*)(&net32), 4);
         tlv.set_value(1 + 1 + 4 + 4, tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode flex fec config");
+            return srs_error_wrap(err, "encode flex fec config. type: %d, pt: %d, prime_ssrc: %d, fec_ssrc: %d",
+                flex_fec_->type, flex_fec_->pt, flex_fec_->prime_ssrc, flex_fec_->fec_ssrc);
         }
     }
 
@@ -1159,7 +1176,8 @@ srs_error_t SrsRtcNativeVideoMediaParam::encode(SrsBuffer *buffer)
         tmp[1] = red_->pt;
         tlv.set_value(2, tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode red config");
+            return srs_error_wrap(err, "encode red config. type: %d, pt: %d", 
+                red_->type, red_->pt);
         }
     }
 
@@ -1287,11 +1305,11 @@ srs_error_t SrsRtcNativeMiniSDP::encode(SrsBuffer *buffer)
         memset(tmp, 0, sizeof(tmp));
         SrsBuffer audioBuffer((char*)tmp, sizeof(tmp));
         if(srs_success != (err = audio->encode(&audioBuffer))) {
-            return srs_error_wrap(err, "fail to encode audio media");
+            return srs_error_wrap(err, "encode audio media");
         }
         tlv.set_value(audioBuffer.pos(), tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode audio media tlv format");
+            return srs_error_wrap(err, "encode audio media tlv format");
         }
     }
 
@@ -1302,16 +1320,13 @@ srs_error_t SrsRtcNativeMiniSDP::encode(SrsBuffer *buffer)
         memset(tmp, 0, sizeof(tmp));
         SrsBuffer videoBuffer((char*)tmp, sizeof(tmp));
         if(srs_success != (err = video->encode(&videoBuffer))) {
-            return srs_error_wrap(err, "fail to encode video media");
+            return srs_error_wrap(err, "encode video media");
         }
         tlv.set_value(videoBuffer.pos(), tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "fail to encode video media tlv format");
+            return srs_error_wrap(err, "encode video media tlv format");
         }
     }
-
-   // clear();
-
     return err;
 }
 
@@ -1465,7 +1480,7 @@ srs_error_t SrsRtcNativeCommonMediaParam::encode(SrsBuffer *buffer)
         memcpy(tmp+1, &ssrc, sizeof(ssrc));
         tlv.set_value(sizeof(SrsRtcNativeCommonMediaParam::SrsRtcNativeRTXPadding), tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode rtx padding");
+            return srs_error_wrap(err, "encode rtx padding. pt: %d, ssrc: %d", rtx_->pt, rtx_->ssrc);
         }
     }
 
@@ -1569,7 +1584,7 @@ srs_error_t SrsRtcNativeSessionParam::decode(SrsBuffer *buffer)
             }
             SrsBuffer mediaBuf((char*)tlv.get_value(), tlv.get_len());
             if(srs_success != (err = media_param_->decode(&mediaBuf))) {
-                return srs_error_wrap(err, "fail to decode common media param");
+                return srs_error_wrap(err, "decode common media param");
             }
         } else {
             srs_warn("in session param, unkonw type:%d", tlv.get_type());
@@ -1625,7 +1640,7 @@ srs_error_t SrsRtcNativeSessionParam::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRtcNativeSessionParam::SrsRTCNativeType_cookie);
         tlv.set_value(cookie_.length(), (uint8_t*)cookie_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode cookie");
+            return srs_error_wrap(err, "encode cookie: %s", cookie_.c_str());
         }
     }
 
@@ -1634,7 +1649,7 @@ srs_error_t SrsRtcNativeSessionParam::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRtcNativeSessionParam::SrsRTCNativeType_302_ip);
         tlv.set_value(ip_302_.length(), (uint8_t*)ip_302_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode 302 ip");
+            return srs_error_wrap(err, "encode 302 ip: %s", ip_302_.c_str());
         }
     }
 
@@ -1644,7 +1659,7 @@ srs_error_t SrsRtcNativeSessionParam::encode(SrsBuffer *buffer)
         uint16_t port = htons(port_302_);
         tlv.set_value(sizeof(port_302_), (uint8_t*)(&port));
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode 302 port");
+            return srs_error_wrap(err, "encode 302 port: %d", port_302_);
         }
     }
 
@@ -1653,19 +1668,19 @@ srs_error_t SrsRtcNativeSessionParam::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRtcNativeSessionParam::SrsRTCNativeType_302_url);
         tlv.set_value(url_302_.length(), (uint8_t*)url_302_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode 302 url");
+            return srs_error_wrap(err, "encode 302 url: %s", url_302_.c_str());
         }
     }
 
     if(NULL != media_param_) {
         SrsBuffer mediaBuff((char*)tmp, sizeof(tmp));
         if(srs_success != (err = media_param_->encode(&mediaBuff))) {
-            return srs_error_wrap(err, "fail to encode common media param");
+            return srs_error_wrap(err, "encode common media param");
         }
         tlv.set_type(SrsRtcNativeSessionParam::SrsRTCNativeType_common_media_param);
         tlv.set_value(mediaBuff.pos(), tmp);
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode common media param tlv");
+            return srs_error_wrap(err, "common media param tlv");
         }
     }
 
@@ -1751,7 +1766,7 @@ srs_error_t SrsRtcNativePublishRequest::decode(SrsBuffer *buffer)
                 mini_sdp_ = new SrsRtcNativeMiniSDP();
             }
             if(srs_success != (err = mini_sdp_->decode(&miniBuf))) {
-                return srs_error_wrap(err, "fail to decode mini sdp in publish request");
+                return srs_error_wrap(err, "decode mini sdp");
             }
         } else if(SrsRTCNativeType_mode == tlv.get_type()) {
             mode_ = *tlv.get_value();
@@ -1761,7 +1776,7 @@ srs_error_t SrsRtcNativePublishRequest::decode(SrsBuffer *buffer)
               session_param_ = new SrsRtcNativeSessionParam();
           }  
           if(srs_success != (err = session_param_->decode(&sessionBuf))) {
-              return srs_error_wrap(err, "fail to decode session param in publish request");
+              return srs_error_wrap(err, "decode session param");
           }
         } else {
             srs_warn("Publish request, unkonw type:%d", tlv.get_type());
@@ -1795,7 +1810,7 @@ srs_error_t SrsRtcNativePublishRequest::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     uint8_t tmp[2048];
@@ -1805,14 +1820,14 @@ srs_error_t SrsRtcNativePublishRequest::encode(SrsBuffer *buffer)
     tlv.set_type(SrsRTCNativeType_url);
     tlv.set_value(url_.length(), (uint8_t*)url_.c_str());
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode url");
+        return srs_error_wrap(err, "encode url: %s", url_.c_str());
     }
 
     // mode
     tlv.set_type(SrsRTCNativeType_mode);
     tlv.set_value(sizeof(mode_), &mode_);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode mode");
+        return srs_error_wrap(err, "encode mode: %d", mode_);
     }
     
 
@@ -1925,7 +1940,7 @@ srs_error_t SrsRtcNativePublishResponse::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -1947,7 +1962,7 @@ srs_error_t SrsRtcNativePublishResponse::decode(SrsBuffer *buffer)
                 mini_sdp_ = new SrsRtcNativeMiniSDP();
             }
             if(srs_success != (err = mini_sdp_->decode(&miniBuf))) {
-                return srs_error_wrap(err, "fail to decode mini sdp in publish response");
+                return srs_error_wrap(err, "decode mini sdp");
             }
             srs_info("pub response: minisdp");
         } else if(SrsRTCNativeType_msg == tlv.get_type()) {
@@ -1958,7 +1973,7 @@ srs_error_t SrsRtcNativePublishResponse::decode(SrsBuffer *buffer)
                 session_param_ = new SrsRtcNativeSessionParam();
             }  
             if(srs_success != (err = session_param_->decode(&sessionBuf))) {
-                return srs_error_wrap(err, "fail to decode session param in publish response");
+                return srs_error_wrap(err, "decode session param");
             }
         } else if(SrsRTCNativeType_traceid == tlv.get_type()) {
             trace_id_ = string((char*)tlv.get_value(), tlv.get_len());
@@ -2003,7 +2018,7 @@ srs_error_t SrsRtcNativePublishResponse::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     uint8_t tmp[2048];
@@ -2014,7 +2029,7 @@ srs_error_t SrsRtcNativePublishResponse::encode(SrsBuffer *buffer)
     uint16_t code = htons(code_);
     tlv.set_value(sizeof(code_), (uint8_t*)&code);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode code");
+        return srs_error_wrap(err, "encode code: %d", code_);
     }
 
     if(!msg_.empty()) {
@@ -2022,7 +2037,7 @@ srs_error_t SrsRtcNativePublishResponse::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_msg);
         tlv.set_value(msg_.length(), (uint8_t*)msg_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode msg");
+            return srs_error_wrap(err, "encode msg: %s", msg_.c_str());
         }
     }
 
@@ -2058,7 +2073,7 @@ srs_error_t SrsRtcNativePublishResponse::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_traceid);
         tlv.set_value(trace_id_.length(), (uint8_t*)trace_id_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode trace id tlv");
+            return srs_error_wrap(err, "encode trace id tlv : %s", trace_id_.c_str());
         }
     }
 
@@ -2066,7 +2081,7 @@ srs_error_t SrsRtcNativePublishResponse::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_pub_config);
         tlv.set_value(pub_config_.length(), (uint8_t*)pub_config_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode pub config tlv");
+            return srs_error_wrap(err, "encode pub config tlv: %s", pub_config_.c_str());
         }
     }
 
@@ -2142,7 +2157,7 @@ srs_error_t SrsRtcNativeSubscribeRequest::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -2163,7 +2178,7 @@ srs_error_t SrsRtcNativeSubscribeRequest::decode(SrsBuffer *buffer)
                 mini_sdp_ = new SrsRtcNativeMiniSDP();
             }
             if(srs_success != (err = mini_sdp_->decode(&miniBuf))) {
-                return srs_error_wrap(err, "fail to decode mini sdp in subscribe request");
+                return srs_error_wrap(err, "decode mini sdp");
             }
         } else if(SrsRTCNativeType_mode == tlv.get_type()) {
             mode_ = *tlv.get_value();
@@ -2173,7 +2188,7 @@ srs_error_t SrsRtcNativeSubscribeRequest::decode(SrsBuffer *buffer)
               session_param_ = new SrsRtcNativeSessionParam();
           }  
           if(srs_success != (err = session_param_->decode(&sessionBuf))) {
-              return srs_error_wrap(err, "fail to decode session param in subscribe request");
+              return srs_error_wrap(err, "decode session param");
           }
         } else if(SrsRTCNativeType_msid == tlv.get_type()) {
             string msid = string((char*)tlv.get_value(), tlv.get_len());
@@ -2215,7 +2230,7 @@ srs_error_t SrsRtcNativeSubscribeRequest::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     uint8_t tmp[2048];
@@ -2225,14 +2240,14 @@ srs_error_t SrsRtcNativeSubscribeRequest::encode(SrsBuffer *buffer)
     tlv.set_type(SrsRTCNativeType_url);
     tlv.set_value(url_.length(), (uint8_t*)url_.c_str());
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode url");
+        return srs_error_wrap(err, "encode url: %s", url_.c_str());
     }
 
     // mode
     tlv.set_type(SrsRTCNativeType_mode);
     tlv.set_value(sizeof(mode_), &mode_);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode mode");
+        return srs_error_wrap(err, "encode mode: %d", mode_);
     }
     
     if(!msids_.empty()) {
@@ -2356,7 +2371,7 @@ srs_error_t SrsRtcNativeSubscribeResponse::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -2377,7 +2392,7 @@ srs_error_t SrsRtcNativeSubscribeResponse::decode(SrsBuffer *buffer)
                 mini_sdp_ = new SrsRtcNativeMiniSDP();
             }
             if(srs_success != (err = mini_sdp_->decode(&miniBuf))) {
-                return srs_error_wrap(err, "fail to decode mini sdp in subscribe response");
+                return srs_error_wrap(err, "decode mini sdp");
             }
         } else if(SrsRTCNativeType_msg == tlv.get_type()) {
             msg_ = string((char*)tlv.get_value(), tlv.get_len());
@@ -2387,7 +2402,7 @@ srs_error_t SrsRtcNativeSubscribeResponse::decode(SrsBuffer *buffer)
                 session_param_ = new SrsRtcNativeSessionParam();
             }  
             if(srs_success != (err = session_param_->decode(&sessionBuf))) {
-                return srs_error_wrap(err, "fail to decode session param in subscribe response");
+                return srs_error_wrap(err, "decode session param");
             }
         } else if(SrsRTCNativeType_traceid == tlv.get_type()) {
             trace_id_ = string((char*)tlv.get_value(), tlv.get_len());
@@ -2432,7 +2447,7 @@ srs_error_t SrsRtcNativeSubscribeResponse::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     uint8_t tmp[2048];
@@ -2443,7 +2458,7 @@ srs_error_t SrsRtcNativeSubscribeResponse::encode(SrsBuffer *buffer)
     uint16_t code = htons(code_);
     tlv.set_value(sizeof(code_), (uint8_t*)&code);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode code");
+        return srs_error_wrap(err, "encode code: %d", code);
     }
 
     if(!msg_.empty()) {
@@ -2451,7 +2466,7 @@ srs_error_t SrsRtcNativeSubscribeResponse::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_msg);
         tlv.set_value(msg_.length(), (uint8_t*)msg_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode msg");
+            return srs_error_wrap(err, "encode msg: %s", msg_.c_str());
         }
     }
 
@@ -2487,7 +2502,7 @@ srs_error_t SrsRtcNativeSubscribeResponse::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_traceid);
         tlv.set_value(trace_id_.length(), (uint8_t*)trace_id_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode trace id tlv");
+            return srs_error_wrap(err, "encode trace id tlv: %s", trace_id_.c_str());
         }
     }
 
@@ -2495,7 +2510,7 @@ srs_error_t SrsRtcNativeSubscribeResponse::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_pub_config);
         tlv.set_value(play_config_.length(), (uint8_t*)play_config_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode pub config tlv");
+            return srs_error_wrap(err, "encode play config: %s", play_config_.c_str());
         }
     }
 
@@ -2550,7 +2565,7 @@ srs_error_t SrsRtcNativePublishUpdateRequest::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -2571,7 +2586,7 @@ srs_error_t SrsRtcNativePublishUpdateRequest::decode(SrsBuffer *buffer)
                 sdp_ = new SrsRtcNativeMiniSDP();
             }
             if(srs_success != (err = sdp_->decode(&miniBuf))) {
-                return srs_error_wrap(err, "fail to decode mini sdp in subscribe request");
+                return srs_error_wrap(err, "decode mini sdp");
             }
         } else if(SrsRTCNativeType_msid_cmd == tlv.get_type()) {
             uint8_t* p = tlv.get_value();
@@ -2580,8 +2595,9 @@ srs_error_t SrsRtcNativePublishUpdateRequest::decode(SrsBuffer *buffer)
             p++;
             msid_cmd.msid = string((char*)p, tlv.get_len() - 1);
             msid_cmd_.push_back(msid_cmd);
+            srs_info("Publish update request: decode msid cmd: cmd: %d, msid: %s", msid_cmd.cmd, msid_cmd.msid.c_str());
         } else {
-            srs_warn("Subscribe request, unkonw type:%d", tlv.get_type());
+            srs_warn("Publish update request, unkonw type:%d", tlv.get_type());
         }
     }
 
@@ -2614,7 +2630,7 @@ srs_error_t SrsRtcNativePublishUpdateRequest::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
     
     uint8_t tmp[2048];
@@ -2624,7 +2640,7 @@ srs_error_t SrsRtcNativePublishUpdateRequest::encode(SrsBuffer *buffer)
     tlv.set_type(SrsRTCNativeType_url);
     tlv.set_value(url_.length(), (uint8_t*)url_.c_str());
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode url");
+        return srs_error_wrap(err, "encode url: %s", url_.c_str());
     }
     
     // msid cmd
@@ -2740,7 +2756,7 @@ srs_error_t SrsRtcNativePublishUpdateResponse::decode(SrsBuffer *buffer)
                 mini_sdp_ = new SrsRtcNativeMiniSDP();
             }
             if(srs_success != (err = mini_sdp_->decode(&miniBuf))) {
-                return srs_error_wrap(err, "fail to decode mini sdp in subscribe response");
+                return srs_error_wrap(err, "decode mini sdp");
             }
         } else if(SrsRTCNativeType_msg == tlv.get_type()) {
             msg_ = string((char*)tlv.get_value(), tlv.get_len());
@@ -2748,7 +2764,7 @@ srs_error_t SrsRtcNativePublishUpdateResponse::decode(SrsBuffer *buffer)
             string msid = string((char*)tlv.get_value(), tlv.get_len());
             msids_.push_back(msid);
         } else {
-            srs_warn("Subscribe response, unkonw type:%d", tlv.get_type());
+            srs_warn("Publish update response, unkonw type:%d", tlv.get_type());
         }
     }
 
@@ -2782,7 +2798,7 @@ srs_error_t SrsRtcNativePublishUpdateResponse::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     uint8_t tmp[2048];
@@ -2793,7 +2809,7 @@ srs_error_t SrsRtcNativePublishUpdateResponse::encode(SrsBuffer *buffer)
     uint16_t code = htons(code_);
     tlv.set_value(sizeof(code_), (uint8_t*)&code);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode code");
+        return srs_error_wrap(err, "encode code: %d", code_);
     }
 
     if(!msg_.empty()) {
@@ -2801,7 +2817,7 @@ srs_error_t SrsRtcNativePublishUpdateResponse::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_msg);
         tlv.set_value(msg_.length(), (uint8_t*)msg_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode msg");
+            return srs_error_wrap(err, "encode msg: %s", msg_.c_str());
         }
     }
 
@@ -2880,7 +2896,7 @@ srs_error_t SrsRtcNativeSubscribeUpdateRequest::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -2901,7 +2917,7 @@ srs_error_t SrsRtcNativeSubscribeUpdateRequest::decode(SrsBuffer *buffer)
                 sdp_ = new SrsRtcNativeMiniSDP();
             }
             if(srs_success != (err = sdp_->decode(&miniBuf))) {
-                return srs_error_wrap(err, "fail to decode mini sdp in subscribe request");
+                return srs_error_wrap(err, "decode mini sdp");
             }
         } else if(SrsRTCNativeType_msid_cmd == tlv.get_type()) {
             uint8_t* p = tlv.get_value();
@@ -2910,8 +2926,10 @@ srs_error_t SrsRtcNativeSubscribeUpdateRequest::decode(SrsBuffer *buffer)
             p++;
             msid_cmd.msid = string((char*)p, tlv.get_len() - 1);
             msid_cmd_.push_back(msid_cmd);
+            srs_info("Subscribe update request, decode msid_cmd: cmd: %d, msid: %s",
+                msid_cmd.cmd, msid_cmd.msid.c_str());
         } else {
-            srs_warn("Subscribe request, unkonw type:%d", tlv.get_type());
+            srs_warn("Subscribe update request, unkonw type:%d", tlv.get_type());
         }
     }
 
@@ -2943,7 +2961,7 @@ srs_error_t SrsRtcNativeSubscribeUpdateRequest::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
     
     uint8_t tmp[2048];
@@ -2953,7 +2971,7 @@ srs_error_t SrsRtcNativeSubscribeUpdateRequest::encode(SrsBuffer *buffer)
     tlv.set_type(SrsRTCNativeType_url);
     tlv.set_value(url_.length(), (uint8_t*)url_.c_str());
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode url");
+        return srs_error_wrap(err, "encode url: %s", url_.c_str());
     }
     
     // msid cmd
@@ -3049,7 +3067,7 @@ srs_error_t SrsRtcNativeSubscribeUpdateResponse::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -3070,7 +3088,7 @@ srs_error_t SrsRtcNativeSubscribeUpdateResponse::decode(SrsBuffer *buffer)
                 mini_sdp_ = new SrsRtcNativeMiniSDP();
             }
             if(srs_success != (err = mini_sdp_->decode(&miniBuf))) {
-                return srs_error_wrap(err, "fail to decode mini sdp in subscribe response");
+                return srs_error_wrap(err, "decode mini sdp");
             }
         } else if(SrsRTCNativeType_msg == tlv.get_type()) {
             msg_ = string((char*)tlv.get_value(), tlv.get_len());
@@ -3078,7 +3096,7 @@ srs_error_t SrsRtcNativeSubscribeUpdateResponse::decode(SrsBuffer *buffer)
             string msid = string((char*)tlv.get_value(), tlv.get_len());
             msids_.push_back(msid);
         } else {
-            srs_warn("Subscribe response, unkonw type:%d", tlv.get_type());
+            srs_warn("Subscribe update response, unkonw type:%d", tlv.get_type());
         }
     }
 
@@ -3112,7 +3130,7 @@ srs_error_t SrsRtcNativeSubscribeUpdateResponse::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     uint8_t tmp[2048];
@@ -3123,7 +3141,7 @@ srs_error_t SrsRtcNativeSubscribeUpdateResponse::encode(SrsBuffer *buffer)
     uint16_t code = htons(code_);
     tlv.set_value(sizeof(code_), (uint8_t*)&code);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode code");
+        return srs_error_wrap(err, "encode code: %d", code_);
     }
 
     if(!msg_.empty()) {
@@ -3131,7 +3149,7 @@ srs_error_t SrsRtcNativeSubscribeUpdateResponse::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_msg);
         tlv.set_value(msg_.length(), (uint8_t*)msg_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode msg");
+            return srs_error_wrap(err, "encode msg: %s", msg_.c_str());
         }
     }
 
@@ -3197,7 +3215,7 @@ srs_error_t SrsRtcNativeCommonResponse::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -3241,7 +3259,7 @@ srs_error_t SrsRtcNativeCommonResponse::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     SrsTLV tlv;
@@ -3251,7 +3269,7 @@ srs_error_t SrsRtcNativeCommonResponse::encode(SrsBuffer *buffer)
     uint16_t code = htons(code_);
     tlv.set_value(sizeof(code_), (uint8_t*)&code);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode code");
+        return srs_error_wrap(err, "encode code: %s", code_);
     }
 
     if(!msg_.empty()) {
@@ -3259,7 +3277,7 @@ srs_error_t SrsRtcNativeCommonResponse::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_msg);
         tlv.set_value(msg_.length(), (uint8_t*)msg_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode msg");
+            return srs_error_wrap(err, "encode msg: %s", msg_.c_str());
         }
     }
 
@@ -3309,7 +3327,7 @@ srs_error_t SrsRtcNativeStopRequest::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -3329,7 +3347,7 @@ srs_error_t SrsRtcNativeStopRequest::decode(SrsBuffer *buffer)
         } else if(SrsRTCNativeType_url == tlv.get_type()) {
             url_ = string((char*)tlv.get_value(), tlv.get_len());
         } else {
-            srs_warn("in SrsRtcNativeHeartbeatResponse, unkonw type:%d", tlv.get_type());
+            srs_warn("in SrsRtcNativeStopRequest, unkonw type:%d", tlv.get_type());
         }
     }
 
@@ -3358,7 +3376,7 @@ srs_error_t SrsRtcNativeStopRequest::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     SrsTLV tlv;
@@ -3368,7 +3386,7 @@ srs_error_t SrsRtcNativeStopRequest::encode(SrsBuffer *buffer)
     uint16_t code = htons(code_);
     tlv.set_value(sizeof(code_), (uint8_t*)&code);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode code");
+        return srs_error_wrap(err, "encode code: %d", code_);
     }
 
     if(!msg_.empty()) {
@@ -3376,7 +3394,7 @@ srs_error_t SrsRtcNativeStopRequest::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_msg);
         tlv.set_value(msg_.length(), (uint8_t*)msg_.c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode msg");
+            return srs_error_wrap(err, "encode msg: %s", msg_.c_str());
         }
     }
 
@@ -3479,7 +3497,7 @@ srs_error_t SrsRtcNativeMediaControlRequest::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -3499,7 +3517,7 @@ srs_error_t SrsRtcNativeMediaControlRequest::decode(SrsBuffer *buffer)
         } else if(SrsRTCNativeType_url == tlv.get_type()) {
             url_ = string((char*)tlv.get_value(), tlv.get_len());
         } else {
-            srs_warn("in SrsRtcNativeHeartbeatResponse, unkonw type:%d", tlv.get_type());
+            srs_warn("in SrsRtcNativeMediaControlRequest, unkonw type:%d", tlv.get_type());
         }
     }
 
@@ -3527,7 +3545,7 @@ srs_error_t SrsRtcNativeMediaControlRequest::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     SrsTLV tlv;
@@ -3537,7 +3555,7 @@ srs_error_t SrsRtcNativeMediaControlRequest::encode(SrsBuffer *buffer)
     uint32_t sn = htonl(sequence_);
     tlv.set_value(sizeof(sequence_), (uint8_t*)&sn);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode code");
+        return srs_error_wrap(err, "encode sequence: %d", sequence_);
     }
 
     for(int i = 0; i < msids_.size(); ++i) {
@@ -3545,7 +3563,7 @@ srs_error_t SrsRtcNativeMediaControlRequest::encode(SrsBuffer *buffer)
         tlv.set_type(SrsRTCNativeType_msg);
         tlv.set_value(msids_.at(i).length(), (uint8_t*)msids_.at(i).c_str());
         if(srs_success != (err = tlv.encode(buffer))) {
-            return srs_error_wrap(err, "encode msg");
+            return srs_error_wrap(err, "encode msg: %s", msids_.at(i).c_str());
         }
     }
 
@@ -3624,7 +3642,7 @@ srs_error_t SrsRtcNativeNotifyRequest::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -3646,7 +3664,7 @@ srs_error_t SrsRtcNativeNotifyRequest::decode(SrsBuffer *buffer)
         } else if(SrsRTCNativeType_need_resp == tlv.get_type()) {
             need_response_ = *tlv.get_value();
         } else {
-            srs_warn("in SrsRtcNativeHeartbeatResponse, unkonw type:%d", tlv.get_type());
+            srs_warn("in SrsRtcNativeNotifyRequest, unkonw type:%d", tlv.get_type());
         }
     }
 
@@ -3674,7 +3692,7 @@ srs_error_t SrsRtcNativeNotifyRequest::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     SrsTLV tlv;
@@ -3683,14 +3701,14 @@ srs_error_t SrsRtcNativeNotifyRequest::encode(SrsBuffer *buffer)
     tlv.set_type(SrsRTCNativeType_notify_type);
     tlv.set_value(sizeof(type_), (uint8_t*)&type_);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode type");
+        return srs_error_wrap(err, "encode type: %d", type_);
     }
 
     // encode need response
     tlv.set_type(SrsRTCNativeType_need_resp);
     tlv.set_value(sizeof(need_response_), (uint8_t*)&need_response_);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode need response");
+        return srs_error_wrap(err, "encode need response: %d", need_response_);
     }
 
     // encode receiver ssrc
@@ -3698,7 +3716,7 @@ srs_error_t SrsRtcNativeNotifyRequest::encode(SrsBuffer *buffer)
     uint32_t ssrc = htonl(recv_ssrc_);
     tlv.set_value(sizeof(recv_ssrc_), (uint8_t*)&ssrc);
     if(srs_success != (err = tlv.encode(buffer))) {
-        return srs_error_wrap(err, "encode receiver ssrc");
+        return srs_error_wrap(err, "encode receiver ssrc: %d", recv_ssrc_);
     }
 
     if(!info_.empty()) {
@@ -3765,7 +3783,7 @@ srs_error_t SrsRtcNativeSwitchMsidRequest::decode(SrsBuffer *buffer)
     srs_error_t err = srs_success;
     // header
     if((err = decode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to decode header");
+        return srs_error_wrap(err, "decode header");
     }
 
     SrsTLV tlv;
@@ -3785,7 +3803,7 @@ srs_error_t SrsRtcNativeSwitchMsidRequest::decode(SrsBuffer *buffer)
         } else if(SrsRTCNativeType_new_msid == tlv.get_type()) {
             new_msid_ = string((char*)tlv.get_value(), tlv.get_len());
         } else {
-            srs_warn("in SrsRtcNativeHeartbeatResponse, unkonw type:%d", tlv.get_type());
+            srs_warn("in SrsRtcNativeSwitchMsidRequest, unkonw type:%d", tlv.get_type());
         }
     }
 
@@ -3811,7 +3829,7 @@ srs_error_t SrsRtcNativeSwitchMsidRequest::encode(SrsBuffer *buffer)
     }
 
     if((err = encode_native_header(buffer)) != srs_success) {
-        return srs_error_wrap(err, "fail to encode header");
+        return srs_error_wrap(err, "encode header");
     }
 
     SrsTLV tlv;

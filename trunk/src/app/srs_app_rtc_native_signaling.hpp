@@ -9,6 +9,7 @@
 #include <vector>
 
 /*
+    @doc https://tools.ietf.org/html/rfc3550#section-6.7
 	RTCP private native protocol
 	0                   1                   2                   3
     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -22,6 +23,7 @@
    |                   application-dependent data                  |
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
+    @doc https://yuque.antfin-inc.com/nf441k/ma1uf9/ekpd93#e07c5fc7
    application-dependent data content(TLV format)
 	0                   1                  2                    3
     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -543,14 +545,14 @@ public:
     void set_mode(uint8_t mode);
 
 public:
-    //SrsRtcNativeHeader
-    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublish; }
-    virtual std::string get_name() { return "PUB"; }
-public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer *buffer);
     virtual int nb_bytes();
     virtual srs_error_t encode(SrsBuffer *buffer);
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublish; }
+    virtual std::string get_name() { return "PUB"; }
 };
 
 class SrsRtcNativePublishResponse : public SrsRtcNativeHeader
@@ -579,14 +581,14 @@ public:
     void set_trace_id(std::string& id);
 
 public:
-    //SrsRtcNativeHeader
-    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublish; }
-    virtual std::string get_name() { return "PUB"; }
-public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer *buffer);
     virtual int nb_bytes();
     virtual srs_error_t encode(SrsBuffer *buffer);
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublish; }
+    virtual std::string get_name() { return "PUB"; }
 };
 
 class SrsRtcNativeSubscribeRequest : public SrsRtcNativeHeader
@@ -612,14 +614,14 @@ public:
     void set_mode(uint8_t mode);
 
 public:
-    //SrsRtcNativeHeader
-    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeSubscribe; }
-    virtual std::string get_name() { return "SUB"; }
-public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer *buffer);
     virtual int nb_bytes();
     virtual srs_error_t encode(SrsBuffer *buffer);
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeSubscribe; }
+    virtual std::string get_name() { return "SUB"; }
 };
 
 
@@ -649,14 +651,14 @@ public:
     void set_trace_id(std::string& id);
 
 public:
-    //SrsRtcNativeHeader
-    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeSubscribe; }
-    virtual std::string get_name() { return "SUB"; }
-public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer *buffer);
     virtual int nb_bytes();
     virtual srs_error_t encode(SrsBuffer *buffer);
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeSubscribe; }
+    virtual std::string get_name() { return "SUB"; }
 };
 
 struct SrsRtcNativeMsidCMD
@@ -684,14 +686,14 @@ public:
     void add_msid_cmd(SrsRtcNativeMsidCMD& cmd);
 
 public:
-    //SrsRtcNativeHeader
-    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublishUpadte; }
-    virtual std::string get_name() { return "PUBU"; }
-public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer *buffer);
     virtual int nb_bytes();
-    virtual srs_error_t encode(SrsBuffer *buffer);   
+    virtual srs_error_t encode(SrsBuffer *buffer);
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublishUpadte; }
+    virtual std::string get_name() { return "PUBU"; }   
 };
 
 class SrsRtcNativePublishUpdateResponse : public SrsRtcNativeHeader
@@ -715,14 +717,14 @@ public:
     void add_msid(std::string& msid);
 
 public:
-    //SrsRtcNativeHeader
-    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublishUpadte; }
-    virtual std::string get_name() { return "PUBU"; }
-public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer *buffer);
     virtual int nb_bytes();
     virtual srs_error_t encode(SrsBuffer *buffer);
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublishUpadte; }
+    virtual std::string get_name() { return "PUBU"; }
 };
 
 class SrsRtcNativeSubscribeUpdateRequest : public SrsRtcNativeHeader
@@ -775,14 +777,14 @@ public:
     void add_msid(std::string& msid);
 
 public:
-    //SrsRtcNativeHeader
-    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublishUpadte; }
-    virtual std::string get_name() { return "SUBU"; }
-public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer *buffer);
     virtual int nb_bytes();
     virtual srs_error_t encode(SrsBuffer *buffer);
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypePublishUpadte; }
+    virtual std::string get_name() { return "SUBU"; }
 };
 
 class SrsRtcNativeCommonResponse : public SrsRtcNativeHeader
