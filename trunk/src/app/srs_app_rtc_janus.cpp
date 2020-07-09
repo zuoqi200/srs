@@ -1248,13 +1248,13 @@ srs_error_t SrsJanusCall::subscirber_build_offer(SrsRequest* req, SrsJanusCall* 
             ssrc_info.ssrc_ = ++ssrc_num;
             if (remote_media_desc.is_audio()) {
                 ssrc_info.cname_ = "sophonaudio";
-                ssrc_info.label_ = gen_random_str(16);
+                ssrc_info.label_ = srs_random_str(16);
                 ssrc_info.mslabel_ = mslabel;
                 ssrc_info.msid_ = ssrc_info.mslabel_;
                 ssrc_info.msid_tracker_ = ssrc_info.label_;
             } else if (remote_media_desc.is_video()){
                 ssrc_info.cname_ = "sophonvideo";
-                ssrc_info.label_ = gen_random_str(16);
+                ssrc_info.label_ = srs_random_str(16);
                 ssrc_info.mslabel_ = mslabel;
                 ssrc_info.msid_ = ssrc_info.mslabel_;
                 ssrc_info.msid_tracker_ = ssrc_info.label_;
