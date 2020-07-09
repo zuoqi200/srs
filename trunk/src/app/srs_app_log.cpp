@@ -389,7 +389,7 @@ void SrsJsonLog::verbose(const char* tag, SrsContextId context_id, const char* f
     int size = vsnprintf(log_data, LOG_MAX_SIZE, fmt, ap);
     va_end(ap);
 
-    write_log(fd, log_data, size, SrsLogLevelVerbose, tag);
+    write_log(fd, log_data, size, SrsLogLevelVerbose, context_id, tag);
 }
 
 void SrsJsonLog::info(const char* tag, SrsContextId context_id, const char* fmt, ...)
@@ -404,7 +404,7 @@ void SrsJsonLog::info(const char* tag, SrsContextId context_id, const char* fmt,
     int size = vsnprintf(log_data, LOG_MAX_SIZE, fmt, ap);
     va_end(ap);
 
-    write_log(fd, log_data, size, SrsLogLevelInfo, tag);
+    write_log(fd, log_data, size, SrsLogLevelInfo, context_id, tag);
 }
 
 void SrsJsonLog::trace(const char* tag, SrsContextId context_id, const char* fmt, ...)
@@ -419,7 +419,7 @@ void SrsJsonLog::trace(const char* tag, SrsContextId context_id, const char* fmt
     int size = vsnprintf(log_data, LOG_MAX_SIZE, fmt, ap);
     va_end(ap);
 
-    write_log(fd, log_data, size, SrsLogLevelTrace, tag);
+    write_log(fd, log_data, size, SrsLogLevelTrace, context_id, tag);
 }
 
 void SrsJsonLog::warn(const char* tag, SrsContextId context_id, const char* fmt, ...)
@@ -434,7 +434,7 @@ void SrsJsonLog::warn(const char* tag, SrsContextId context_id, const char* fmt,
     int size = vsnprintf(log_data, LOG_MAX_SIZE, fmt, ap);
     va_end(ap);
 
-    write_log(fd, log_data, size, SrsLogLevelWarn, tag);
+    write_log(fd, log_data, size, SrsLogLevelWarn, context_id, tag);
 }
 
 void SrsJsonLog::error(const char* tag, SrsContextId context_id, const char* fmt, ...)
@@ -455,7 +455,7 @@ void SrsJsonLog::error(const char* tag, SrsContextId context_id, const char* fmt
         size += snprintf(log_data + size, LOG_MAX_SIZE - size, "(%s)", strerror(errno));
     }
 
-    write_log(fd, log_data, size, SrsLogLevelError, tag);
+    write_log(fd, log_data, size, SrsLogLevelError, context_id, tag);
 }
 
 srs_error_t SrsJsonLog::on_reload_utc_time()
@@ -525,7 +525,7 @@ srs_error_t SrsJsonLog::on_reload_log_file()
     return err;
 }
 
-void SrsJsonLog::write_log(int& fd, char *str_log, int size, int level, const char* tag)
+void SrsJsonLog::write_log(int& fd, char *str_log, int size, int level, SrsContextId context_id, const char* tag)
 {
     SrsJsonObject* log = SrsJsonAny::object();
     SrsAutoFree(SrsJsonObject, log);
@@ -575,7 +575,7 @@ void SrsJsonLog::write_log(int& fd, char *str_log, int size, int level, const ch
         log->set("t", SrsJsonAny::str(tag));
     }
     log->set("p", SrsJsonAny::integer(::getpid()));
-    log->set("c", SrsJsonAny::str(_srs_context->get_id().c_str()));
+    log->set("c", SrsJsonAny::str(context_id.c_str()));
 
     // Build log message in JSON.
     size = srs_min(LOG_MAX_SIZE - 1, size);

@@ -103,7 +103,7 @@ public:
     virtual srs_error_t on_reload_log_level();
     virtual srs_error_t on_reload_log_file();
 private:
-    virtual void write_log(int& fd, char* str_log, int size, int level, const char* tag);
+    virtual void write_log(int& fd, char* str_log, int size, int level, SrsContextId context_id, const char* tag);
     virtual void open_log_file();
 };
 
