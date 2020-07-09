@@ -1063,10 +1063,10 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
     srs_random_generate((char*)&res_msg->private_id, 4);
     session_->enqueue(res_msg);
 
-    srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, request=%s, ptype=%s, callee(feed_id=%" PRId64 ", display=%s), audio=%d/%d, video=%d/%d, streams=%d, sender=%" PRId64 ", private=%u, publisher=%d, offer=%dB",
+    srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, request=%s, ptype=%s, callee(feed_id=%" PRId64 ", display=%s), audio=%d/%d, video=%d/%d, streams=%d, sender=%" PRId64 ", private=%u, publisher=%d, offer=%dB, cid=[%u][%s]",
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         "join", "listener", callee->feed_id_, callee->display_.c_str(), audio, offer_audio, video, offer_video, streams->count(),
-        res_msg->sender, res_msg->private_id, publisher_, local_sdp_str.length());
+        res_msg->sender, res_msg->private_id, publisher_, local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
 
     return err;
 }
@@ -1426,9 +1426,9 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     srs_random_generate((char*)&res_msg->private_id, 4);
     session_->enqueue(res_msg);
 
-    srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, request=%s, audio=%d, video=%d, streams=%d, jsep=%s/%dB, answer=%dB",
+    srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, request=%s, audio=%d, video=%d, streams=%d, jsep=%s/%dB, answer=%dB, cid=[%u][%s]",
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
-        "configure", has_audio, has_video, streams->count(), type.c_str(), sdp.length(), local_sdp_str.length());
+        "configure", has_audio, has_video, streams->count(), type.c_str(), sdp.length(), local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
 
     return err;
 }
