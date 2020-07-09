@@ -77,6 +77,16 @@ void SrsThreadContext::clear_cid()
     }
 }
 
+SrsContextId SrsThreadContext::generate_id(std::string k)
+{
+    return SrsContextId(k, srs_random_str(8));
+}
+
+SrsContextId SrsThreadContext::generate_id_for_root()
+{
+    return generate_id("rt");
+}
+
 // LCOV_EXCL_START
 SrsConsoleLog::SrsConsoleLog(SrsLogLevel l, bool u)
 {

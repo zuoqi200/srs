@@ -575,7 +575,12 @@ void SrsJsonLog::write_log(int& fd, char *str_log, int size, int level, SrsConte
         log->set("t", SrsJsonAny::str(tag));
     }
     log->set("p", SrsJsonAny::integer(::getpid()));
-    log->set("c", SrsJsonAny::str(context_id.c_str()));
+
+    // Context id tree.
+    if (!context_id.k_.empty()) {
+        log->set("n0", SrsJsonAny::str(context_id.k_.c_str()));
+    }
+    log->set("i0", SrsJsonAny::str(context_id.v_.c_str()));
 
     // Build log message in JSON.
     size = srs_min(LOG_MAX_SIZE - 1, size);

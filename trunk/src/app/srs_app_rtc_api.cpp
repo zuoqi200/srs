@@ -47,7 +47,6 @@ SrsGoApiRtcPlay::~SrsGoApiRtcPlay()
 {
 }
 
-
 // Request:
 //      POST /rtc/v1/play/
 //      {
@@ -210,8 +209,8 @@ srs_error_t SrsGoApiRtcPlay::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpMe
     res->set("sdp", SrsJsonAny::str(local_sdp_str.c_str()));
     res->set("sessionid", SrsJsonAny::str(session->username().c_str()));
 
-    srs_trace("RTC username=%s, offer=%dB, answer=%dB", session->username().c_str(),
-        remote_sdp_str.length(), local_sdp_str.length());
+    srs_trace("RTC username=%s, offer=%dB, answer=%dB, cid=[%u][%s]", session->username().c_str(),
+        remote_sdp_str.length(), local_sdp_str.length(), ::getpid(), session->context_id().c_str());
 
     return err;
 }
@@ -595,8 +594,8 @@ srs_error_t SrsGoApiRtcPublish::do_serve_http(ISrsHttpResponseWriter* w, ISrsHtt
     res->set("sdp", SrsJsonAny::str(local_sdp_str.c_str()));
     res->set("sessionid", SrsJsonAny::str(session->username().c_str()));
 
-    srs_trace("RTC username=%s, offer=%dB, answer=%dB", session->username().c_str(),
-        remote_sdp_str.length(), local_sdp_str.length());
+    srs_trace("RTC username=%s, offer=%dB, answer=%dB, cid=[%u][%s]", session->username().c_str(),
+        remote_sdp_str.length(), local_sdp_str.length(), ::getpid(), session->context_id().c_str());
 
     return err;
 }

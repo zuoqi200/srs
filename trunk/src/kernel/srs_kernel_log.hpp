@@ -97,6 +97,12 @@ public:
     // Set the context id of current thread.
     // @return the previous context id.
     virtual SrsContextId set_id(SrsContextId v) = 0;
+// Context with key.
+public:
+    virtual SrsContextId generate_id(std::string k) = 0;
+    // The context named ContextRoot for default root.
+    // @see http://gitlab.alibaba-inc.com/AliRTC/sophon-infra/wikis/RTCLog#const-context-name
+    virtual SrsContextId generate_id_for_root() = 0;
 };
 
 // @global User must provides a log object

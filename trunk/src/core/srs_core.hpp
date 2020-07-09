@@ -119,11 +119,15 @@ typedef SrsCplxError* srs_error_t;
 #if 1
 class _SrsContextId
 {
-private:
+public:
+    std::string k_;
     std::string v_;
+private:
+    std::string m_;
 public:
     _SrsContextId();
     _SrsContextId(std::string v);
+    _SrsContextId(std::string k, std::string v);
     _SrsContextId(const _SrsContextId& cp);
 public:
     const char* c_str();
