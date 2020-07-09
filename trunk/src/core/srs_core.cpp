@@ -30,16 +30,26 @@ _SrsContextId::_SrsContextId()
 _SrsContextId::_SrsContextId(std::string v)
 {
     v_ = v;
+    m_ = v;
+}
+
+_SrsContextId::_SrsContextId(std::string k, std::string v)
+{
+    k_ = k;
+    v_ = v;
+    m_ = k + ":" + v;
 }
 
 _SrsContextId::_SrsContextId(const _SrsContextId& cp)
 {
+    k_ = cp.k_;
     v_ = cp.v_;
+    m_ = cp.m_;
 }
 
 const char* _SrsContextId::c_str()
 {
-    return v_.c_str();
+    return m_.c_str();
 }
 
 bool _SrsContextId::empty()
@@ -49,6 +59,6 @@ bool _SrsContextId::empty()
 
 int _SrsContextId::compare(const _SrsContextId& to)
 {
-    return v_.compare(to.v_);
+    return m_.compare(to.m_);
 }
 

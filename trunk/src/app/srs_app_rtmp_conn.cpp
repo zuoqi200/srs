@@ -150,7 +150,8 @@ void SrsRtmpConn::dispose()
 srs_error_t SrsRtmpConn::do_cycle()
 {
     srs_error_t err = srs_success;
-    
+
+    _srs_context->set_id(_srs_context->generate_id("rtmp"));
     srs_trace("RTMP client ip=%s:%d, fd=%d", ip.c_str(), port, srs_netfd_fileno(stfd));
     
     rtmp->set_recv_timeout(SRS_CONSTS_RTMP_TIMEOUT);

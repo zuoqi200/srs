@@ -47,6 +47,10 @@ public:
     virtual SrsContextId set_id(SrsContextId v);
 public:
     virtual void clear_cid();
+// Context with key.
+public:
+    virtual SrsContextId generate_id(std::string k);
+    virtual SrsContextId generate_id_for_root();
 };
 
 // The basic console log, which write log to console.
