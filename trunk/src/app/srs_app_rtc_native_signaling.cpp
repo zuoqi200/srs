@@ -4,6 +4,8 @@
 #include <srs_kernel_log.hpp>
 #include <srs_core_autofree.hpp>
 
+#include <arpa/inet.h>
+
 using namespace std;
 
 SrsRtcNativeHeader::SrsRtcNativeHeader(): version_(2), tlv_ver_(0)
@@ -2614,7 +2616,7 @@ int SrsRtcNativePublishUpdateRequest::nb_bytes()
     }
 
     // msid cmd
-    for(int i = 0; i < msid_cmd_.size(); ++i) {
+    for(size_t i = 0; i < msid_cmd_.size(); ++i) {
         len += 3 + sizeof(msid_cmd_.at(i).cmd) + msid_cmd_.at(i).msid.length();
     }
     
@@ -2644,9 +2646,9 @@ srs_error_t SrsRtcNativePublishUpdateRequest::encode(SrsBuffer *buffer)
     }
     
     // msid cmd
-    for(int i =0; i < msid_cmd_.size(); ++i) {
+    for(size_t i =0; i < msid_cmd_.size(); ++i) {
         tlv.set_type(SrsRTCNativeType_msid_cmd);
-        int len = msid_cmd_.at(i).msid.length() + 1;
+        size_t len = msid_cmd_.at(i).msid.length() + 1;
         srs_assert(len < sizeof(tmp));
         memcpy(tmp, &msid_cmd_.at(i).cmd, 1);
         memcpy(tmp+1, msid_cmd_.at(i).msid.c_str(), msid_cmd_.at(i).msid.length());
@@ -2946,7 +2948,7 @@ int SrsRtcNativeSubscribeUpdateRequest::nb_bytes()
     }
 
     // msid cmd
-    for(int i = 0; i < msid_cmd_.size(); ++i) {
+    for(size_t i = 0; i < msid_cmd_.size(); ++i) {
         len += 3 + sizeof(msid_cmd_.at(i).cmd) + msid_cmd_.at(i).msid.length();
     }
     return len;
@@ -2975,9 +2977,9 @@ srs_error_t SrsRtcNativeSubscribeUpdateRequest::encode(SrsBuffer *buffer)
     }
     
     // msid cmd
-    for(int i =0; i < msid_cmd_.size(); ++i) {
+    for(size_t i =0; i < msid_cmd_.size(); ++i) {
         tlv.set_type(SrsRTCNativeType_msid_cmd);
-        int len = msid_cmd_.at(i).msid.length() + 1;
+        size_t len = msid_cmd_.at(i).msid.length() + 1;
         srs_assert(len < sizeof(tmp));
         memcpy(tmp, &msid_cmd_.at(i).cmd, 1);
         memcpy(tmp+1, msid_cmd_.at(i).msid.c_str(), msid_cmd_.at(i).msid.length());
@@ -3530,7 +3532,7 @@ int SrsRtcNativeMediaControlRequest::nb_bytes()
     if(!url_.empty()) {
         len += 3 + url_.length();
     }
-    for(int i = 0; i < msids_.size(); ++i) {
+    for(size_t i = 0; i < msids_.size(); ++i) {
         len += 3 + msids_.at(i).length();
     }
     return len;
@@ -3558,7 +3560,7 @@ srs_error_t SrsRtcNativeMediaControlRequest::encode(SrsBuffer *buffer)
         return srs_error_wrap(err, "encode sequence: %d", sequence_);
     }
 
-    for(int i = 0; i < msids_.size(); ++i) {
+    for(size_t i = 0; i < msids_.size(); ++i) {
         // encode msg
         tlv.set_type(SrsRTCNativeType_msg);
         tlv.set_value(msids_.at(i).length(), (uint8_t*)msids_.at(i).c_str());
