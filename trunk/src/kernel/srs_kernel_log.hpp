@@ -99,10 +99,13 @@ public:
     virtual SrsContextId set_id(SrsContextId v) = 0;
 // Context with key.
 public:
+    // Generate context id with key k.
     virtual SrsContextId generate_id(std::string k) = 0;
     // The context named ContextRoot for default root.
     // @see http://gitlab.alibaba-inc.com/AliRTC/sophon-infra/wikis/RTCLog#const-context-name
     virtual SrsContextId generate_id_for_root() = 0;
+    // Bind context cid in current thread with target.
+    virtual void bind(const SrsContextId& target) = 0;
 };
 
 // @global User must provides a log object
