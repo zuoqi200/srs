@@ -51,6 +51,7 @@ public:
 public:
     virtual SrsContextId generate_id(std::string k);
     virtual SrsContextId generate_id_for_root();
+    virtual void bind(const SrsContextId& target);
 };
 
 // The basic console log, which write log to console.

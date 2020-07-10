@@ -138,6 +138,12 @@ public:
     //      <0	Either the value of the first character that does not match is lower in the compared string, or all compared characters match but the compared string is shorter.
     //      >0	Either the value of the first character that does not match is greater in the compared string, or all compared characters match but the compared string is longer.
     int compare(const _SrsContextId& to) const;
+    // Deep copy the context id.
+    _SrsContextId* copy() const;
+    // Bind current context to the target.
+    void bind(const _SrsContextId& target);
+private:
+    _SrsContextId* bind_;
 };
 typedef _SrsContextId SrsContextId;
 #else

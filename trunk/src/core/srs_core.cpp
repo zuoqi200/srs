@@ -25,12 +25,14 @@
 
 _SrsContextId::_SrsContextId()
 {
+    bind_ = NULL;
 }
 
 _SrsContextId::_SrsContextId(std::string v)
 {
     v_ = v;
     m_ = v;
+    bind_ = NULL;
 }
 
 _SrsContextId::_SrsContextId(std::string k, std::string v)
@@ -38,6 +40,7 @@ _SrsContextId::_SrsContextId(std::string k, std::string v)
     k_ = k;
     v_ = v;
     m_ = k + ":" + v;
+    bind_ = NULL;
 }
 
 _SrsContextId::_SrsContextId(const _SrsContextId& cp)
@@ -45,10 +48,12 @@ _SrsContextId::_SrsContextId(const _SrsContextId& cp)
     k_ = cp.k_;
     v_ = cp.v_;
     m_ = cp.m_;
+    bind_ = NULL;
 }
 
 _SrsContextId::~_SrsContextId()
 {
+    srs_freep(bind_);
 }
 
 const char* _SrsContextId::c_str() const
@@ -64,5 +69,25 @@ bool _SrsContextId::empty() const
 int _SrsContextId::compare(const _SrsContextId& to) const
 {
     return m_.compare(to.m_);
+}
+
+_SrsContextId* _SrsContextId::copy() const
+{
+    _SrsContextId* cp = new _SrsContextId();
+    cp->k_ = k_;
+    cp->v_ = v_;
+    cp->m_ = m_;
+    if (bind_) {
+        cp->bind_ = bind_->copy();
+    }
+    return cp;
+}
+
+void _SrsContextId::bind(const _SrsContextId& target)
+{
+    if (bind_) {
+        srs_freep(bind_);
+    }
+    bind_ = target.copy();
 }
 

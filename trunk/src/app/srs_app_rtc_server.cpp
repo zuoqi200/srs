@@ -349,8 +349,11 @@ srs_error_t SrsRtcServer::create_session(
     session->set_local_sdp(local_sdp);
     session->set_state(WAITING_STUN);
 
-    // Before session initialize, we must setup the local SDP.
+    // Create new context for session.
     SrsContextId cid = _srs_context->generate_id("sid");
+    _srs_context->bind(cid);
+
+    // Before session initialize, we must setup the local SDP.
     if ((err = session->initialize(source, req, publish, username, cid)) != srs_success) {
         srs_freep(session);
         return srs_error_wrap(err, "init");
@@ -406,7 +409,11 @@ srs_error_t SrsRtcServer::setup_session2(SrsRtcConnection* session, SrsRequest* 
     // TODO: FIXME: Collision detect.
     string username = session->get_local_sdp()->get_ice_ufrag() + ":" + remote_sdp.get_ice_ufrag();
 
+    // Create new context for session.
     SrsContextId cid = _srs_context->generate_id("sid");
+    _srs_context->bind(cid);
+
+    // Before session initialize, we must setup the local SDP.
     if ((err = session->initialize(source, req, false, username, cid)) != srs_success) {
         return srs_error_wrap(err, "init");
     }
