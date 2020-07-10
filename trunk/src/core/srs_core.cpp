@@ -47,17 +47,21 @@ _SrsContextId::_SrsContextId(const _SrsContextId& cp)
     m_ = cp.m_;
 }
 
-const char* _SrsContextId::c_str()
+_SrsContextId::~_SrsContextId()
+{
+}
+
+const char* _SrsContextId::c_str() const
 {
     return m_.c_str();
 }
 
-bool _SrsContextId::empty()
+bool _SrsContextId::empty() const
 {
     return v_.empty();
 }
 
-int _SrsContextId::compare(const _SrsContextId& to)
+int _SrsContextId::compare(const _SrsContextId& to) const
 {
     return m_.compare(to.m_);
 }
