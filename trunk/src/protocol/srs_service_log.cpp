@@ -90,15 +90,27 @@ SrsContextId SrsThreadContext::generate_id_for_root()
 // Trace with specified id.
 #define _srs_trace_by(ctx, msg, ...)   _srs_log->trace(NULL, ctx, msg, ##__VA_ARGS__)
 
-void SrsThreadContext::bind(const SrsContextId& target)
+void SrsThreadContext::bind(const SrsContextId& target, const char* fmt, ...)
 {
     SrsContextId cid = _srs_context->get_id();
     cid.bind(target);
     _srs_context->set_id(cid);
 
+    static char buffer[256];
+
+    va_list ap;
+    va_start(ap, fmt);
+    // we reserved 1 bytes for the new line.
+    int size = vsnprintf(buffer, sizeof(buffer), fmt, ap);
+    va_end(ap);
+
+    if (size < 0 || size >= sizeof(buffer)) {
+        size = 0;
+    }
+
     pid_t pid = ::getpid();
-    _srs_trace_by(cid, "context bind [%u][%s] to [%u][%s]", pid, cid.c_str(), pid, target.c_str());
-    _srs_trace_by(target, "context bind [%u][%s] to [%u][%s]", pid, cid.c_str(), pid, target.c_str());
+    _srs_trace_by(cid, "context bind [%u][%s] to [%u][%s], %.*s", pid, cid.c_str(), pid, target.c_str(), size, buffer);
+    _srs_trace_by(target, "context bind [%u][%s] to [%u][%s], %.*s", pid, cid.c_str(), pid, target.c_str(), size, buffer);
 }
 
 // LCOV_EXCL_START

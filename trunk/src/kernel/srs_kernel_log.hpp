@@ -104,8 +104,8 @@ public:
     // The context named ContextRoot for default root.
     // @see http://gitlab.alibaba-inc.com/AliRTC/sophon-infra/wikis/RTCLog#const-context-name
     virtual SrsContextId generate_id_for_root() = 0;
-    // Bind context cid in current thread with target.
-    virtual void bind(const SrsContextId& target) = 0;
+    // Bind context cid in current thread with target and message(fmt, ...).
+    virtual void bind(const SrsContextId& target, const char* fmt, ...) = 0;
 };
 
 // @global User must provides a log object
