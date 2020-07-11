@@ -101,6 +101,7 @@ public:
 public:
     // Generate context id with key k.
     virtual SrsContextId generate_id(std::string k) = 0;
+    virtual SrsContextId generate_id(std::string k, const SrsContextId& parent) = 0;
     // Bind context cid in current thread with target and message(fmt, ...).
     virtual void bind(const SrsContextId& target, const char* fmt, ...) = 0;
 };

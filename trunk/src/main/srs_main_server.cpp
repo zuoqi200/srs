@@ -73,6 +73,8 @@ ISrsLog* _srs_log = new SrsFileLog();
 ISrsContext* _srs_context = new SrsThreadContext();
 // @global config object for app module.
 SrsConfig* _srs_config = new SrsConfig();
+// @global context object.
+_SrsContextId _srs_context_root;
 
 // @global version of srs, which can grep keyword "XCORE"
 extern const char* _srs_version;
@@ -218,11 +220,9 @@ srs_error_t do_main(int argc, char** argv)
 }
 
 int main(int argc, char** argv) {
-    // The server root context id, user may use it as parent.
-    // The context named ContextRoot for default root.
-    // @see http://gitlab.alibaba-inc.com/AliRTC/sophon-infra/wikis/RTCLog#const-context-name
     // For background context id.
-    _srs_context->set_id(_srs_context->generate_id("rt"));
+    _srs_context_root = _srs_context->generate_id("rt");
+    _srs_context->set_id(_srs_context_root);
 
     srs_error_t err = do_main(argc, argv);
 

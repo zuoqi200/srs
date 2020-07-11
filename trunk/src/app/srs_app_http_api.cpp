@@ -1700,7 +1700,11 @@ srs_error_t SrsHttpApi::do_cycle()
 {
     srs_error_t err = srs_success;
 
-    _srs_context->set_id(_srs_context->generate_id("api"));
+    // Create API from root.
+    _srs_context->set_id(_srs_context->generate_id("api", _srs_context_root));
+
+    SrsContextId cid2 = _srs_context->get_id();
+    _srs_context->set_id(cid2);
     srs_trace("API server client, ip=%s:%d", ip.c_str(), port);
     
     // initialize parser

@@ -50,6 +50,7 @@ public:
 // Context with key.
 public:
     virtual SrsContextId generate_id(std::string k);
+    virtual SrsContextId generate_id(std::string k, const SrsContextId& parent);
     virtual void bind(const SrsContextId& target, const char* fmt, ...);
 };
 

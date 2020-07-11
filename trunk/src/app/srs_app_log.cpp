@@ -577,10 +577,40 @@ void SrsJsonLog::write_log(int& fd, char *str_log, int size, int level, SrsConte
     log->set("p", SrsJsonAny::integer(::getpid()));
 
     // Context id tree.
-    if (!context_id.k_.empty()) {
-        log->set("n0", SrsJsonAny::str(context_id.k_.c_str()));
+    SrsContextId* id0 = &context_id, *id1 = NULL, *id2 = NULL, *id3 = NULL, *id4 = NULL;
+    if (context_id.parent_) {
+        id1 = id0; id0 = context_id.parent_;
+        if (context_id.parent_->parent_) {
+            id2 = id1; id1 = id0; id0 = context_id.parent_->parent_;
+            if (context_id.parent_->parent_->parent_) {
+                id3 = id2; id2 = id1; id1 = id0; id0 = context_id.parent_->parent_->parent_;
+                if (context_id.parent_->parent_->parent_->parent_) {
+                    id4 = id3; id3 = id2; id2 = id1; id1 = id0; id0 = context_id.parent_->parent_->parent_->parent_;
+                }
+            }
+        }
     }
-    log->set("i0", SrsJsonAny::str(context_id.v_.c_str()));
+
+#define _srs_outout_context(node, kname, vname) \
+    if (node) { \
+        if (!node->k_.empty()) { \
+            log->set(kname, SrsJsonAny::str(node->k_.c_str())); \
+        } \
+        log->set(vname, SrsJsonAny::str(node->v_.c_str())); \
+    }
+    _srs_outout_context(id0, "n0", "i0");
+    _srs_outout_context(id1, "n1", "i1");
+    _srs_outout_context(id2, "n2", "i2");
+    _srs_outout_context(id3, "n3", "i3");
+    _srs_outout_context(id4, "n4", "i4");
+
+    // Binding context id.
+    if (context_id.bind_) {
+        if (!context_id.bind_->k_.empty()) {
+            log->set("bn0", SrsJsonAny::str(context_id.bind_->k_.c_str()));
+        }
+        log->set("bi0", SrsJsonAny::str(context_id.bind_->v_.c_str()));
+    }
 
     // Build log message in JSON.
     size = srs_min(LOG_MAX_SIZE - 1, size);
