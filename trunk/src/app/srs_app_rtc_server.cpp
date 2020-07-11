@@ -360,7 +360,7 @@ srs_error_t SrsRtcServer::create_session(
 
     // Create new context for session.
     SrsContextId cid = _srs_context->generate_id("sid");
-    _srs_context->bind(cid);
+    _srs_context->bind(cid, "rtc api create session");
 
     // Before session initialize, we must setup the local SDP.
     if ((err = session->initialize(source, req, publish, username, cid)) != srs_success) {
@@ -420,7 +420,7 @@ srs_error_t SrsRtcServer::setup_session2(SrsRtcConnection* session, SrsRequest* 
 
     // Create new context for session.
     SrsContextId cid = _srs_context->generate_id("sid");
-    _srs_context->bind(cid);
+    _srs_context->bind(cid, "rtc api create session");
 
     // Before session initialize, we must setup the local SDP.
     if ((err = session->initialize(source, req, false, username, cid)) != srs_success) {
