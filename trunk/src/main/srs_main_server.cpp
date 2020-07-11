@@ -218,8 +218,11 @@ srs_error_t do_main(int argc, char** argv)
 }
 
 int main(int argc, char** argv) {
+    // The server root context id, user may use it as parent.
+    // The context named ContextRoot for default root.
+    // @see http://gitlab.alibaba-inc.com/AliRTC/sophon-infra/wikis/RTCLog#const-context-name
     // For background context id.
-    _srs_context->set_id(_srs_context->generate_id_for_root());
+    _srs_context->set_id(_srs_context->generate_id("rt"));
 
     srs_error_t err = do_main(argc, argv);
 
