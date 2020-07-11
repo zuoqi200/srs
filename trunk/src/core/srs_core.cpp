@@ -79,12 +79,6 @@ _SrsContextId& _SrsContextId::operator=(const _SrsContextId& cp)
     return *this;
 }
 
-_SrsContextId& _SrsContextId::operator=(const _SrsContextId& cp)
-{
-    v_ = cp.v_;
-    return *this;
-}
-
 _SrsContextId::~_SrsContextId()
 {
     srs_freep(bind_);
