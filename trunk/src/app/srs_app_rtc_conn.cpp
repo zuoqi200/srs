@@ -405,8 +405,12 @@ srs_error_t SrsRtcPlayStream::cycle()
     realtime = _srs_config->get_realtime_enabled(req->vhost, true);
     mw_msgs = _srs_config->get_mw_msgs(req->vhost, realtime, true);
 
+    SrsContextId cid = source->source_id();
+    if (!cid.empty()) {
+        _srs_context->bind(cid, "RTC play");
+    }
     srs_trace("RTC source url=%s, source_id=[%d][%s], encrypt=%d, realtime=%d, mw_msgs=%d", req->get_stream_url().c_str(),
-        ::getpid(), source->source_id().c_str(), session_->encrypt, realtime, mw_msgs);
+        ::getpid(), cid.c_str(), session_->encrypt, realtime, mw_msgs);
 
     SrsPithyPrint* pprint = SrsPithyPrint::create_rtc_play();
     SrsAutoFree(SrsPithyPrint, pprint);
