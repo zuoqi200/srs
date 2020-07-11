@@ -124,11 +124,13 @@ public:
     std::string v_;
 private:
     std::string m_;
+    std::string pm_;
 public:
     _SrsContextId();
     _SrsContextId(std::string v);
     _SrsContextId(std::string k, std::string v);
     _SrsContextId(const _SrsContextId& cp);
+    _SrsContextId& operator=(const _SrsContextId& cp);
     virtual ~_SrsContextId();
 public:
     const char* c_str() const;
@@ -142,13 +144,21 @@ public:
     _SrsContextId* copy() const;
     // Bind current context to the target.
     void bind(const _SrsContextId& target);
-private:
+    // Set parent context to create a context tree.
+    void with(const _SrsContextId& parent);
+public:
     _SrsContextId* bind_;
+    _SrsContextId* parent_;
 };
 typedef _SrsContextId SrsContextId;
 #else
 // Actually, we can directly user string as SrsContextId.
 typedef std::string SrsContextId;
 #endif
+
+// The server root context id, user may use it as parent.
+// The context named ContextRoot for default root.
+// @see http://gitlab.alibaba-inc.com/AliRTC/sophon-infra/wikis/RTCLog#const-context-name
+extern _SrsContextId _srs_context_root;
 
 #endif

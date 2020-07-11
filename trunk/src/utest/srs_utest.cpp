@@ -42,6 +42,7 @@ srs_utime_t _srs_tmp_timeout = (100 * SRS_UTIME_MILLISECONDS);
 // kernel module.
 ISrsLog* _srs_log = new MockEmptyLog(SrsLogLevelDisabled);
 ISrsContext* _srs_context = new SrsThreadContext();
+_SrsContextId _srs_context_root;
 // app module.
 SrsConfig* _srs_config = NULL;
 SrsServer* _srs_server = NULL;
@@ -135,5 +136,49 @@ VOID TEST(SampleTest, StringEQTest)
     EXPECT_TRUE("100" == str);
     EXPECT_EQ("100", str);
     EXPECT_STREQ("100", str.c_str());
+}
+
+class MockSrsContextId
+{
+public:
+    MockSrsContextId() {
+        bind_ = NULL;
+    }
+    MockSrsContextId(const MockSrsContextId& cp){
+        bind_ = NULL;
+        if (cp.bind_) {
+            bind_ = cp.bind_->copy();
+        }
+    }
+    MockSrsContextId& operator= (const MockSrsContextId& cp) {
+        srs_freep(bind_);
+        if (cp.bind_) {
+            bind_ = cp.bind_->copy();
+        }
+        return *this;
+    }
+    virtual ~MockSrsContextId() {
+        srs_freep(bind_);
+    }
+public:
+    MockSrsContextId* copy() const {
+        MockSrsContextId* cp = new MockSrsContextId();
+        if (bind_) {
+            cp->bind_ = bind_->copy();
+        }
+        return cp;
+    }
+private:
+    MockSrsContextId* bind_;
+};
+
+VOID TEST(SampleTest, ContextTest)
+{
+    MockSrsContextId cid;
+    cid.bind_ = new MockSrsContextId();
+
+    static std::map<int, MockSrsContextId> cache;
+    cache[0] = cid;
+    cache[0] = cid;
 }
 

@@ -26,6 +26,7 @@
 _SrsContextId::_SrsContextId()
 {
     bind_ = NULL;
+    parent_ = NULL;
 }
 
 _SrsContextId::_SrsContextId(std::string v)
@@ -33,6 +34,7 @@ _SrsContextId::_SrsContextId(std::string v)
     v_ = v;
     m_ = v;
     bind_ = NULL;
+    parent_ = NULL;
 }
 
 _SrsContextId::_SrsContextId(std::string k, std::string v)
@@ -41,6 +43,7 @@ _SrsContextId::_SrsContextId(std::string k, std::string v)
     v_ = v;
     m_ = k + ":" + v;
     bind_ = NULL;
+    parent_ = NULL;
 }
 
 _SrsContextId::_SrsContextId(const _SrsContextId& cp)
@@ -48,17 +51,52 @@ _SrsContextId::_SrsContextId(const _SrsContextId& cp)
     k_ = cp.k_;
     v_ = cp.v_;
     m_ = cp.m_;
+    pm_ = cp.pm_;
     bind_ = NULL;
+    parent_ = NULL;
+    if (cp.bind_) {
+        bind_ = cp.bind_->copy();
+    }
+    if (cp.parent_) {
+        parent_ = cp.parent_->copy();
+    }
+}
+
+_SrsContextId& _SrsContextId::operator=(const _SrsContextId& cp)
+{
+    k_ = cp.k_;
+    v_ = cp.v_;
+    m_ = cp.m_;
+    pm_ = cp.pm_;
+    srs_freep(bind_);
+    srs_freep(parent_);
+    if (cp.bind_) {
+        bind_ = cp.bind_->copy();
+    }
+    if (cp.parent_) {
+        parent_ = cp.parent_->copy();
+    }
+    return *this;
+}
+
+_SrsContextId& _SrsContextId::operator=(const _SrsContextId& cp)
+{
+    v_ = cp.v_;
+    return *this;
 }
 
 _SrsContextId::~_SrsContextId()
 {
     srs_freep(bind_);
+    srs_freep(parent_);
 }
 
 const char* _SrsContextId::c_str() const
 {
-    return m_.c_str();
+    if (!parent_) {
+        return m_.c_str();
+    }
+    return pm_.c_str();
 }
 
 bool _SrsContextId::empty() const
@@ -77,17 +115,26 @@ _SrsContextId* _SrsContextId::copy() const
     cp->k_ = k_;
     cp->v_ = v_;
     cp->m_ = m_;
+    cp->pm_ = pm_;
     if (bind_) {
         cp->bind_ = bind_->copy();
+    }
+    if (parent_) {
+        cp->parent_ = parent_->copy();
     }
     return cp;
 }
 
 void _SrsContextId::bind(const _SrsContextId& target)
 {
-    if (bind_) {
-        srs_freep(bind_);
-    }
+    srs_freep(bind_);
     bind_ = target.copy();
+}
+
+void _SrsContextId::with(const _SrsContextId& parent)
+{
+    srs_freep(parent_);
+    parent_ = parent.copy();
+    pm_ = std::string(parent_->c_str()) + std::string("][") + m_;
 }
 

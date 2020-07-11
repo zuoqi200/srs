@@ -82,9 +82,11 @@ SrsContextId SrsThreadContext::generate_id(std::string k)
     return SrsContextId(k, srs_random_str(8));
 }
 
-SrsContextId SrsThreadContext::generate_id_for_root()
+SrsContextId SrsThreadContext::generate_id(std::string k, const SrsContextId& parent)
 {
-    return generate_id("rt");
+    SrsContextId cid = generate_id(k);
+    cid.with(parent);
+    return cid;
 }
 
 // Trace with specified id.

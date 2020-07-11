@@ -101,9 +101,7 @@ public:
 public:
     // Generate context id with key k.
     virtual SrsContextId generate_id(std::string k) = 0;
-    // The context named ContextRoot for default root.
-    // @see http://gitlab.alibaba-inc.com/AliRTC/sophon-infra/wikis/RTCLog#const-context-name
-    virtual SrsContextId generate_id_for_root() = 0;
+    virtual SrsContextId generate_id(std::string k, const SrsContextId& parent) = 0;
     // Bind context cid in current thread with target and message(fmt, ...).
     virtual void bind(const SrsContextId& target, const char* fmt, ...) = 0;
 };
