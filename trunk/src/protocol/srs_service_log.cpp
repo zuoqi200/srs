@@ -96,21 +96,22 @@ void SrsThreadContext::bind(const SrsContextId& target, const char* fmt, ...)
     cid.bind(target);
     _srs_context->set_id(cid);
 
+    int size = 0;
     static char buffer[256];
+    if (true) {
+        va_list ap;
+        va_start(ap, fmt);
+        // we reserved 1 bytes for the new line.
+        size = vsnprintf(buffer, sizeof(buffer), fmt, ap);
+        va_end(ap);
 
-    va_list ap;
-    va_start(ap, fmt);
-    // we reserved 1 bytes for the new line.
-    int size = vsnprintf(buffer, sizeof(buffer), fmt, ap);
-    va_end(ap);
-
-    if (size < 0 || size >= sizeof(buffer)) {
-        size = 0;
+        if (size < 0 || size >= sizeof(buffer)) {
+            size = 0;
+        }
     }
 
     pid_t pid = ::getpid();
-    _srs_trace_by(cid, "context bind [%u][%s] to [%u][%s], %.*s", pid, cid.c_str(), pid, target.c_str(), size, buffer);
-    _srs_trace_by(target, "context bind [%u][%s] to [%u][%s], %.*s", pid, cid.c_str(), pid, target.c_str(), size, buffer);
+    _srs_trace_by(cid, "Context bind [%u][%s] to [%u][%s], %.*s", pid, cid.c_str(), pid, target.c_str(), size, buffer);
 }
 
 // LCOV_EXCL_START
