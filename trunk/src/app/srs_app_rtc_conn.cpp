@@ -549,6 +549,7 @@ srs_error_t SrsRtcPlayStream::do_send_packets(const std::vector<SrsRtpPacket2*>&
         iov->iov_base = iov_base;
         iov->iov_len = kRtpPacketSize;
 
+        uint16_t twcc_sn = 0;
         // Marshal packet to bytes in iovec.
         if (true) {
             SrsBuffer stream((char*)iov->iov_base, iov->iov_len);
