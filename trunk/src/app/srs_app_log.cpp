@@ -39,7 +39,7 @@
 #include <srs_protocol_json.hpp>
 
 // the max size of a line of log.
-#define LOG_MAX_SIZE 4096
+#define LOG_MAX_SIZE 8192
 
 // the tail append to each log.
 #define LOG_TAIL '\n'
