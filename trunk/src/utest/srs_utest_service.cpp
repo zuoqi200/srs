@@ -1430,5 +1430,13 @@ VOID TEST(TCPServerTest, ContextUtility)
         SrsBasicRtmpClient rc("rtmp://127.0.0.1/live/livestream", to, to);
         rc.close();
     }
+};
+
+VOID TEST(ThreadContextTest, GenerateBySessionID)
+{
+    SrsThreadContext ctx;
+    SrsContextId cid = ctx.generate_id("sid", "obnj6cof", "CucgnxFAqqxUHC9YsBBuFCJpU58Gg3NR");
+    EXPECT_STREQ("sid", cid.k_.c_str());
+    EXPECT_STREQ("d3df62bd", cid.v_.c_str());
 }
 
