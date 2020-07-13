@@ -132,3 +132,16 @@ void _SrsContextId::with(const _SrsContextId& parent)
     pm_ = std::string(parent_->c_str()) + std::string("][") + m_;
 }
 
+bool _SrsContextId::match(std::string k)
+{
+    if (k_ == k) {
+        return true;
+    }
+
+    if (parent_) {
+        return parent_->match(k);
+    }
+
+    return false;
+}
+
