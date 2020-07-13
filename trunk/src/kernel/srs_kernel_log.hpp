@@ -95,7 +95,7 @@ public:
     // Get the context id of current thread.
     virtual const SrsContextId& get_id() = 0;
     // Set the context id of current thread.
-    // @return the previous context id.
+    // @return the current context id.
     virtual const SrsContextId& set_id(const SrsContextId& v) = 0;
 // Context with key.
 public:
