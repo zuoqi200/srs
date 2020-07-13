@@ -179,7 +179,7 @@ public:
     uint64_t id_;
     SrsContextId cid_;
 public:
-    SrsJanusSession(SrsJanusServer* j);
+    SrsJanusSession(SrsJanusServer* j, SrsContextId cid);
     virtual ~SrsJanusSession();
 public:
     srs_error_t polling(SrsJsonObject* req, SrsJsonObject* res);
@@ -210,8 +210,10 @@ public:
     uint64_t feed_id_;
     std::string display_;
     std::vector<SrsJanusStreamInfo> stream_infos_;
+    SrsContextId parent_cid_;
+    SrsContextId cid_;
 public:
-    SrsJanusCall(SrsJanusSession* s);
+    SrsJanusCall(SrsJanusSession* s, SrsContextId cid);
     virtual ~SrsJanusCall();
 public:
     void destroy();

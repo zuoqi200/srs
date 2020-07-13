@@ -60,6 +60,9 @@ srs_error_t SrsGoApiRtcJanus::serve_http(ISrsHttpResponseWriter* w, ISrsHttpMess
 {
     srs_error_t err = srs_success;
 
+    // Remember current cid and restore it when done.
+    SrsContextRestore(_srs_context->get_id());
+
     SrsJsonObject* res = SrsJsonAny::object();
     SrsAutoFree(SrsJsonObject, res);
 
@@ -109,9 +112,6 @@ srs_error_t SrsGoApiRtcJanus::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpM
             srs_usleep(API_ERROR_LIMIT);
             return srs_error_new(ERROR_RTC_JANUS_NO_SESSION, "no session id=%" PRId64, janus_session_id);
         }
-
-        // Switch to the session.
-        _srs_context->set_id(session->cid_);
     }
 
     SrsJanusCall* call = NULL;
@@ -120,6 +120,15 @@ srs_error_t SrsGoApiRtcJanus::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpM
         if (!session) {
             srs_usleep(API_ERROR_LIMIT);
             return srs_error_new(ERROR_RTC_JANUS_NO_SESSION, "no call id=%" PRId64, janus_handler_id);
+        }
+    }
+
+    // Switch to the context of session or call.
+    if (session) {
+        if (!call) {
+            _srs_context->set_id(session->cid_);
+        } else {
+            _srs_context->set_id(call->cid_);
         }
     }
 
@@ -318,16 +327,18 @@ srs_error_t SrsJanusServer::create(SrsJsonObject* req, SrsJanusMessage* msg, Srs
     }
     SrsJanusUserConf* user_conf = SrsJanusUserConf::parse_janus_user_conf(req->get_property("configure")->to_object());
 
+    // Switch to the session.
+    SrsContextId cid = _srs_context->generate_id("sid");
+    _srs_context->bind(cid, "rtc janus session");
+    _srs_context->set_id(cid);
+
     // Process message.
-    SrsJanusSession* session = new SrsJanusSession(this);
+    SrsJanusSession* session = new SrsJanusSession(this, cid);
     session->appid_ = appid;
     session->channel_ = channel;
     session->userid_ = userid;
     session->sessionid_ = session_id;
     session->user_conf_ = user_conf;
-
-    // Switch to the session.
-    _srs_context->set_id(session->cid_);
 
     do {
         srs_random_generate((char*)&session->id_, 8);
@@ -565,11 +576,11 @@ SrsJanusStreamInfo SrsJanusStreamInfo::parse_stream_info(SrsJsonObject* stream)
     return stream_info;
 }
 
-SrsJanusSession::SrsJanusSession(SrsJanusServer* j)
+SrsJanusSession::SrsJanusSession(SrsJanusServer* j, SrsContextId cid)
 {
     id_ = 0;
     janus_ = j;
-    cid_ = _srs_context->generate_id();
+    cid_ = cid;
 }
 
 SrsJanusSession::~SrsJanusSession()
@@ -701,8 +712,11 @@ srs_error_t SrsJanusSession::attach(SrsJsonObject* req, SrsJanusMessage* msg, Sr
     }
     string callid = prop->to_str();
 
+    // We do not know the call type(pub or sub), so we reuse the cid of session.
+    SrsContextId cid = _srs_context->get_id();
+
     // Process message.
-    SrsJanusCall* call = new SrsJanusCall(this);
+    SrsJanusCall* call = new SrsJanusCall(this, cid);
     call->callid_ = callid;
 
     do {
@@ -815,10 +829,12 @@ void SrsJanusSession::destroy_calls(SrsRtcConnection* session)
 
 uint32_t SrsJanusCall::ssrc_num = 0;
 
-SrsJanusCall::SrsJanusCall(SrsJanusSession* s)
+SrsJanusCall::SrsJanusCall(SrsJanusSession* s, SrsContextId cid)
 {
     id_ = 0;
     session_ = s;
+    parent_cid_ = cid;
+    cid_ = cid;
 
     publisher_ = false;
     rtc_session_ = NULL;
@@ -999,6 +1015,10 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         stream_infos_.push_back(stream_info);
     }
 
+    // Generate new context for publisher.
+    cid_ = _srs_context->generate_id("sub", parent_cid_);
+    _srs_context->set_id(cid_);
+
     // TODO: FIXME: We should apply appid.
     request.app = session_->channel_;
     request.stream = callee->callid_;
@@ -1045,9 +1065,7 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
     if ((err = local_sdp.encode(os)) != srs_success) {
         return srs_error_wrap(err, "encode sdp");
     }
-
     string local_sdp_str = os.str();
-    srs_verbose("local_sdp=%s", srs_string_replace(local_sdp_str, "\\r\\n", "\n").c_str());
 
     SrsJanusMessage* res_msg = new SrsJanusMessage();
     res_msg->janus = "event";
@@ -1067,6 +1085,7 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         "join", "listener", callee->feed_id_, callee->display_.c_str(), audio, offer_audio, video, offer_video, streams->count(),
         res_msg->sender, res_msg->private_id, publisher_, local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
+    srs_trace("RTC local offer: %s", srs_string_replace(local_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
 
     return err;
 }
@@ -1285,18 +1304,16 @@ srs_error_t SrsJanusCall::on_start_subscriber(SrsJsonObject* req, SrsJsonObject*
     if ((prop = jsep->ensure_property_string("sdp")) == NULL) {
         return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no jsep.sdp");
     }
-    string sdp = prop->to_str();
+    string remote_sdp_str = prop->to_str();
 
     if (!rtc_session_) {
         return srs_error_new(ERROR_RTC_JANUS_NO_SESSION, "no session");
     }
 
-    srs_verbose("remote_sdp=%s", srs_string_replace(sdp, "\\r\\n", "\n").c_str());
-
     // TODO: FIXME: It seems remote_sdp doesn't represents the full SDP information.
     SrsSdp remote_sdp;
-    if ((err = remote_sdp.parse(sdp)) != srs_success) {
-        return srs_error_wrap(err, "parse sdp failed: %s", sdp.c_str());
+    if ((err = remote_sdp.parse(remote_sdp_str)) != srs_success) {
+        return srs_error_wrap(err, "parse sdp failed: %s", remote_sdp_str.c_str());
     }
 
     if ((err = session_->janus_->rtc_->setup_session2(rtc_session_, &request, remote_sdp)) != srs_success) {
@@ -1315,8 +1332,8 @@ srs_error_t SrsJanusCall::on_start_subscriber(SrsJsonObject* req, SrsJsonObject*
 
     srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, request=%s, jsep=%s/%dB",
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
-        "start", type.c_str(), sdp.length());
-
+        "start", type.c_str(), remote_sdp_str.length());
+    srs_trace("RTC remote answer: %s", srs_string_replace(remote_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
 
     return err;
 }
@@ -1354,10 +1371,14 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     if ((prop = jsep->ensure_property_string("sdp")) == NULL) {
         return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no jsep.sdp");
     }
-    string sdp = prop->to_str();
+    string remote_sdp_str = prop->to_str();
 
     // For client to specifies the EIP of server.
     string eip;
+
+    // Generate new context for publisher.
+    cid_ = _srs_context->generate_id("pub", parent_cid_);
+    _srs_context->set_id(cid_);
 
     // TODO: FIXME: We should apply appid.
     request.app = session_->channel_;
@@ -1385,8 +1406,8 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
 
     // TODO: FIXME: It seems remote_sdp doesn't represents the full SDP information.
     SrsSdp remote_sdp;
-    if ((err = remote_sdp.parse(sdp)) != srs_success) {
-        return srs_error_wrap(err, "parse sdp failed: %s", sdp.c_str());
+    if ((err = remote_sdp.parse(remote_sdp_str)) != srs_success) {
+        return srs_error_wrap(err, "parse sdp failed: %s", remote_sdp_str.c_str());
     }
 
     SrsSdp local_sdp;
@@ -1410,9 +1431,7 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     if ((err = local_sdp.encode(os)) != srs_success) {
         return srs_error_wrap(err, "encode sdp");
     }
-
     string local_sdp_str = os.str();
-    srs_verbose("local_sdp=%s", local_sdp_str.c_str());
 
     SrsJanusMessage* res_msg = new SrsJanusMessage();
     res_msg->janus = "event";
@@ -1428,7 +1447,9 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
 
     srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, request=%s, audio=%d, video=%d, streams=%d, jsep=%s/%dB, answer=%dB, cid=[%u][%s]",
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
-        "configure", has_audio, has_video, streams->count(), type.c_str(), sdp.length(), local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
+        "configure", has_audio, has_video, streams->count(), type.c_str(), remote_sdp_str.length(), local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
+    srs_trace("RTC remote offer: %s", srs_string_replace(remote_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
+    srs_trace("RTC local answer: %s", srs_string_replace(local_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
 
     return err;
 }
