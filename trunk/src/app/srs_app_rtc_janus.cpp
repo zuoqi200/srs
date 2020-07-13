@@ -328,7 +328,7 @@ srs_error_t SrsJanusServer::create(SrsJsonObject* req, SrsJanusMessage* msg, Srs
     SrsJanusUserConf* user_conf = SrsJanusUserConf::parse_janus_user_conf(req->get_property("configure")->to_object());
 
     // Switch to the session.
-    SrsContextId cid = _srs_context->generate_id("sid");
+    SrsContextId cid = _srs_context->generate_id("sid", appid, session_id);
     _srs_context->bind(cid, "rtc janus session");
     _srs_context->set_id(cid);
 
