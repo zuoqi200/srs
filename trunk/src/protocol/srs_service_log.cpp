@@ -29,6 +29,8 @@
 #include <sstream>
 using namespace std;
 
+#include <openssl/md5.h>
+
 #include <srs_kernel_error.hpp>
 #include <srs_kernel_utility.hpp>
 #include <srs_protocol_utility.hpp>
@@ -86,6 +88,26 @@ SrsContextId SrsThreadContext::generate_id(std::string k, const SrsContextId& pa
     SrsContextId cid = generate_id(k);
     cid.with(parent);
     return cid;
+}
+
+SrsContextId SrsThreadContext::generate_id(std::string k, std::string appid, std::string session)
+{
+    MD5_CTX ctx;
+    int r0 = MD5_Init(&ctx);
+    srs_assert(r0 == 1);
+
+    std::string data = appid + std::string(":") + session;
+    r0 = MD5_Update(&ctx, data.data(), data.length());
+    srs_assert(r0 == 1);
+
+    uint8_t buf[16];
+    r0 = MD5_Final(buf, &ctx);
+    srs_assert(r0 == 1);
+
+    char v[8];
+    srs_data_to_hex_lowercase(v, buf, 4);
+
+    return SrsContextId(k, string(v, 8));
 }
 
 // Trace with specified id.

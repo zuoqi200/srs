@@ -51,6 +51,7 @@ public:
 public:
     virtual SrsContextId generate_id(std::string k);
     virtual SrsContextId generate_id(std::string k, const SrsContextId& parent);
+    virtual SrsContextId generate_id(std::string k, std::string appid, std::string session);
     virtual void bind(const SrsContextId& target, const char* fmt, ...);
 };
 
