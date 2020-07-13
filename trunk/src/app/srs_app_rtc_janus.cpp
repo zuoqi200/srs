@@ -38,7 +38,7 @@ using namespace std;
 #include <srs_app_rtc_server.hpp>
 
 // When API error, limit the request by sleep for a while.
-srs_utime_t API_ERROR_LIMIT = 3 * SRS_UTIME_SECONDS;
+srs_utime_t API_ERROR_LIMIT = 10 * SRS_UTIME_SECONDS;
 
 // TODO: FIXME: Use cond to wait.
 // For Long polling keep alive, sleep for a while.
