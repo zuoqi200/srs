@@ -146,6 +146,8 @@ public:
     void bind(const _SrsContextId& target);
     // Set parent context to create a context tree.
     void with(const _SrsContextId& parent);
+    // Whether key(or parent key recursively) is matched.
+    bool match(std::string k);
 public:
     _SrsContextId* bind_;
     _SrsContextId* parent_;
