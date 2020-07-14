@@ -71,6 +71,10 @@ private:
     virtual void open_log_file();
 };
 
+// Tenfold module name.
+#define SrsModuleName "tenfold"
+
+// Tenfold application detail log in JSON.
 class SrsJsonLog : public ISrsLog, public ISrsReloadHandler
 {
 private:
