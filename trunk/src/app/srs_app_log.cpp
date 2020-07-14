@@ -784,3 +784,160 @@ void SrsLogWriter::open_log_file()
     );
 }
 
+#include <srs_app_rtc_janus.hpp>
+
+SrsLogWriterCallstack::SrsLogWriterCallstack() : SrsLogWriter("callstack")
+{
+}
+
+SrsLogWriterCallstack::~SrsLogWriterCallstack()
+{
+}
+
+struct SrsJanusCallstack
+{
+    // time: write log time
+    std::string time;
+    // source module
+    std::string module;
+    // peer_module: the module interactive with tfsfu
+    std::string peer;
+    // focus: current focus module
+    std::string focus;
+    // source: source;
+    std::string source;
+    // stage: Create/Media/Destroy
+    std::string stage;
+    // status: enter/leave/flying/notify
+    std::string status;
+    // createJanusSession/attachJanusHandle/.....
+    std::string action;
+    // message: detail message
+    std::string message;
+    // code: the error code for this log.
+    int error_code;
+    // cid: context_id.
+    std::string cid;
+    // log: the file name for this log.
+    std::string log;
+    // appid: app id.
+    std::string appid;
+    // channel: channel id.
+    std::string channel;
+    // user: user id.
+    std::string user;
+    // session: session id.
+    std::string session;
+    // call: call id.
+    std::string call;
+    // tid: transaction id.
+    std::string tid;
+
+    void marshal(SrsJsonObject* obj) {
+        obj->set("time",    SrsJsonAny::str(time.c_str()));
+        obj->set("module",  SrsJsonAny::str(module.c_str()));
+        obj->set("focus",   SrsJsonAny::str(peer.c_str()));
+        obj->set("source",  SrsJsonAny::str(source.c_str()));
+        obj->set("stage",   SrsJsonAny::str(stage.c_str()));
+        obj->set("status",  SrsJsonAny::str(status.c_str()));
+        obj->set("action",  SrsJsonAny::str(action.c_str()));
+        obj->set("message",  SrsJsonAny::str(message.c_str()));
+        obj->set("code",    SrsJsonAny::integer(error_code));
+        obj->set("pid",     SrsJsonAny::integer(getpid()));
+        obj->set("cid",     SrsJsonAny::str(cid.c_str()));
+        obj->set("log",     SrsJsonAny::str(log.c_str()));
+        obj->set("appid",   SrsJsonAny::str(appid.c_str()));
+        obj->set("channel", SrsJsonAny::str(channel.c_str()));
+        obj->set("user",    SrsJsonAny::str(user.c_str()));
+        obj->set("session", SrsJsonAny::str(session.c_str()));
+        obj->set("call",    SrsJsonAny::str(call.c_str()));
+        obj->set("tid",     SrsJsonAny::str(tid.c_str()));
+    }
+};
+
+string srs_current_time(bool utc)
+{
+    #define MAX_LOG_TIME_LEN 32
+    static char log_time[MAX_LOG_TIME_LEN];
+    if (true) {
+        timeval tv;
+        if (gettimeofday(&tv, NULL) == -1) {
+            return "";
+        }
+
+        struct tm* tm;
+        if (utc) {
+            if ((tm = gmtime(&tv.tv_sec)) == NULL) {
+                return "";
+            }
+        } else {
+            if ((tm = localtime(&tv.tv_sec)) == NULL) {
+                return "";
+            }
+        }
+
+        int written = snprintf(log_time, MAX_LOG_TIME_LEN, "%d-%02d-%02d %02d:%02d:%02d.%03d",
+            1900 + tm->tm_year, 1 + tm->tm_mon, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec, (int)(tv.tv_usec / 1000));
+        if (written >= MAX_LOG_TIME_LEN) {
+            return "";
+        }
+    }
+
+    return string(log_time);
+}
+
+void SrsLogWriterCallstack::write(SrsJanusSession* s, SrsJanusUserConf* c, SrsJanusMessage* m)
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    if (true) {
+        SrsJanusCallstack callstack;
+
+        callstack.time = srs_current_time(false);
+        callstack.source = srs_get_public_internet_address(true);
+        callstack.peer = SrsModuleSignaling;
+        callstack.module = SrsModuleName;
+        callstack.focus = SrsModuleName;
+        callstack.stage = "create";
+        callstack.status = "enter";
+        callstack.action = "createJanusSession";
+        callstack.error_code = 0;
+        callstack.cid = s->cid_.k_ + string("-") + s->cid_.v_;
+        callstack.appid = s->appid_;
+        callstack.channel = s->channel_;
+        callstack.user = s->userid_;
+        callstack.session = s->sessionid_;
+        callstack.tid = m->transaction;
+
+        if (true) {
+            SrsJsonObject* message = SrsJsonAny::object();
+            SrsAutoFree(SrsJsonObject, message);
+
+            message->set("appID", SrsJsonAny::str(s->appid_.c_str()));
+            message->set("sessionID", SrsJsonAny::str(s->sessionid_.c_str()));
+            message->set("channelID", SrsJsonAny::str(s->channel_.c_str()));
+            message->set("userID", SrsJsonAny::str(s->userid_.c_str()));
+            message->set("command", SrsJsonAny::str("createJanusSession"));
+            message->set("transaction", SrsJsonAny::str(m->transaction.c_str()));
+            message->set("DownlinkStreamMerge", SrsJsonArray::boolean(c->stream_merge));
+            message->set("1v1TccForwardEnable", SrsJsonArray::boolean(c->enable_forward_twcc));
+            message->set("NeedSDPUnified", SrsJsonArray::boolean(c->need_unified_plan));
+            message->set("WebSDK", SrsJsonArray::str(c->web_sdk.c_str()));
+            message->set("EnableBWEStatusReport", SrsJsonArray::boolean(c->enable_bwe_status_report));
+            message->set("NoExtraConfig", SrsJsonArray::boolean(c->no_extra_config_when_join));
+            message->set("IsMPU", SrsJsonArray::boolean(c->is_mpu_client));
+            message->set("sfu", SrsJsonArray::str(callstack.source.c_str()));
+            message->set("signaling", SrsJsonArray::str(m->client_ip.c_str()));
+
+            callstack.message = message->dumps();
+        }
+
+        callstack.marshal(obj);
+    }
+
+    string data = obj->dumps();
+    data += LOG_TAIL;
+    write_log(data.data(), data.length());
+}
+

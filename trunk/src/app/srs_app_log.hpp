@@ -132,5 +132,17 @@ private:
     virtual void open_log_file();
 };
 
+class SrsJanusSession;
+class SrsJanusUserConf;
+struct SrsJanusMessage;
+class SrsLogWriterCallstack : public SrsLogWriter
+{
+public:
+    SrsLogWriterCallstack();
+    virtual ~SrsLogWriterCallstack();
+public:
+    virtual void write(SrsJanusSession* s, SrsJanusUserConf* c, SrsJanusMessage* m);
+};
+
 #endif
 
