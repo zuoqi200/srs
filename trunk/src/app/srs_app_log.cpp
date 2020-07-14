@@ -525,6 +525,14 @@ srs_error_t SrsJsonLog::on_reload_log_file()
     return err;
 }
 
+#define _srs_outout_context(node, kname, vname) \
+    if (node) { \
+        if (!node->k_.empty()) { \
+            log->set(kname, SrsJsonAny::str(node->k_.c_str())); \
+        } \
+        log->set(vname, SrsJsonAny::str(node->v_.c_str())); \
+    }
+
 void SrsJsonLog::write_log(int& fd, char *str_log, int size, int level, SrsContextId context_id, const char* tag)
 {
     SrsJsonObject* log = SrsJsonAny::object();
@@ -575,6 +583,7 @@ void SrsJsonLog::write_log(int& fd, char *str_log, int size, int level, SrsConte
         log->set("t", SrsJsonAny::str(tag));
     }
     log->set("p", SrsJsonAny::integer(::getpid()));
+    log->set("s", SrsJsonAny::str(SrsModuleName));
 
     // Context id tree.
     SrsContextId* id0 = &context_id, *id1 = NULL, *id2 = NULL, *id3 = NULL, *id4 = NULL;
@@ -591,13 +600,6 @@ void SrsJsonLog::write_log(int& fd, char *str_log, int size, int level, SrsConte
         }
     }
 
-#define _srs_outout_context(node, kname, vname) \
-    if (node) { \
-        if (!node->k_.empty()) { \
-            log->set(kname, SrsJsonAny::str(node->k_.c_str())); \
-        } \
-        log->set(vname, SrsJsonAny::str(node->v_.c_str())); \
-    }
     _srs_outout_context(id0, "n0", "i0");
     _srs_outout_context(id1, "n1", "i1");
     _srs_outout_context(id2, "n2", "i2");
