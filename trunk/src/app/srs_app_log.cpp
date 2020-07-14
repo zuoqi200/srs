@@ -738,8 +738,9 @@ void SrsLogWriter::write_log(const char* str_log, int size)
 {
     // if not to file, to console and return.
     if (!log_to_file_tank) {
-        printf("%.*s", size, str_log);
-        fflush(stdout);
+        if (size > 0) {
+            srs_trace("RTC SLS log: %.*s", size - 1, str_log);
+        }
         return;
     }
 
