@@ -36,6 +36,10 @@ using namespace std;
 #include <srs_app_config.hpp>
 #include <srs_app_rtc_conn.hpp>
 #include <srs_app_rtc_server.hpp>
+#include <srs_service_http_conn.hpp>
+
+// SLS log writers.
+SrsLogWriterCallstack* _sls_callstack = new SrsLogWriterCallstack();
 
 // When API error, limit the request by sleep for a while.
 srs_utime_t API_ERROR_LIMIT = 10 * SRS_UTIME_SECONDS;
@@ -186,6 +190,13 @@ srs_error_t SrsGoApiRtcJanus::do_serve_http(ISrsHttpResponseWriter* w, ISrsHttpM
         req_msg.source_module = prop->to_str();
     }
 
+    // Fill client IP to janus message.
+    if (true) {
+        SrsHttpMessage* hreq = dynamic_cast<SrsHttpMessage*>(r);
+        SrsConnection* conn = dynamic_cast<SrsConnection*>(hreq->connection());
+        req_msg.client_ip = conn->remote_ip();
+    }
+
     // For long polling, handle by session.
     if (long_polling) {
         if (!session) {
@@ -290,6 +301,10 @@ srs_error_t SrsJanusServer::listen_api()
         return srs_error_wrap(err, "handle janus");
     }
 
+    if ((err = _sls_callstack->initialize()) != srs_success) {
+        return srs_error_wrap(err, "sls callstack");
+    }
+
     // Handle the session timeout event.
     rtc_->set_handler(this);
 
@@ -339,6 +354,9 @@ srs_error_t SrsJanusServer::create(SrsJsonObject* req, SrsJanusMessage* msg, Srs
     session->userid_ = userid;
     session->sessionid_ = session_id;
     session->user_conf_ = user_conf;
+
+    // For SIBI callstack SLS log.
+    _sls_callstack->write(session, user_conf, msg);
 
     do {
         srs_random_generate((char*)&session->id_, 8);

@@ -48,6 +48,9 @@ struct SrsJanusMessage
     // The janus action field.
     std::string janus;
 
+    // The client IP address.
+    std::string client_ip;
+
     // The common request header, except polling.
     std::string transaction;
     std::string client_tid;
