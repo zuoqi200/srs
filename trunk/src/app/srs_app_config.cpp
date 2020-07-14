@@ -5123,18 +5123,22 @@ bool SrsConfig::get_rtc_twcc_enabled(string vhost)
 bool SrsConfig::get_rtc_gcc_enabled(string vhost)
 {
     static bool DEFAULT = true;
+
     SrsConfDirective* conf = get_vhost(vhost);
     if (!conf) {
         return DEFAULT;
     }
+
     conf = conf->get("gcc");
     if (!conf) {
         return DEFAULT;
     }
+
     conf = conf->get("enabled");
     if (!conf || conf->arg0().empty()) {
         return DEFAULT;
     }
+    
     return SRS_CONF_PERFER_TRUE(conf->arg0());
 }
 
