@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+using namespace std;
 
 #include <srs_app_config.hpp>
 #include <srs_kernel_error.hpp>
@@ -693,6 +694,86 @@ void SrsJsonLog::open_log_file()
 
     std::string filename = _srs_config->get_log_file();
 
+    if (filename.empty()) {
+        return;
+    }
+
+    fd = ::open(filename.c_str(),
+        O_RDWR | O_CREAT | O_APPEND,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH
+    );
+}
+
+SrsLogWriter::SrsLogWriter(string category)
+{
+    fd = -1;
+    enabled = false;
+    category_ = category;
+    log_to_file_tank = false;
+}
+
+SrsLogWriter::~SrsLogWriter()
+{
+    if (fd > 0) {
+        ::close(fd);
+        fd = -1;
+    }
+}
+
+srs_error_t SrsLogWriter::initialize()
+{
+    srs_error_t err = srs_success;
+
+    enabled = _srs_config->get_rtc_sls_log_enabled(category_);
+    string tank = _srs_config->get_rtc_sls_log_tank(category_);
+    std::string filename = _srs_config->get_rtc_sls_log_file(category_);
+    log_to_file_tank = tank == "file";
+    srs_trace("RTC: Log writer enabled=%u, category=%s, tank=%u/%s, file=%s", enabled, category_.c_str(),
+        log_to_file_tank, tank.c_str(), filename.c_str());
+
+    return err;
+}
+
+void SrsLogWriter::write_log(const char* str_log, int size)
+{
+    // if not to file, to console and return.
+    if (!log_to_file_tank) {
+        printf("%.*s", size, str_log);
+        fflush(stdout);
+        return;
+    }
+
+    // open log file. if specified
+    if (fd < 0) {
+        open_log_file();
+    }
+
+    // write log to file.
+    if (fd > 0) {
+        ::write(fd, str_log, size);
+    }
+}
+
+void SrsLogWriter::reopen()
+{
+    if (fd > 0) {
+        ::close(fd);
+    }
+
+    if (!log_to_file_tank) {
+        return;
+    }
+
+    open_log_file();
+}
+
+void SrsLogWriter::open_log_file()
+{
+    if (!enabled) {
+        return;
+    }
+
+    std::string filename = _srs_config->get_rtc_sls_log_file(category_);
     if (filename.empty()) {
         return;
     }

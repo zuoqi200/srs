@@ -551,6 +551,13 @@ public:
     bool get_rtc_twcc_enabled(std::string vhost);
     bool get_rtc_gcc_enabled(std::string vhost);
 
+public:
+    bool get_rtc_sls_log_enabled(std::string category);
+    std::string get_rtc_sls_log_tank(std::string category);
+    std::string get_rtc_sls_log_file(std::string category);
+private:
+    SrsConfDirective* get_rtc_sls_log(std::string category);
+
 // vhost specified section
 public:
     // Get the vhost directive by vhost name.

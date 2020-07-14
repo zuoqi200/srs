@@ -73,6 +73,7 @@ private:
 
 // Tenfold module name.
 #define SrsModuleName "tenfold"
+#define SrsModuleSignaling "signaling"
 
 // Tenfold application detail log in JSON.
 class SrsJsonLog : public ISrsLog, public ISrsReloadHandler
@@ -108,6 +109,26 @@ public:
     virtual srs_error_t on_reload_log_file();
 private:
     virtual void write_log(int& fd, char* str_log, int size, int level, SrsContextId context_id, const char* tag);
+    virtual void open_log_file();
+};
+
+// Tenfold SLS log writer.
+class SrsLogWriter
+{
+private:
+    int fd;
+    bool enabled;
+    bool log_to_file_tank;
+    std::string category_;
+public:
+    SrsLogWriter(std::string category);
+    virtual ~SrsLogWriter();
+public:
+    virtual srs_error_t initialize();
+protected:
+    virtual void write_log(const char* str_log, int size);
+private:
+    virtual void reopen();
     virtual void open_log_file();
 };
 
