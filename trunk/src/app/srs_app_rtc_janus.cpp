@@ -905,7 +905,7 @@ srs_error_t SrsJanusCall::trickle(SrsJsonObject* req, SrsJanusMessage* msg)
         candidate = prop->to_str();
     }
 
-    srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, completed=%d, candidate=%s",
+    srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, completed=%d, candidate=%s",
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         completed, candidate.c_str());
 
@@ -1330,7 +1330,7 @@ srs_error_t SrsJanusCall::on_start_subscriber(SrsJsonObject* req, SrsJsonObject*
     srs_random_generate((char*)&res_msg->private_id, 4);
     session_->enqueue(res_msg);
 
-    srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, request=%s, jsep=%s/%dB",
+    srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, request=%s, jsep=%s/%dB",
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         "start", type.c_str(), remote_sdp_str.length());
     srs_trace("RTC remote answer: %s", srs_string_replace(remote_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
@@ -1445,7 +1445,7 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     srs_random_generate((char*)&res_msg->private_id, 4);
     session_->enqueue(res_msg);
 
-    srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, request=%s, audio=%d, video=%d, streams=%d, jsep=%s/%dB, answer=%dB, cid=[%u][%s]",
+    srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, request=%s, audio=%d, video=%d, streams=%d, jsep=%s/%dB, answer=%dB, cid=[%u][%s]",
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         "configure", has_audio, has_video, streams->count(), type.c_str(), remote_sdp_str.length(), local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
     srs_trace("RTC remote offer: %s", srs_string_replace(remote_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
