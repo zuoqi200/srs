@@ -3574,7 +3574,7 @@ srs_error_t SrsConfig::check_normal_config()
             && n != "ff_log_level" && n != "grace_final_wait" && n != "force_grace_quit"
             && n != "grace_start_wait" && n != "empty_ip_ok" && n != "disable_daemon_for_docker"
             && n != "inotify_auto_reload" && n != "auto_reload_for_docker" && n != "tcmalloc_release_rate"
-            && n != "srs_log_json"
+            && n != "srs_log_json" && n != "sls_log"
             ) {
             return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "illegal directive %s", n.c_str());
         }
@@ -5140,6 +5140,74 @@ bool SrsConfig::get_rtc_gcc_enabled(string vhost)
     }
     
     return SRS_CONF_PERFER_TRUE(conf->arg0());
+}
+
+bool SrsConfig::get_rtc_sls_log_enabled(std::string category)
+{
+    static bool DEFAULT = false;
+
+    SrsConfDirective* conf = get_rtc_sls_log(category);
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    conf = conf->get("enabled");
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    return SRS_CONF_PERFER_FALSE(conf->arg0());
+}
+
+string SrsConfig::get_rtc_sls_log_tank(std::string category)
+{
+    static string DEFAULT = "console";
+
+    SrsConfDirective* conf = get_rtc_sls_log(category);
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    conf = conf->get("tank");
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    return conf->arg0();
+}
+
+string SrsConfig::get_rtc_sls_log_file(string category)
+{
+    static string DEFAULT = "";
+
+    SrsConfDirective* conf = get_rtc_sls_log(category);
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    conf = conf->get("file");
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    return conf->arg0();
+}
+
+SrsConfDirective* SrsConfig::get_rtc_sls_log(std::string category)
+{
+    for (int i = 0; i < (int)root->directives.size(); i++) {
+        SrsConfDirective* conf = root->at(i);
+
+        if (conf->name != "sls_log") {
+            continue;
+        }
+
+        if (conf->arg0() == category) {
+            return conf;
+        }
+    }
+
+    return NULL;
 }
 
 SrsConfDirective* SrsConfig::get_vhost(string vhost, bool try_default_vhost)
