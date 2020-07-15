@@ -457,8 +457,14 @@ srs_error_t SrsRtcServer::setup_session2(SrsRtcConnection* session, SrsRequest* 
         return srs_error_wrap(err, "create source");
     }
 
+    // first add player for negotiate sdp media info
+    SrsSdp local_sdp = *session->get_local_sdp();
+    if ((err = session->add_player(req, remote_sdp, local_sdp)) != srs_success) {
+        return srs_error_wrap(err, "add publisher");
+    }
+
     // TODO: FIXME: Collision detect.
-    string username = session->get_local_sdp()->get_ice_ufrag() + ":" + remote_sdp.get_ice_ufrag();
+    string username = local_sdp.get_ice_ufrag() + ":" + remote_sdp.get_ice_ufrag();
 
     // Create new context for session if not sid.
     SrsContextId cid = _srs_context->get_id();
