@@ -342,6 +342,7 @@ public:
     SrsCodecPayload* red_;
     SrsCodecPayload* rtx_;
     SrsCodecPayload* ulpfec_;
+    SrsCodecPayload* rsfec_;
 public:
     SrsRtcTrackDescription();
     virtual ~SrsRtcTrackDescription();
@@ -354,7 +355,7 @@ public:
     void add_rtp_extension_desc(int id, std::string uri);
     void set_direction(std::string direction);
     void set_codec_payload(SrsCodecPayload* payload);
-    // auxiliary paylod include red, rtx, ulpfec.
+    // auxiliary paylod include red, rtx, ulpfec, rsfec.
     void create_auxiliary_payload(const std::vector<SrsMediaPayloadType> payload_types);
     void set_rtx_ssrc(uint32_t ssrc);
     void set_fec_ssrc(uint32_t ssrc);
