@@ -2739,11 +2739,6 @@ srs_error_t SrsRtcConnection::fetch_source_capability(SrsRequest* req, std::map<
         srs_freep(track->rsfec_);
         track->fec_ssrc_ = 0;
 
-        // TODO: FIXME: if we support downlink , MUST assign fec_ssrc_
-        // set_rsfec_config;
-        srs_freep(track->rsfec_);
-        track->fec_ssrc_ = 0;
-
         track->set_direction("sendonly");
         sub_relations.insert(make_pair(publish_ssrc, track));
     }
