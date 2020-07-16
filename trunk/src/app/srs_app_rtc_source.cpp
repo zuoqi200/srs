@@ -1208,7 +1208,10 @@ SrsMediaPayloadType SrsAudioPayload::generate_media_payload_type()
 
     media_payload_type.encoding_name_ = name_;
     media_payload_type.clock_rate_ = sample_;
-    media_payload_type.encoding_param_ = srs_int2str(channel_);
+    media_payload_type.encoding_param_ = "";
+    if (channel_ != 0) {
+        media_payload_type.encoding_param_ = srs_int2str(channel_);
+    }
     media_payload_type.rtcp_fb_ = rtcp_fbs_;
 
     std::ostringstream format_specific_param;
@@ -1340,7 +1343,7 @@ int SrsRtcTrackDescription::get_rtp_extension_id(std::string uri)
         }
     }
 
-    return -1;
+    return 0;
 }
 
 SrsRtcTrackDescription* SrsRtcTrackDescription::copy()
