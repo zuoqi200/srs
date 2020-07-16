@@ -1063,19 +1063,15 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
 
     // Generate offer.
     SrsSdp local_sdp;
-    local_sdp.session_config_.dtls_role = _srs_config->get_rtc_dtls_role(request.vhost);
+    local_sdp.session_config_.dtls_role = "actpass";
     local_sdp.session_config_.dtls_version = _srs_config->get_rtc_dtls_version(request.vhost);
     if (!session_->user_conf_->is_web_sdk()) {
         local_sdp.session_config_.dtls_role = "active";
         local_sdp.session_config_.dtls_version = "dtls1.0";
     }
 
-    if ((err = subscirber_build_offer(&request, callee, local_sdp)) != srs_success) {
-        return srs_error_wrap(err, "build offer");
-    }
-
     // TODO: FIXME: When server enabled, but vhost disabled, should report error.
-    if ((err = session_->janus_->rtc_->create_session2(local_sdp, &rtc_session_)) != srs_success) {
+    if ((err = session_->janus_->rtc_->create_session2(&request, local_sdp, &rtc_session_)) != srs_success) {
         return srs_error_wrap(err, "create session");
     }
 
@@ -1434,10 +1430,6 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     if (!session_->user_conf_->is_web_sdk()) {
         local_sdp.session_config_.dtls_role = "active";
         local_sdp.session_config_.dtls_version = "dtls1.0";
-    }
-
-    if ((err = publisher_exchange_sdp(&request, remote_sdp, local_sdp)) != srs_success) {
-        return srs_error_wrap(err, "remote sdp have error or unsupport attributes");
     }
 
     // TODO: FIXME: When server enabled, but vhost disabled, should report error.
