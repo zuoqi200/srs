@@ -1071,7 +1071,8 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
     }
 
     // TODO: FIXME: When server enabled, but vhost disabled, should report error.
-    if ((err = session_->janus_->rtc_->create_session2(&request, local_sdp, &rtc_session_)) != srs_success) {
+    string mock_eip; // No MOCK EIP for janus.
+    if ((err = session_->janus_->rtc_->create_session2(&request, local_sdp, mock_eip, &rtc_session_)) != srs_success) {
         return srs_error_wrap(err, "create session");
     }
 
