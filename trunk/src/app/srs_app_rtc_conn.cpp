@@ -910,6 +910,51 @@ uint32_t SrsRtcPlayStream::get_video_publish_ssrc(uint32_t play_ssrc)
     return 0;
 }
 
+void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
+{
+    // set video track inactive
+    if (true) {
+        std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
+        for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
+            SrsRtcVideoSendTrack* track = it->second;
+            track->set_track_status(false);
+        }
+    }
+
+    // set audio track inactive.
+    if (true) {
+        std::map<uint32_t, SrsRtcAudioSendTrack*>::iterator it;
+        for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
+            SrsRtcAudioSendTrack* track = it->second;
+            track->set_track_status(false);
+        }
+    }
+
+    for (int i = 0; i < cfgs.size(); ++i) {
+        const SrsTrackConfig& cfg = cfgs.at(i);
+
+        if (cfg.type_ == "audio") {
+            std::map<uint32_t, SrsRtcAudioSendTrack*>::iterator it;
+            for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
+                SrsRtcAudioSendTrack* track = it->second;
+                if (track->get_track_id() == cfg.label_) {
+                    track->set_track_status(cfg.active);
+                }
+            }
+        }
+
+        if (cfg.type_ == "video") {
+            std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
+            for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
+                SrsRtcVideoSendTrack* track = it->second;
+                if (track->get_track_id() == cfg.label_) {
+                    track->set_track_status(cfg.active);
+                }  
+            }
+        }
+    }
+}
+
 SrsRtcPublishStream::SrsRtcPublishStream(SrsRtcConnection* session)
 {
     report_timer = new SrsHourGlass(this, 200 * SRS_UTIME_MILLISECONDS);
@@ -2605,6 +2650,9 @@ srs_error_t SrsRtcConnection::negotiate_play_capability(SrsRequest* req, const S
         return srs_error_wrap(err, "fetch rtc source");
     }
 
+    // for need merged track, use the same ssrc
+    uint32_t merged_track_ssrc = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+
     for (size_t i = 0; i < remote_sdp.media_descs_.size(); ++i) {
         const SrsMediaDesc& remote_media_desc = remote_sdp.media_descs_[i];
         // Whether feature enabled in remote extmap.
@@ -2666,7 +2714,11 @@ srs_error_t SrsRtcConnection::negotiate_play_capability(SrsRequest* req, const S
                 }
             }
 
-            track->ssrc_ = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+            if (_srs_track_id_group->get_merged_track_id(track->id_) != track->id_) {
+                track->ssrc_ = merged_track_ssrc;
+            } else {
+                track->ssrc_ = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+            }
             
             // TODO: FIXME: set audio_payload rtcp_fbs_,
             // according by whether downlink is support transport algorithms.
@@ -2709,6 +2761,9 @@ srs_error_t SrsRtcConnection::fetch_source_capability(SrsRequest* req, std::map<
         return srs_error_wrap(err, "fetch rtc source");
     }
 
+    // for need merged track, use the same ssrc
+    uint32_t merged_track_ssrc = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+
     std::vector<SrsRtcTrackDescription*> track_descs = source->get_track_desc("audio", "opus");
     std::vector<SrsRtcTrackDescription*> video_track_desc = source->get_track_desc("video", "H264");
     
@@ -2735,7 +2790,11 @@ srs_error_t SrsRtcConnection::fetch_source_capability(SrsRequest* req, std::map<
             }
         }
 
-        track->ssrc_ = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+        if (_srs_track_id_group->get_merged_track_id(track->id_) != track->id_) {
+            track->ssrc_ = merged_track_ssrc;
+        } else {
+            track->ssrc_ = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+        }
 
         // TODO: FIXME: set audio_payload rtcp_fbs_,
         // according by whether downlink is support transport algorithms.
@@ -2788,6 +2847,7 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
 
     std::string cname = srs_random_str(16);
 
+    bool track_merged = false;
     // generate audio media desc
     if (stream_desc->audio_track_desc_) {
         SrsRtcTrackDescription* audio_track = stream_desc->audio_track_desc_;
@@ -2881,6 +2941,16 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
         }
 
         SrsMediaDesc& local_media_desc = local_sdp.media_descs_.back();
+
+        // only add merge track to sdp
+        std::string merged_track_id = _srs_track_id_group->get_merged_track_id(track->id_);
+        if (merged_track_id != track->id_) {
+            if (track_merged) {
+                continue;
+            }
+            track->id_ = merged_track_id;
+            track_merged = true;
+        }
         local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(track->ssrc_, cname, track->msid_, track->id_));
 
         if (track->rtx_ && track->rtx_ssrc_) {
@@ -2937,6 +3007,19 @@ srs_error_t SrsRtcConnection::create_publisher(SrsRequest* req, SrsRtcStreamDesc
     if ((err = publisher_->initialize(req, stream_desc)) != srs_success) {
         return srs_error_wrap(err, "rtc publisher init");
     }
+
+    return err;
+}
+
+srs_error_t SrsRtcConnection::set_play_track_active(const std::vector<SrsTrackConfig>& cfgs)
+{
+    srs_error_t err = srs_success;
+
+    if (!player_) {
+        return srs_error_new(ERROR_RTC_NO_PLAYER, "set play track");
+    }
+
+    player_->set_track_active(cfgs);
 
     return err;
 }

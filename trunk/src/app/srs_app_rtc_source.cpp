@@ -1842,3 +1842,86 @@ uint32_t SrsRtcSSRCGenerator::generate_ssrc()
     return ++ssrc_num;
 }
 
+SrsTrackConfig::SrsTrackConfig()
+{
+    temporal_layers_ = 0;
+    sub_streams_ = 0;
+}
+
+SrsTrackConfig::~SrsTrackConfig()
+{
+}
+
+SrsTrackConfig SrsTrackConfig::parse(SrsJsonObject* track)
+{
+    SrsTrackConfig track_cfg;
+    SrsJsonAny* prop = NULL;
+
+    if ((prop = track->get_property("mslabel")) != NULL && prop->is_string()) {
+        track_cfg.mslabel_ = prop->to_str();
+    }
+
+    if ((prop = track->get_property("label")) != NULL && prop->is_string()) {
+        track_cfg.label_ = prop->to_str();
+    }
+
+    if ((prop = track->get_property("type")) != NULL && prop->is_string()) {
+        track_cfg.type_ = prop->to_str();
+    }
+
+    if ((prop = track->get_property("state")) != NULL && prop->is_string()) {
+        if (prop->to_str() == "active") {
+            track_cfg.active = true;
+        }
+    }
+
+    if ((prop = track->get_property("temporalLayer")) != NULL && prop->is_number()) {
+        track_cfg.temporal_layers_ = prop->to_number();
+    }
+
+    if ((prop = track->get_property("substreams")) != NULL && prop->is_number()) {
+        track_cfg.sub_streams_ = prop->to_number();
+    }
+
+    if ((prop = track->get_property("videoprofile")) != NULL && prop->is_string()) {
+        track_cfg.video_profile_ = prop->to_str();
+    }
+
+    if ((prop = track->get_property("audioprofile")) != NULL && prop->is_string()) {
+        track_cfg.audio_profile_ = prop->to_str();
+    }
+
+    return track_cfg;
+}
+
+SrsTrackGroupDescription::SrsTrackGroupDescription()
+{
+    need_merge = true;
+
+    track_ids.push_back("sophon_video_camera_small");
+    track_ids.push_back("sophon_video_camera_large");
+    track_ids.push_back("sophon_video_camera_super");
+
+    merged_track_id = "sophon_video_camera";
+}
+
+SrsTrackGroupDescription::~SrsTrackGroupDescription()
+{
+}
+
+std::string SrsTrackGroupDescription::get_merged_track_id(std::string track_id)
+{
+    if (!need_merge) {
+        return track_id;
+    }
+
+    vector<string>::iterator it = find(track_ids.begin(), track_ids.end(), track_id);
+    if (it != track_ids.end()) {
+        return merged_track_id;
+    }
+    
+    return track_id;
+}
+
+SrsTrackGroupDescription* _srs_track_id_group = new SrsTrackGroupDescription();
+

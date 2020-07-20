@@ -509,5 +509,47 @@ public:
     uint32_t generate_ssrc();
 };
 
+class SrsTrackConfig
+{
+public:
+    // stream id
+    std::string mslabel_;
+    // track id
+    std::string label_;
+    // media type, "video", "audio"
+    std::string type_;
+    // use "state" in json, value: active, inactive.
+    bool active;
+    // temporalLayers:
+    int temporal_layers_;
+    // substreams
+    int sub_streams_;
+    // videoprofile
+    std::string video_profile_;
+    // audioprofile
+    std::string audio_profile_;
+public:
+    SrsTrackConfig();
+    virtual ~SrsTrackConfig();
+public:
+    static SrsTrackConfig parse(SrsJsonObject* track);
+};
+
+// TODO: FIXME: Rename it, it's not a track group, but about merging.
+class SrsTrackGroupDescription
+{
+public:
+    bool need_merge;
+    std::vector<std::string> track_ids;
+    std::string merged_track_id;
+public:
+    SrsTrackGroupDescription();
+    virtual ~SrsTrackGroupDescription();
+public:
+    std::string get_merged_track_id(std::string track_id);
+};
+
+extern SrsTrackGroupDescription* _srs_track_id_group;
+
 #endif
 

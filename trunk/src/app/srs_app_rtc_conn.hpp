@@ -234,6 +234,8 @@ private:
     srs_error_t create_twcc_handler();
 #endif
     uint32_t get_video_publish_ssrc(uint32_t play_ssrc);
+public:
+    void set_track_active(const std::vector<SrsTrackConfig>& cfg);
 };
 
 // A RTC publish stream, client push and publish stream to SRS.
@@ -405,6 +407,9 @@ private:
     srs_error_t generate_play_local_sdp(SrsRequest* req, SrsSdp& local_sdp, SrsRtcStreamDescription* stream_desc);
     srs_error_t create_player(SrsRequest* request, std::map<uint32_t, SrsRtcTrackDescription*> sub_relations);
     srs_error_t create_publisher(SrsRequest* request, SrsRtcStreamDescription* stream_desc);
+public:
+    // set play track whether active.
+    srs_error_t set_play_track_active(const std::vector<SrsTrackConfig>& cfgs);
 };
 
 class ISrsRtcHijacker

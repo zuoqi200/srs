@@ -359,6 +359,7 @@
 #define ERROR_RTC_STREM_STARTED             5025
 #define ERROR_RTC_STREAM_DESC               5026
 #define ERROR_RTC_TRACK_CODEC               5027
+#define ERROR_RTC_NO_PLAYER                 5028
 
 #define ERROR_RTC_NATIVE_INVALID_PARAM      5700
 #define ERROR_RTC_NATIVE_TLV_TYPE_0         5701
