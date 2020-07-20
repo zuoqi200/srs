@@ -73,6 +73,8 @@ struct SrsJanusMessage
     std::string jsep_sdp;
     // For subscriber, the display of publisher.
     std::string display;
+    // For reconfig-publisher and reconfig-subscriber, the result of reconfig;
+    std::string reconfigured;
 
     SrsJanusMessage() {
         session_id = sender = feed_id = 0;
@@ -197,6 +199,37 @@ public:
     void destroy_calls(SrsRtcConnection* session);
 };
 
+struct SrsJanusForwardMap
+{
+    uint32_t publish_ssrc;
+    uint32_t subscribe_ssrc;
+    uint32_t brother_ssrc;
+
+    std::string stream_id;
+    std::string track_id;
+
+    // the current temporal layer level, influenced by congestion control.
+    int temporal_layer;
+    // the temporal layer level setted by subscribe.
+    int target_temporal_layer;
+
+    std::string type;
+    // #define STREAM_FORMAT_SMALL 0
+    // #define STREAM_FORMAT_LARGE 1
+    // #define STREAM_FORMAT_SUPER 2
+    int stream_format;
+    bool enable_stream;
+};
+
+struct SrsJuanusVideoGroupPolicy
+{
+    std::vector<uint32_t> stream_ssrcs;
+
+    uint32_t last_active_ssrc;
+    uint32_t current_active_ssrc;
+    uint32_t target_active_ssrc;
+};
+
 class SrsJanusCall
 {
     friend class SrsJanusSession;
@@ -205,6 +238,9 @@ private:
     SrsRtcConnection* rtc_session_;
     SrsRequest request;
     static uint32_t ssrc_num;
+    // key: publish ssrc
+    std::map<uint32_t, SrsJanusForwardMap> subscribe_forward_map_;
+    SrsJuanusVideoGroupPolicy video_group_policy_;
 public:
     bool publisher_;
     SrsJanusSession* session_;
@@ -227,9 +263,13 @@ private:
     srs_error_t on_join_message(SrsJsonObject* req, SrsJanusMessage* msg);
     srs_error_t on_join_as_subscriber(SrsJsonObject* req, SrsJanusMessage* msg);
     srs_error_t subscirber_build_offer(SrsRequest* req, SrsJanusCall* callee, SrsSdp& local_sdp);
+    srs_error_t subscriber_camera_stream_merge(SrsSdp& local_sdp);
     srs_error_t on_start_subscriber(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg);
     srs_error_t on_configure_publisher(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg);
+    srs_error_t on_reconfigure_publisher(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg);
+    srs_error_t on_reconfigure_subscriber(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg);
     srs_error_t publisher_exchange_sdp(SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp);
 };
 
 #endif
+

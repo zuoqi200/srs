@@ -529,6 +529,7 @@ SrsJanusUserConf* SrsJanusUserConf::parse_janus_user_conf(SrsJsonObject* req)
         user_conf->enable_video_nack_rs_v1 = prop->to_boolean();
     }
 
+    user_conf->no_extra_config_when_join = false;
     if ((prop = req->get_property("NoExtraConfig")) != NULL && prop->is_boolean()) {
         user_conf->no_extra_config_when_join = prop->to_boolean();
     }
@@ -573,6 +574,10 @@ SrsJanusStreamInfo SrsJanusStreamInfo::parse_stream_info(SrsJsonObject* stream)
 
     if ((prop = stream->get_property("type")) != NULL && prop->is_string()) {
         stream_info.type_ = prop->to_str();
+    }
+
+    if ((prop = stream->get_property("state")) != NULL && prop->is_string()) {
+        stream_info.state_ = prop->to_str();
     }
 
     if ((prop = stream->get_property("temporalLayer")) != NULL && prop->is_number()) {
@@ -681,6 +686,9 @@ srs_error_t SrsJanusSession::polling(SrsJsonObject* req, SrsJsonObject* res)
             data->set("videoroom", SrsJsonAny::str("event"));
             data->set("started", SrsJsonAny::str("ok"));
         } else if (msg->videoroom == "event") {
+            // reconfig-publisher and reconfig-subscriber
+            data->set("videoroom", SrsJsonAny::str("event"));
+            data->set("reconfigured", SrsJsonAny::str("ok"));
         }
 
         srs_trace("RTC polling, session=%" PRId64 ", janus=%s, sender=%" PRId64 ", transaction=%s, feed=%" PRId64 ", private=%u",
@@ -892,6 +900,10 @@ srs_error_t SrsJanusCall::message(SrsJsonObject* req, SrsJanusMessage* msg)
         return on_configure_publisher(req, body, msg);
     } else if (request == "start") {
         return on_start_subscriber(req, body, msg);
+    } else if (request == "reconfig-publisher") {
+        return on_reconfigure_publisher(req, body, msg);
+    } else if (request == "reconfig-subscriber" || request == "reconfig-stream") {
+        return on_reconfigure_subscriber(req, body, msg);
     } else {
         return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "request %s", request.c_str());
     }
@@ -1028,9 +1040,16 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
     SrsJsonArray* streams = prop->to_array();
 
     // parser stream infos
+    std::vector<SrsTrackConfig> track_cfgs;
     for (int i = 0; i < streams->count(); i++) {
-        SrsJanusStreamInfo stream_info = SrsJanusStreamInfo::parse_stream_info(streams->at(i)->to_object());
-        stream_infos_.push_back(stream_info);
+        SrsJsonAny* stream = streams->at(i);
+        if (!stream->is_object()) {
+            continue;
+        }
+
+        SrsJsonObject* obj = streams->at(i)->to_object();
+        SrsTrackConfig cfg = SrsTrackConfig::parse_track_config(obj);
+        track_cfgs.push_back(cfg);
     }
 
     // Generate new context for publisher.
@@ -1063,7 +1082,7 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
 
     // Generate offer.
     SrsSdp local_sdp;
-    local_sdp.session_config_.dtls_role = "actpass";
+    local_sdp.session_config_.dtls_role = _srs_config->get_rtc_dtls_version(request.vhost);
     local_sdp.session_config_.dtls_version = _srs_config->get_rtc_dtls_version(request.vhost);
     if (!session_->user_conf_->is_web_sdk()) {
         local_sdp.session_config_.dtls_role = "active";
@@ -1076,6 +1095,10 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         return srs_error_wrap(err, "create session");
     }
 
+    if (!track_cfgs.empty()) {
+        rtc_session_->set_play_track_config(track_cfgs);
+    }
+    
     ostringstream os;
     if ((err = local_sdp.encode(os)) != srs_success) {
         return srs_error_wrap(err, "encode sdp");
@@ -1461,6 +1484,112 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
         "configure", has_audio, has_video, streams->count(), type.c_str(), remote_sdp_str.length(), local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
     srs_trace("RTC remote offer: %s", srs_string_replace(remote_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
     srs_trace("RTC local answer: %s", srs_string_replace(local_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
+
+    return err;
+}
+
+srs_error_t SrsJanusCall::on_reconfigure_publisher(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg)
+{
+    srs_error_t err = srs_success;
+
+    // reconfig-publisher stream_info:
+    // {"request":"reconfig-publisher","streams":[
+    //     {"mslabel":"sophon_stream","label":"sophon_video_camera_large","type":"video","temporalLayers":3,"substreams":1,"state":"active","videoprofile":"UD_640_480P_15","audioprofile":""},
+    //     {"mslabel":"sophon_stream","label":"sophon_video_camera_small","type":"video","temporalLayers":3,"substreams":1,"state":"active","videoprofile":"UD_90_160P_15","audioprofile":""},
+    //     {"mslabel":"sophon_stream","label":"sophon_video_screen_share","type":"video","temporalLayers":3,"substreams":1,"state":"active","videoprofile":"UD_2880_1800P_5","audioprofile":""},
+    //     {"mslabel":"sophon_stream","label":"sophon_video_camera_super","type":"video","temporalLayers":3,"substreams":1,"state":"inactive","videoprofile":"UD_640_480P_15","audioprofile":""},
+    //     {"mslabel":"sophon_stream","label":"sophon_audio","type":"audio","temporalLayers":0,"substreams":0,"state":"active","videoprofile":"","audioprofile":"ENGINE_BASIC_QUALITY_MODE"}
+    // ]}
+    SrsJsonAny* prop = NULL;
+    if ((prop = body->get_property("streams")) == NULL || !prop->is_array()) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no streams");
+    }
+    SrsJsonArray* streams = prop->to_array();
+
+    // parser stream infos
+    std::ostringstream log_stream;
+    for (int i = 0; i < streams->count(); i++) {
+        SrsJanusStreamInfo stream_info = SrsJanusStreamInfo::parse_stream_info(streams->at(i)->to_object());
+        log_stream << "{ type=" << stream_info.type_ 
+                   << ", label=" << stream_info.label_ 
+                   << ", state=" << stream_info.state_
+                   << " }, ";
+    }
+
+    SrsJanusMessage* res_msg = new SrsJanusMessage();
+    res_msg->janus = "event";
+    res_msg->session_id = session_->id_;
+    res_msg->sender = id_;
+    res_msg->transaction = msg->transaction;
+    res_msg->plugin = "janus.plugin.videoroom";
+    res_msg->videoroom = "event";
+    res_msg->reconfigured = "ok";
+    srs_random_generate((char*)&res_msg->private_id, 4);
+    session_->enqueue(res_msg);
+
+    srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, request=%s, streams=%d, stream_info=%s",
+        msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
+        "reconfig-publisher", streams->count(), log_stream.str().c_str());
+
+    return err;
+}
+
+srs_error_t SrsJanusCall::on_reconfigure_subscriber(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg)
+{
+    srs_error_t err = srs_success;
+
+    // reconfig-publisher stream_info:
+    // {"request":"reconfig-publisher","streams":[
+    //     {"mslabel":"sophon_stream","label":"sophon_video_camera_large","type":"video","temporalLayers":3,"substreams":1,"state":"active","videoprofile":"UD_640_480P_15","audioprofile":""},
+    //     {"mslabel":"sophon_stream","label":"sophon_video_camera_small","type":"video","temporalLayers":3,"substreams":1,"state":"active","videoprofile":"UD_90_160P_15","audioprofile":""},
+    //     {"mslabel":"sophon_stream","label":"sophon_video_screen_share","type":"video","temporalLayers":3,"substreams":1,"state":"active","videoprofile":"UD_2880_1800P_5","audioprofile":""},
+    //     {"mslabel":"sophon_stream","label":"sophon_video_camera_super","type":"video","temporalLayers":3,"substreams":1,"state":"inactive","videoprofile":"UD_640_480P_15","audioprofile":""},
+    //     {"mslabel":"sophon_stream","label":"sophon_audio","type":"audio","temporalLayers":0,"substreams":0,"state":"active","videoprofile":"","audioprofile":"ENGINE_BASIC_QUALITY_MODE"}
+    // ]}
+    SrsJsonAny* prop = NULL;
+    if ((prop = body->get_property("streams")) == NULL || !prop->is_array()) {
+        return srs_error_new(ERROR_RTC_JANUS_INVALID_PARAMETER, "no streams");
+    }
+    SrsJsonArray* streams = prop->to_array();
+
+    // parser stream infos
+    std::ostringstream log_stream;
+    for (int i = 0; i < streams->count(); i++) {
+        SrsJanusStreamInfo stream_info = SrsJanusStreamInfo::parse_stream_info(streams->at(i)->to_object());
+        bool is_camer_stream = false;
+        if (srs_string_starts_with(stream_info.label_, "sophon_video_camera")) {
+            is_camer_stream = true;
+        }
+
+        std::map<uint32_t, SrsJanusForwardMap>::iterator it;
+        for (it = subscribe_forward_map_.begin(); it != subscribe_forward_map_.end(); ++it) {
+            SrsJanusForwardMap& forward_map = it->second;
+            if (forward_map.track_id == stream_info.label_) {
+                forward_map.enable_stream = true;
+            } else if (srs_string_starts_with(forward_map.track_id, "sophon_video_camera")) {
+                forward_map.enable_stream = false;
+            }
+        }
+        log_stream << "{ type=" << stream_info.type_ 
+                   << ", label=" << stream_info.label_ 
+                   << ", state=" << stream_info.state_
+                   << " }, ";
+    }
+
+    SrsJanusMessage* res_msg = new SrsJanusMessage();
+    res_msg->janus = "event";
+    res_msg->session_id = session_->id_;
+    res_msg->sender = id_;
+    res_msg->transaction = msg->transaction;
+    res_msg->plugin = "janus.plugin.videoroom";
+    res_msg->videoroom = "event";
+    res_msg->reconfigured = "ok";
+    srs_random_generate((char*)&res_msg->private_id, 4);
+    session_->enqueue(res_msg);
+
+    srs_trace("RTC janus %s transaction %s, tid=%s, rpc=%s, module=%s, request=%s, streams=%d, stream_info=%s",
+        msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
+        "reconfig-subscriber", streams->count(), log_stream.str().c_str());
 
     return err;
 }
