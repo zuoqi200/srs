@@ -1048,7 +1048,7 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         }
 
         SrsJsonObject* obj = streams->at(i)->to_object();
-        SrsTrackConfig cfg = SrsTrackConfig::parse_track_config(obj);
+        SrsTrackConfig cfg = SrsTrackConfig::parse(obj);
         track_cfgs.push_back(cfg);
     }
 
@@ -1096,7 +1096,7 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
     }
 
     if (!track_cfgs.empty()) {
-        rtc_session_->set_play_track_config(track_cfgs);
+        rtc_session_->set_play_track_active(track_cfgs);
     }
     
     ostringstream os;
