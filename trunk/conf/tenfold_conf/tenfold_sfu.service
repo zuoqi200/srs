@@ -1,0 +1,14 @@
+[Unit]
+Description=tenfold-sfu
+After=auditd.service systemd-user-sessions.service time-sync.target network.target
+
+[Service]
+Type=forking
+ExecStart=/home/admin/tenfold-sfu/objs/tf_sfu_auto_launch.sh start
+ExecStop=/home/admin/tenfold-sfu/objs/tf_sfu_auto_launch.sh stop
+ExecRestart=/home/admin/tenfold-sfu/objs/tf_sfu_auto_launch.sh restart
+
+
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+/home/admin/tenfold-sfu/logs/tf_sfu.log {
+        daily
+        missingok
+        copytruncate
+        rotate 30
+        compress
+        ifempty
+        sharedscripts
+        dateext
+        dateformat -%Y-%m-%d-%s
+        size=1G
+        postrotate
+        endscript
+}

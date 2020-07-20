@@ -553,6 +553,7 @@ cat << END > ${SRS_WORKDIR}/${SRS_MAKEFILE}
 .PHONY: default _default install install-api help clean destroy server srs_ingest_hls utest _prepare_dir $__mphonys
 .PHONY: clean_srs clean_modules clean_openssl clean_nginx clean_cherrypy clean_srtp2 clean_opus clean_ffmpeg clean_st
 .PHONY: st ffmpeg
+.PHONY: install-tenfold-sfu
 
 # install prefix.
 SRS_PREFIX=${SRS_PREFIX}
@@ -734,6 +735,29 @@ install:
 	@echo "     sudo cp -f \$(SRS_PREFIX)/usr/lib/systemd/system/srs.service /usr/lib/systemd/system/srs.service && sudo systemctl daemon-reload && sudo systemctl enable srs &&"
 	@echo "     sudo systemctl start srs"
 	@echo "@see: https://github.com/ossrs/srs/wiki/v3_CN_LinuxService"
+
+END
+
+# For tenfold.
+cat << END >> ${SRS_WORKDIR}/${SRS_MAKEFILE}
+install-tenfold-sfu:
+	@echo "Now mkdir \$(__REAL_INSTALL)"
+	@mkdir -p \$(__REAL_INSTALL)
+	@echo "Now make the http root dir"
+	@mkdir -p \$(__REAL_INSTALL)/objs/nginx/html
+	@cp -f research/api-server/static-dir/crossdomain.xml \$(__REAL_INSTALL)/objs/nginx/html
+	@echo "Now copy binary files"
+	@mkdir -p \$(__REAL_INSTALL)/objs
+	@cp -f objs/srs \$(__REAL_INSTALL)/objs/tf_sfu
+	@cp auto/tenfold_sfu/tf_sfu_ctl.sh \$(__REAL_INSTALL)/objs/tf_sfu_ctl.sh
+	@cp auto/tenfold_sfu/tf_sfu_auto_launch.sh \$(__REAL_INSTALL)/objs/tf_sfu_auto_launch.sh
+	@cp auto/tenfold_sfu/tf_supervise_ctl.sh \$(__REAL_INSTALL)/objs/tf_supervise_ctl.sh
+	@cp auto/tenfold_sfu/tf_master_ctl.sh \$(__REAL_INSTALL)/objs/tf_master_ctl.sh
+	@mkdir -p \$(__REAL_INSTALL)/logs
+	@mkdir -p \$(__REAL_INSTALL)/../../../usr/lib/systemd/system
+	@cp conf/tenfold_conf/tenfold_sfu.service \$(__REAL_INSTALL)/../../../usr/lib/systemd/system/tenfold_sfu.service
+	@mkdir -p \$(__REAL_INSTALL)/../../../etc/logrotate.d
+	@cp conf/tenfold_conf/tenfold_sfu.logrotate \$(__REAL_INSTALL)/../../../etc/logrotate.d/tenfold_sfu.conf
 
 END
 

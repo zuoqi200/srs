@@ -1,0 +1,4 @@
+t-tenfold-sfu:
+  pkgpara:
+      SUB_DIR: trunk
+      DOCKER: alirtc/rpm7u2_gcc6.1.0:v0.4
