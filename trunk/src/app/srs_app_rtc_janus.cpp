@@ -1508,12 +1508,25 @@ srs_error_t SrsJanusCall::on_reconfigure_publisher(SrsJsonObject* req, SrsJsonOb
 
     // parser stream infos
     std::ostringstream log_stream;
+    std::vector<SrsTrackConfig> track_cfgs;
     for (int i = 0; i < streams->count(); i++) {
-        SrsJanusStreamInfo stream_info = SrsJanusStreamInfo::parse_stream_info(streams->at(i)->to_object());
-        log_stream << "{ type=" << stream_info.type_ 
-                   << ", label=" << stream_info.label_ 
-                   << ", state=" << stream_info.state_
+        SrsJsonAny* stream = streams->at(i);
+        if (!stream->is_object()) {
+            continue;
+        }
+
+        SrsJsonObject* obj = streams->at(i)->to_object();
+        SrsTrackConfig cfg = SrsTrackConfig::parse(obj);
+        track_cfgs.push_back(cfg);
+
+        log_stream << "{ type=" << cfg.type_ 
+                   << ", label=" << cfg.label_ 
+                   << ", active=" << cfg.active
                    << " }, ";
+    }
+
+    if (!track_cfgs.empty()) {
+        rtc_session_->set_play_track_active(track_cfgs);
     }
 
     SrsJanusMessage* res_msg = new SrsJanusMessage();
@@ -1554,26 +1567,25 @@ srs_error_t SrsJanusCall::on_reconfigure_subscriber(SrsJsonObject* req, SrsJsonO
 
     // parser stream infos
     std::ostringstream log_stream;
+    std::vector<SrsTrackConfig> track_cfgs;
     for (int i = 0; i < streams->count(); i++) {
-        SrsJanusStreamInfo stream_info = SrsJanusStreamInfo::parse_stream_info(streams->at(i)->to_object());
-        bool is_camer_stream = false;
-        if (srs_string_starts_with(stream_info.label_, "sophon_video_camera")) {
-            is_camer_stream = true;
+        SrsJsonAny* stream = streams->at(i);
+        if (!stream->is_object()) {
+            continue;
         }
 
-        std::map<uint32_t, SrsJanusForwardMap>::iterator it;
-        for (it = subscribe_forward_map_.begin(); it != subscribe_forward_map_.end(); ++it) {
-            SrsJanusForwardMap& forward_map = it->second;
-            if (forward_map.track_id == stream_info.label_) {
-                forward_map.enable_stream = true;
-            } else if (srs_string_starts_with(forward_map.track_id, "sophon_video_camera")) {
-                forward_map.enable_stream = false;
-            }
-        }
-        log_stream << "{ type=" << stream_info.type_ 
-                   << ", label=" << stream_info.label_ 
-                   << ", state=" << stream_info.state_
+        SrsJsonObject* obj = streams->at(i)->to_object();
+        SrsTrackConfig cfg = SrsTrackConfig::parse(obj);
+        track_cfgs.push_back(cfg);
+
+        log_stream << "{ type=" << cfg.type_ 
+                   << ", label=" << cfg.label_ 
+                   << ", active=" << cfg.active
                    << " }, ";
+    }
+
+    if (!track_cfgs.empty()) {
+        rtc_session_->set_play_track_active(track_cfgs);
     }
 
     SrsJanusMessage* res_msg = new SrsJanusMessage();
