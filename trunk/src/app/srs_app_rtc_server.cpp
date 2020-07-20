@@ -52,6 +52,7 @@ SrsDtlsCertificate* _srs_rtc_dtls_certificate = new SrsDtlsCertificate();
 using namespace std;
 
 #include <srs_app_rtc_janus.hpp>
+#include <srs_app_rtc_gslb.hpp>
 
 static bool is_stun(const uint8_t* data, const int size)
 {
@@ -148,10 +149,12 @@ SrsRtcServer::SrsRtcServer()
     handler = NULL;
     timer = new SrsHourGlass(this, 1 * SRS_UTIME_SECONDS);
     janus = new SrsJanusServer(this);
+    gslb_heartbeat = new SrsGSLBHeartbeat();
 }
 
 SrsRtcServer::~SrsRtcServer()
 {
+    srs_freep(gslb_heartbeat);
     srs_freep(janus);
     srs_freep(timer);
 
@@ -182,6 +185,10 @@ srs_error_t SrsRtcServer::initialize()
 
     if ((err = timer->start()) != srs_success) {
         return srs_error_wrap(err, "start timer");
+    }
+
+    if ((err = gslb_heartbeat->initialize()) != srs_success) {
+        return srs_error_wrap(err, "gslb heartbeat init");
     }
 
     srs_trace("RTC server init ok");
@@ -601,7 +608,7 @@ srs_error_t SrsRtcServer::notify(int type, srs_utime_t interval, srs_utime_t tic
         SrsRtcConnection* session = *it;
         srs_freep(session);
     }
-
+    
     return err;
 }
 

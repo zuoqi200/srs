@@ -3574,7 +3574,7 @@ srs_error_t SrsConfig::check_normal_config()
             && n != "ff_log_level" && n != "grace_final_wait" && n != "force_grace_quit"
             && n != "grace_start_wait" && n != "empty_ip_ok" && n != "disable_daemon_for_docker"
             && n != "inotify_auto_reload" && n != "auto_reload_for_docker" && n != "tcmalloc_release_rate"
-            && n != "srs_log_json" && n != "sls_log"
+            && n != "srs_log_json" && n != "sls_log" && n != "gslb"
             ) {
             return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "illegal directive %s", n.c_str());
         }
@@ -3639,6 +3639,7 @@ srs_error_t SrsConfig::check_normal_config()
             }
         }
     }
+
     if (true) {
         SrsConfDirective* conf = root->get("rtc_server");
         for (int i = 0; conf && i < (int)conf->directives.size(); i++) {
@@ -3647,6 +3648,16 @@ srs_error_t SrsConfig::check_normal_config()
                 && n != "encrypt" && n != "reuseport" && n != "merge_nalus" && n != "perf_stat" && n != "black_hole"
                 && n != "ip_family") {
                 return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "illegal rtc_server.%s", n.c_str());
+            }
+        }
+    }
+
+    if (true) {
+        SrsConfDirective* conf = get_gslb_config();
+        for (int i = 0; conf && i < (int)conf->directives.size(); i++) {
+            string n = conf->at(i)->name;
+            if (n != "interval" && n != "url" && n != "api_key") {
+                return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "illegal gslb .%s", n.c_str());
             }
         }
     }
@@ -5208,6 +5219,62 @@ SrsConfDirective* SrsConfig::get_rtc_sls_log(std::string category)
     }
 
     return NULL;
+}
+
+SrsConfDirective* SrsConfig::get_gslb_config()
+{
+    return root->get("gslb");
+}
+
+srs_utime_t SrsConfig::get_gslb_interval()
+{
+    static srs_utime_t DEFAULT = (srs_utime_t)(9.9 * SRS_UTIME_SECONDS);
+
+    SrsConfDirective* conf = get_gslb_config();
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    conf = conf->get("interval");
+    if (!conf || conf->arg0().empty()) {
+        return DEFAULT;
+    }
+
+    return (srs_utime_t)(::atof(conf->arg0().c_str()) * SRS_UTIME_SECONDS);
+}
+
+string SrsConfig::get_gslb_url()
+{
+    static string DEFAULT = "http://" SRS_CONSTS_LOCALHOST "/gslb-api/v2/reportserver";
+
+    SrsConfDirective* conf = get_gslb_config();
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    conf = conf->get("url");
+    if (!conf || conf->arg0().empty()) {
+        return DEFAULT;
+    }
+
+    return conf->arg0();
+}
+
+std::string SrsConfig::get_gslb_api_key()
+{
+    static string DEFAULT = "";
+
+    SrsConfDirective* conf = get_gslb_config();
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    conf = conf->get("api_key");
+    if (!conf || conf->arg0().empty()) {
+        return DEFAULT;
+    }
+
+    return conf->arg0();
 }
 
 SrsConfDirective* SrsConfig::get_vhost(string vhost, bool try_default_vhost)
@@ -8312,3 +8379,4 @@ SrsConfDirective* SrsConfig::get_stats_disk_device()
     
     return conf;
 }
+

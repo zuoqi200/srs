@@ -36,6 +36,7 @@
 
 // For Alibaba Tenfold.
 class SrsJanusServer;
+class SrsGSLBHeartbeat;
 
 class SrsRtcServer;
 class SrsHourGlass;
@@ -67,6 +68,7 @@ private:
     std::vector<SrsRtcConnection*> zombies_;
 private:
     SrsJanusServer* janus;
+    SrsGSLBHeartbeat* gslb_heartbeat;
 public:
     SrsRtcServer();
     virtual ~SrsRtcServer();

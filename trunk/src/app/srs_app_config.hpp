@@ -558,6 +558,18 @@ public:
 private:
     SrsConfDirective* get_rtc_sls_log(std::string category);
 
+// gslb heartbeart section
+private:
+    // Get the heartbeat directive.
+    virtual SrsConfDirective* get_gslb_config();
+public:
+    // Get the heartbeat interval, in srs_utime_t.
+    virtual srs_utime_t get_gslb_interval();
+    // Get the heartbeat report url.
+    virtual std::string get_gslb_url();
+    // Get gslb api key.
+    virtual std::string get_gslb_api_key();
+
 // vhost specified section
 public:
     // Get the vhost directive by vhost name.
