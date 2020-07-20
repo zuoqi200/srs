@@ -326,8 +326,9 @@ srs_error_t SrsRtcPlayStream::start()
 
     // If player coroutine allocated, we think the player is started.
     // To prevent play multiple times for this play stream.
+    // @remark Allow start multiple times, for DTLS may retransmit the final packet.
     if (is_started) {
-        return srs_error_new(ERROR_RTC_STREM_STARTED, "playstream start");
+        return err;
     }
 
     srs_freep(trd);
@@ -907,6 +908,51 @@ uint32_t SrsRtcPlayStream::get_video_publish_ssrc(uint32_t play_ssrc)
     }
 
     return 0;
+}
+
+void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
+{
+    // set video track inactive
+    if (true) {
+        std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
+        for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
+            SrsRtcVideoSendTrack* track = it->second;
+            track->set_track_status(false);
+        }
+    }
+
+    // set audio track inactive.
+    if (true) {
+        std::map<uint32_t, SrsRtcAudioSendTrack*>::iterator it;
+        for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
+            SrsRtcAudioSendTrack* track = it->second;
+            track->set_track_status(false);
+        }
+    }
+
+    for (int i = 0; i < cfgs.size(); ++i) {
+        const SrsTrackConfig& cfg = cfgs.at(i);
+
+        if (cfg.type_ == "audio") {
+            std::map<uint32_t, SrsRtcAudioSendTrack*>::iterator it;
+            for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
+                SrsRtcAudioSendTrack* track = it->second;
+                if (track->get_track_id() == cfg.label_) {
+                    track->set_track_status(cfg.active);
+                }
+            }
+        }
+
+        if (cfg.type_ == "video") {
+            std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
+            for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
+                SrsRtcVideoSendTrack* track = it->second;
+                if (track->get_track_id() == cfg.label_) {
+                    track->set_track_status(cfg.active);
+                }  
+            }
+        }
+    }
 }
 
 SrsRtcPublishStream::SrsRtcPublishStream(SrsRtcConnection* session)
@@ -1783,12 +1829,14 @@ srs_error_t SrsRtcConnection::add_player(SrsRequest* req, const SrsSdp& remote_s
     SrsAutoFree(SrsRtcStreamDescription, stream_desc);
     std::map<uint32_t, SrsRtcTrackDescription*>::iterator it = play_sub_relations.begin();
     while (it != play_sub_relations.end()) {
-        if (it->second->type_ == "audio" || !stream_desc->audio_track_desc_) {
-            stream_desc->audio_track_desc_ = it->second->copy();
+        SrsRtcTrackDescription* track_desc = it->second;
+
+        if (track_desc->type_ == "audio" || !stream_desc->audio_track_desc_) {
+            stream_desc->audio_track_desc_ = track_desc->copy();
         }
 
-        if (it->second->type_ == "video") {
-            stream_desc->video_track_descs_.push_back(it->second->copy());
+        if (track_desc->type_ == "video") {
+            stream_desc->video_track_descs_.push_back(track_desc->copy());
         }
         ++it;
     }
@@ -1822,12 +1870,14 @@ srs_error_t SrsRtcConnection::add_player2(SrsRequest* req, SrsSdp& local_sdp)
 
     std::map<uint32_t, SrsRtcTrackDescription*>::iterator it = play_sub_relations.begin();
     while (it != play_sub_relations.end()) {
-        if (it->second->type_ == "audio" || !stream_desc->audio_track_desc_) {
-            stream_desc->audio_track_desc_ = it->second->copy();
+        SrsRtcTrackDescription* track_desc = it->second;
+
+        if (track_desc->type_ == "audio" || !stream_desc->audio_track_desc_) {
+            stream_desc->audio_track_desc_ = track_desc->copy();
         }
 
-        if (it->second->type_ == "video") {
-            stream_desc->video_track_descs_.push_back(it->second->copy());
+        if (track_desc->type_ == "video") {
+            stream_desc->video_track_descs_.push_back(track_desc->copy());
         }
         ++it;
     }
@@ -2352,7 +2402,6 @@ srs_error_t SrsRtcConnection::negotiate_publish_capability(SrsRequest* req, cons
                 audio_payload->set_opus_param_desc(iter->format_specific_param_);
                 // TODO: FIXME: Only support some transport algorithms.
                 for (int j = 0; j < (int)iter->rtcp_fb_.size(); ++j) {
-
                     if (nack_enabled) {
                         if (iter->rtcp_fb_.at(j) == "nack" || iter->rtcp_fb_.at(j) == "nack pli") {
                             audio_payload->rtcp_fbs_.push_back(iter->rtcp_fb_.at(j));
@@ -2461,6 +2510,7 @@ srs_error_t SrsRtcConnection::negotiate_publish_capability(SrsRequest* req, cons
                 SrsRtcTrackDescription* track_desc_copy = track_desc->copy();
                 track_desc_copy->ssrc_ = ssrc_info.ssrc_;
                 track_desc_copy->id_ = ssrc_info.msid_tracker_;
+                track_desc_copy->msid_ = ssrc_info.msid_;
 
                 if (remote_media_desc.is_audio() && !stream_desc->audio_track_desc_) {
                     stream_desc->audio_track_desc_ = track_desc_copy;
@@ -2600,6 +2650,9 @@ srs_error_t SrsRtcConnection::negotiate_play_capability(SrsRequest* req, const S
         return srs_error_wrap(err, "fetch rtc source");
     }
 
+    // for need merged track, use the same ssrc
+    uint32_t merged_track_ssrc = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+
     for (size_t i = 0; i < remote_sdp.media_descs_.size(); ++i) {
         const SrsMediaDesc& remote_media_desc = remote_sdp.media_descs_[i];
         // Whether feature enabled in remote extmap.
@@ -2645,22 +2698,28 @@ srs_error_t SrsRtcConnection::negotiate_play_capability(SrsRequest* req, const S
             track->mid_ = remote_media_desc.mid_;
             uint32_t publish_ssrc = track->ssrc_;
 
-            track->media_->rtcp_fbs_.clear();
-            track->extmaps_.clear();
-
-            for (int j = 0; j < (int)remote_rtcp_fb.size(); j++) {
+            vector<string> rtcp_fb;
+            track->media_->rtcp_fbs_.swap(rtcp_fb);
+            for (int j = 0; j < (int)rtcp_fb.size(); j++) {
                 if (nack_enabled) {
-                    if (remote_rtcp_fb.at(j) == "nack" || remote_rtcp_fb.at(j) == "nack pli" || remote_rtcp_fb.at(j) == "transport-cc") {
-                        track->media_->rtcp_fbs_.push_back(remote_rtcp_fb.at(j));
+                    if (rtcp_fb.at(j) == "nack" || rtcp_fb.at(j) == "nack pli") {
+                        track->media_->rtcp_fbs_.push_back(rtcp_fb.at(j));
                     }
+                }
+                if (twcc_enabled && remote_twcc_id) {
+                    if (rtcp_fb.at(j) == "transport-cc") {
+                        track->media_->rtcp_fbs_.push_back(rtcp_fb.at(j));
+                    }
+                    track->add_rtp_extension_desc(remote_twcc_id, kTWCCExt);
                 }
             }
 
-            if (twcc_enabled && remote_twcc_id) {
-                track->add_rtp_extension_desc(remote_twcc_id, kTWCCExt);
+            if (_srs_track_id_group->get_merged_track_id(track->id_) != track->id_) {
+                track->ssrc_ = merged_track_ssrc;
+            } else {
+                track->ssrc_ = SrsRtcSSRCGenerator::instance()->generate_ssrc();
             }
-
-            track->ssrc_ = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+            
             // TODO: FIXME: set audio_payload rtcp_fbs_,
             // according by whether downlink is support transport algorithms.
             // TODO: FIXME: if we support downlink RTX, MUST assign rtx_ssrc_, rtx_pt, rtx_apt
@@ -2702,6 +2761,9 @@ srs_error_t SrsRtcConnection::fetch_source_capability(SrsRequest* req, std::map<
         return srs_error_wrap(err, "fetch rtc source");
     }
 
+    // for need merged track, use the same ssrc
+    uint32_t merged_track_ssrc = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+
     std::vector<SrsRtcTrackDescription*> track_descs = source->get_track_desc("audio", "opus");
     std::vector<SrsRtcTrackDescription*> video_track_desc = source->get_track_desc("video", "H264");
     
@@ -2710,20 +2772,30 @@ srs_error_t SrsRtcConnection::fetch_source_capability(SrsRequest* req, std::map<
         SrsRtcTrackDescription* track = track_descs[i]->copy();
         uint32_t publish_ssrc = track->ssrc_;
 
-        track->media_->rtcp_fbs_.clear();
-        if (nack_enabled) {
-            track->media_->rtcp_fbs_.push_back("nack");
-            track->media_->rtcp_fbs_.push_back("nack pli");
-        }
-
         int local_twcc_id = track->get_rtp_extension_id(kTWCCExt);
-        track->extmaps_.clear();
-        if (twcc_enabled && local_twcc_id) {
-            track->media_->rtcp_fbs_.push_back("transport-cc");
-            track->add_rtp_extension_desc(local_twcc_id, kTWCCExt);
+
+        vector<string> rtcp_fb;
+        track->media_->rtcp_fbs_.swap(rtcp_fb);
+        for (int j = 0; j < (int)rtcp_fb.size(); j++) {
+            if (nack_enabled) {
+                if (rtcp_fb.at(j) == "nack" || rtcp_fb.at(j) == "nack pli") {
+                    track->media_->rtcp_fbs_.push_back(rtcp_fb.at(j));
+                }
+            }
+            if (twcc_enabled && local_twcc_id) {
+                if (rtcp_fb.at(j) == "transport-cc") {
+                    track->media_->rtcp_fbs_.push_back(rtcp_fb.at(j));
+                }
+                track->add_rtp_extension_desc(local_twcc_id, kTWCCExt);
+            }
         }
 
-        track->ssrc_ = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+        if (_srs_track_id_group->get_merged_track_id(track->id_) != track->id_) {
+            track->ssrc_ = merged_track_ssrc;
+        } else {
+            track->ssrc_ = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+        }
+
         // TODO: FIXME: set audio_payload rtcp_fbs_,
         // according by whether downlink is support transport algorithms.
         // TODO: FIXME: if we support downlink RTX, MUST assign rtx_ssrc_, rtx_pt, rtx_apt
@@ -2775,6 +2847,7 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
 
     std::string cname = srs_random_str(16);
 
+    bool track_merged = false;
     // generate audio media desc
     if (stream_desc->audio_track_desc_) {
         SrsRtcTrackDescription* audio_track = stream_desc->audio_track_desc_;
@@ -2802,13 +2875,18 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
             local_media_desc.inactive_ = true;
         }
 
+        if (audio_track->red_) {
+            SrsRedPayload* red_payload = (SrsRedPayload*)audio_track->red_;
+            local_media_desc.payload_types_.push_back(red_payload->generate_media_payload_type());
+        }
+
         SrsAudioPayload* payload = (SrsAudioPayload*)audio_track->media_;
-        local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
+        local_media_desc.payload_types_.push_back(payload->generate_media_payload_type()); 
 
         //TODO: FIXME: add red, rtx, ulpfec, rsfec..., payload_types_.
         //local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
 
-        local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(audio_track->ssrc_, cname, stream_id, audio_track->id_));
+        local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(audio_track->ssrc_, cname, audio_track->msid_, audio_track->id_));
 
         if (audio_track->rtx_) {
             std::vector<uint32_t> group_ssrcs;
@@ -2816,7 +2894,7 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
             group_ssrcs.push_back(audio_track->rtx_ssrc_);
 
             local_media_desc.ssrc_groups_.push_back(SrsSSRCGroup("FID", group_ssrcs));
-            local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(audio_track->rtx_ssrc_, cname, stream_id, audio_track->id_));
+            local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(audio_track->rtx_ssrc_, cname, audio_track->msid_, audio_track->id_));
         }
 
         if (audio_track->ulpfec_ || audio_track->rsfec_) {
@@ -2825,7 +2903,7 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
             group_ssrcs.push_back(audio_track->fec_ssrc_);
             local_media_desc.ssrc_groups_.push_back(SrsSSRCGroup("FEC", group_ssrcs));
 
-            local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(audio_track->fec_ssrc_, cname, stream_id, audio_track->id_));
+            local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(audio_track->fec_ssrc_, cname, audio_track->msid_, audio_track->id_));
         }
     }
 
@@ -2863,7 +2941,17 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
         }
 
         SrsMediaDesc& local_media_desc = local_sdp.media_descs_.back();
-        local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(track->ssrc_, cname, stream_id, track->id_));
+
+        // only add merge track to sdp
+        std::string merged_track_id = _srs_track_id_group->get_merged_track_id(track->id_);
+        if (merged_track_id != track->id_) {
+            if (track_merged) {
+                continue;
+            }
+            track->id_ = merged_track_id;
+            track_merged = true;
+        }
+        local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(track->ssrc_, cname, track->msid_, track->id_));
 
         if (track->rtx_ && track->rtx_ssrc_) {
             std::vector<uint32_t> group_ssrcs;
@@ -2871,7 +2959,7 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
             group_ssrcs.push_back(track->rtx_ssrc_);
 
             local_media_desc.ssrc_groups_.push_back(SrsSSRCGroup("FID", group_ssrcs));
-            local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(track->rtx_ssrc_, cname, stream_id, track->id_));
+            local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(track->rtx_ssrc_, cname, track->msid_, track->id_));
         }
 
         if ((track->ulpfec_ || track->rsfec_) && track->fec_ssrc_) {
@@ -2880,7 +2968,7 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
             group_ssrcs.push_back(track->fec_ssrc_);
             local_media_desc.ssrc_groups_.push_back(SrsSSRCGroup("FEC", group_ssrcs));
 
-            local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(track->fec_ssrc_, cname, stream_id, track->id_));
+            local_media_desc.ssrc_infos_.push_back(SrsSSRCInfo(track->fec_ssrc_, cname, track->msid_, track->id_));
         }
     }
 
@@ -2919,6 +3007,19 @@ srs_error_t SrsRtcConnection::create_publisher(SrsRequest* req, SrsRtcStreamDesc
     if ((err = publisher_->initialize(req, stream_desc)) != srs_success) {
         return srs_error_wrap(err, "rtc publisher init");
     }
+
+    return err;
+}
+
+srs_error_t SrsRtcConnection::set_play_track_active(const std::vector<SrsTrackConfig>& cfgs)
+{
+    srs_error_t err = srs_success;
+
+    if (!player_) {
+        return srs_error_new(ERROR_RTC_NO_PLAYER, "set play track");
+    }
+
+    player_->set_track_active(cfgs);
 
     return err;
 }
