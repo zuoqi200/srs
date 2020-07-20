@@ -1845,6 +1845,7 @@ SrsTrackConfig::SrsTrackConfig()
 {
     temporal_layers_ = 0;
     sub_streams_ = 0;
+    active = true;
 }
 
 SrsTrackConfig::~SrsTrackConfig()
@@ -1869,8 +1870,8 @@ SrsTrackConfig SrsTrackConfig::parse(SrsJsonObject* track)
     }
 
     if ((prop = track->get_property("state")) != NULL && prop->is_string()) {
-        if (prop->to_str() == "active") {
-            track_cfg.active = true;
+        if (prop->to_str() == "inactive") {
+            track_cfg.active = false;
         }
     }
 
