@@ -322,6 +322,16 @@ srs_error_t SrsRtcServer::create_session(
 ) {
     srs_error_t err = srs_success;
 
+    // Create new context for session if not sid.
+    SrsContextId cid = _srs_context->get_id();
+    if (!cid.match("sid")) {
+        cid = _srs_context->generate_id("sid");
+        _srs_context->bind(cid, "rtc api create session");
+    }
+
+    // Switch to the new context.
+    _srs_context->set_id(cid);
+
     SrsRtcStream* source = NULL;
     if ((err = _srs_rtc_sources->fetch_or_create(req, &source)) != srs_success) {
         return srs_error_wrap(err, "create source");
@@ -333,7 +343,7 @@ srs_error_t SrsRtcServer::create_session(
     }
 
     // TODO: FIXME: add do_create_session to error process.
-    SrsRtcConnection* session = new SrsRtcConnection(this);
+    SrsRtcConnection* session = new SrsRtcConnection(this, cid);
     if ((err = do_create_session(session, req, remote_sdp, local_sdp, mock_eip, publish, source)) != srs_success) {
         srs_freep(session);
         return srs_error_wrap(err, "create session");
@@ -410,15 +420,8 @@ srs_error_t SrsRtcServer::do_create_session(
     session->set_local_sdp(local_sdp);
     session->set_state(WAITING_STUN);
 
-    // Create new context for session if not sid.
-    SrsContextId cid = _srs_context->get_id();
-    if (!cid.match("sid")) {
-        cid = _srs_context->generate_id("sid");
-        _srs_context->bind(cid, "rtc api create session");
-    }
-
     // Before session initialize, we must setup the local SDP.
-    if ((err = session->initialize(source, req, publish, username, cid)) != srs_success) {
+    if ((err = session->initialize(source, req, publish, username)) != srs_success) {
         return srs_error_wrap(err, "init");
     }
 
@@ -430,11 +433,21 @@ srs_error_t SrsRtcServer::create_session2(SrsRequest* req, SrsSdp& local_sdp, co
 {
     srs_error_t err = srs_success;
 
+    // Create new context for session if not sid.
+    SrsContextId cid = _srs_context->get_id();
+    if (!cid.match("sid")) {
+        cid = _srs_context->generate_id("sid");
+        _srs_context->bind(cid, "rtc api setup session");
+    }
+
+    // Switch to the new context.
+    _srs_context->set_id(cid);
+
     std::string local_pwd = srs_random_str(32);
     // TODO: FIXME: Collision detect.
     std::string local_ufrag = srs_random_str(8);
 
-    SrsRtcConnection* session = new SrsRtcConnection(this);
+    SrsRtcConnection* session = new SrsRtcConnection(this, cid);
     // first add player for negotiate local sdp media info
     if ((err = session->add_player2(req, local_sdp)) != srs_success) {
         srs_freep(session);
@@ -488,15 +501,8 @@ srs_error_t SrsRtcServer::setup_session2(SrsRtcConnection* session, SrsRequest* 
     // TODO: FIXME: Collision detect.
     string username = local_sdp.get_ice_ufrag() + ":" + remote_sdp.get_ice_ufrag();
 
-    // Create new context for session if not sid.
-    SrsContextId cid = _srs_context->get_id();
-    if (!cid.match("sid")) {
-        cid = _srs_context->generate_id("sid");
-        _srs_context->bind(cid, "rtc api setup session");
-    }
-
     // Before session initialize, we must setup the local SDP.
-    if ((err = session->initialize(source, req, false, username, cid)) != srs_success) {
+    if ((err = session->initialize(source, req, false, username)) != srs_success) {
         return srs_error_wrap(err, "init");
     }
 
