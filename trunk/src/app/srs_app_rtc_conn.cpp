@@ -230,6 +230,7 @@ SrsRtcPlayStream::SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid)
     realtime = true;
 
     nack_enabled_ = false;
+    is_started = false;
 
     _srs_config->subscribe(this);
 }
@@ -800,6 +801,7 @@ SrsRtcPublishStream::SrsRtcPublishStream(SrsRtcConnection* session)
     twcc_id_ = 0;
     last_twcc_feedback_time_ = 0;
     twcc_fb_count_ = 0;
+    is_started = false;
 }
 
 SrsRtcPublishStream::~SrsRtcPublishStream()
