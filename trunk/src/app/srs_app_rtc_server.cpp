@@ -335,6 +335,13 @@ srs_error_t SrsRtcServer::do_create_session(
 {
     srs_error_t err = srs_success;
 
+    // Create new context for session if not sid.
+    SrsContextId cid = _srs_context->get_id();
+    if (!cid.match("sid")) {
+        cid = _srs_context->generate_id("sid");
+        _srs_context->bind(cid, "rtc api create session");
+    }
+
     // first add publisher/player for negotiate sdp media info
     if (publish) {
         if ((err = session->add_publisher(req, remote_sdp, local_sdp)) != srs_success) {
@@ -394,13 +401,6 @@ srs_error_t SrsRtcServer::do_create_session(
     session->set_local_sdp(local_sdp);
     session->set_state(WAITING_STUN);
 
-    // Create new context for session if not sid.
-    SrsContextId cid = _srs_context->get_id();
-    if (!cid.match("sid")) {
-        cid = _srs_context->generate_id("sid");
-        _srs_context->bind(cid, "rtc api create session");
-    }
-
     // Before session initialize, we must setup the local SDP.
     if ((err = session->initialize(source, req, publish, username, cid)) != srs_success) {
         return srs_error_wrap(err, "init");
@@ -454,6 +454,13 @@ srs_error_t SrsRtcServer::setup_session2(SrsRtcConnection* session, SrsRequest* 
 {
     srs_error_t err = srs_success;
 
+    // Create new context for session if not sid.
+    SrsContextId cid = _srs_context->get_id();
+    if (!cid.match("sid")) {
+        cid = _srs_context->generate_id("sid");
+        _srs_context->bind(cid, "rtc api setup session");
+    }
+
     if (session->state() != WAITING_ANSWER) {
         return err;
     }
@@ -465,13 +472,6 @@ srs_error_t SrsRtcServer::setup_session2(SrsRtcConnection* session, SrsRequest* 
 
     // TODO: FIXME: Collision detect.
     string username = session->get_local_sdp()->get_ice_ufrag() + ":" + remote_sdp.get_ice_ufrag();
-
-    // Create new context for session if not sid.
-    SrsContextId cid = _srs_context->get_id();
-    if (!cid.match("sid")) {
-        cid = _srs_context->generate_id("sid");
-        _srs_context->bind(cid, "rtc api setup session");
-    }
 
     // Before session initialize, we must setup the local SDP.
     if ((err = session->initialize(source, req, false, username, cid)) != srs_success) {
