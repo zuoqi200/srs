@@ -3656,7 +3656,7 @@ srs_error_t SrsConfig::check_normal_config()
         SrsConfDirective* conf = get_gslb_config();
         for (int i = 0; conf && i < (int)conf->directives.size(); i++) {
             string n = conf->at(i)->name;
-            if (n != "interval" && n != "url" && n != "api_key") {
+            if (n != "enabled" && n != "interval" && n != "url" && n != "api_key") {
                 return srs_error_new(ERROR_SYSTEM_CONFIG_INVALID, "illegal gslb .%s", n.c_str());
             }
         }
@@ -5226,9 +5226,26 @@ SrsConfDirective* SrsConfig::get_gslb_config()
     return root->get("gslb");
 }
 
+bool SrsConfig::get_gslb_enabled()
+{
+    static bool DEFAULT = false;
+
+    SrsConfDirective* conf = get_gslb_config();
+    if (!conf) {
+        return DEFAULT;
+    }
+
+    conf = conf->get("enabled");
+    if (!conf || conf->arg0().empty()) {
+        return DEFAULT;
+    }
+
+    return SRS_CONF_PERFER_FALSE(conf->arg0());
+}
+
 srs_utime_t SrsConfig::get_gslb_interval()
 {
-    static srs_utime_t DEFAULT = (srs_utime_t)(9.9 * SRS_UTIME_SECONDS);
+    static srs_utime_t DEFAULT = 30 * SRS_UTIME_SECONDS;
 
     SrsConfDirective* conf = get_gslb_config();
     if (!conf) {
@@ -5245,7 +5262,7 @@ srs_utime_t SrsConfig::get_gslb_interval()
 
 string SrsConfig::get_gslb_url()
 {
-    static string DEFAULT = "http://" SRS_CONSTS_LOCALHOST "/gslb-api/v2/reportserver";
+    static string DEFAULT = "";
 
     SrsConfDirective* conf = get_gslb_config();
     if (!conf) {

@@ -53,6 +53,10 @@ srs_error_t SrsGSLBHeartbeat::initialize()
 {
     srs_error_t err = srs_success;
 
+    if (!_srs_config->get_gslb_enabled()) {
+        return err;
+    }
+
     if ((err = timer->tick(_srs_config->get_gslb_interval())) != srs_success) {
         return srs_error_wrap(err, "hourglass tick");
     }

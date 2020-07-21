@@ -563,6 +563,7 @@ private:
     // Get the heartbeat directive.
     virtual SrsConfDirective* get_gslb_config();
 public:
+    virtual bool get_gslb_enabled();
     // Get the heartbeat interval, in srs_utime_t.
     virtual srs_utime_t get_gslb_interval();
     // Get the heartbeat report url.
