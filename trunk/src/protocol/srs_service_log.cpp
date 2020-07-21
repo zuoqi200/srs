@@ -135,6 +135,7 @@ void SrsThreadContext::bind(const SrsContextId& target, const char* fmt, ...)
 
     pid_t pid = ::getpid();
     _srs_trace_by(cid, "Context bind [%u][%s] to [%u][%s], %.*s", pid, cid.c_str(), pid, target.c_str(), size, buffer);
+    _srs_trace_by(target, "Context bind [%u][%s] to [%u][%s], %.*s", pid, cid.c_str(), pid, target.c_str(), size, buffer);
 }
 
 impl_SrsContextRestore::impl_SrsContextRestore(SrsContextId cid)
