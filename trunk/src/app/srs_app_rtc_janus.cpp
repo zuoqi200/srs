@@ -1057,7 +1057,7 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
     _srs_context->set_id(cid_);
 
     // TODO: FIXME: We should apply appid.
-    request.app = session_->channel_;
+    request.app = session_->appid_ + string(":") + session_->channel_;
     request.stream = callee->callid_;
     srs_trace("RTC janus play stream=/%s/%s, feed_id=%" PRId64 ", self=%" PRId64,
         request.app.c_str(), request.stream.c_str(), callee->feed_id_, feed_id_);
@@ -1419,7 +1419,7 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     _srs_context->set_id(cid_);
 
     // TODO: FIXME: We should apply appid.
-    request.app = session_->channel_;
+    request.app = session_->appid_ + string(":") + session_->channel_;
     request.stream = callid_;
     srs_trace("RTC janus publish stream=/%s/%s, feed_id=%" PRId64,
         request.app.c_str(), request.stream.c_str(), feed_id_);
