@@ -1039,6 +1039,7 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
     }
     SrsJsonArray* streams = prop->to_array();
 
+    std::ostringstream log_stream;
     // parser stream infos
     std::vector<SrsTrackConfig> track_cfgs;
     for (int i = 0; i < streams->count(); i++) {
@@ -1050,6 +1051,11 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         SrsJsonObject* obj = streams->at(i)->to_object();
         SrsTrackConfig cfg = SrsTrackConfig::parse(obj);
         track_cfgs.push_back(cfg);
+
+        log_stream << "{ type=" << cfg.type_
+                   << ", label=" << cfg.label_
+                   << ", active=" << cfg.active
+                   << " }, ";
     }
 
     // Generate new context for publisher.
@@ -1059,8 +1065,8 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
     // TODO: FIXME: We should apply appid.
     request.app = session_->appid_ + string(":") + session_->channel_;
     request.stream = callee->callid_;
-    srs_trace("RTC janus play stream=/%s/%s, feed_id=%" PRId64 ", self=%" PRId64,
-        request.app.c_str(), request.stream.c_str(), callee->feed_id_, feed_id_);
+    srs_trace("RTC janus play stream=/%s/%s, feed_id=%" PRId64 ", self=%" PRId64 ", track config=%s",
+        request.app.c_str(), request.stream.c_str(), callee->feed_id_, feed_id_, log_stream.str().c_str());
 
     // TODO: FIXME: Parse vhost.
     // discovery vhost, resolve the vhost from config
