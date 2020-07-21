@@ -24,7 +24,16 @@ Tenfold Selective Forwarding Unit
 %build
 echo "Start to build tenfold sfu in docker..."
 pushd $OLDPWD/../
+
+# PUSH the release variable, for tenfold use it in build script.
+OLD_RELEASE=${RELEASE}
+RELEASE=""
+
 ./configure --static --prefix=%{tf_prefix} && make
+
+RELEASE=${OLD_RELEASE}
+OLD_RELEASE=""
+
 popd
 
 %install
