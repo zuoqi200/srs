@@ -1722,8 +1722,8 @@ SrsRtpPacket2* SrsRtcSendTrack::fetch_rtp_packet(uint16_t seq)
 
 void SrsRtcSendTrack::set_track_status(bool active)
 {
+    srs_trace("set status, track: %s, is_active: %u=>%u", track_desc_->id_.c_str(), track_desc_->is_active_, active);
     track_desc_->is_active_ = active;
-    srs_trace("track : %s, is_active: %s", track_desc_->id_.c_str(), track_desc_->is_active_? "true" : "false");
 }
 
 std::string SrsRtcSendTrack::get_track_id()
