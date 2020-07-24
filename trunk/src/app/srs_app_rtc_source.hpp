@@ -558,10 +558,10 @@ public:
     SrsTrackGroupRtpContext();
     virtual ~SrsTrackGroupRtpContext();
 public:
-    // Return whether stream is merging, we should request PLI if true.
-    bool set_track_active(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg);
+    // Return whether stream is merging, we should active it in future(get keyframe).
+    bool active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg);
     // When send keyframe, we switch to preparing stream and disable previous one.
-    void on_send_packet(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt);
+    void try_switch_stream(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt);
     // If track is merging stream, such as large or small stream,
     // and if track is active, it's immutable, we should never inactive it.
     bool is_track_immutable(SrsRtcVideoSendTrack* track);
