@@ -86,6 +86,8 @@ enum SrsRtpExtensionType
 {
     kRtpExtensionNone,
     kRtpExtensionTransportSequenceNumber,
+    // Alibaba private extension.
+    kRtpExtensionPictureID,
     kRtpExtensionNumberOfExtensions  // Must be the last entity in the enum.
 };
 
@@ -96,7 +98,8 @@ struct SrsExtensionInfo
 };
 
 const SrsExtensionInfo kExtensions[] = {
-    {kRtpExtensionTransportSequenceNumber, std::string("http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01")}
+    {kRtpExtensionTransportSequenceNumber, std::string("http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01")},
+    {kRtpExtensionPictureID, std::string("http://www.alibaba.com/experiments/rtp-hdrext/picture_id")}
 };
 
 class SrsRtpExtensionTypes
@@ -138,12 +141,55 @@ public:
     virtual int nb_bytes();
 };
 
+class SrsRtpExtensionPictureID : public ISrsCodec
+{
+private:
+    bool has_picture_id_;
+    uint8_t id_;
+    uint16_t picture_id_;
+    uint8_t tid_;
+    uint8_t ref_id_;
+    bool is_hard_codec_;
+    bool hard_codec_keyframe_;
+    uint8_t stream_id_;
+    uint16_t real_sn_;
+public:
+    SrsRtpExtensionPictureID();
+    virtual ~SrsRtpExtensionPictureID();
+
+    bool exist();
+    uint8_t get_id();
+    void set_id(uint8_t id);
+    uint16_t get_picture_id();
+    void set_picture_id(uint16_t id);
+    uint8_t get_tid();
+    void set_tid(uint8_t id);
+    uint8_t get_ref_id();
+    void set_ref_id(uint8_t id);
+    bool is_hard_codec();
+    void set_hard_codec(bool v);
+    bool is_hard_codec_keyframe();
+    void set_hard_codec_keyframe(bool v);
+    uint8_t get_stream_id();
+    void set_stream_id(uint8_t id);
+
+    bool is_keyframe();
+
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer* buf);
+    virtual srs_error_t encode(SrsBuffer* buf);
+    virtual int nb_bytes();
+};
+
 class SrsRtpExtensions : public ISrsCodec
 {
 private:
     bool has_ext_;
     SrsRtpExtensionTypes types_;
     SrsRtpExtensionTwcc twcc_;
+private:
+    SrsRtpExtensionPictureID picture_id_;
 public:
     SrsRtpExtensions();
     virtual ~SrsRtpExtensions();
@@ -152,6 +198,8 @@ public:
     void set_types_(const SrsRtpExtensionTypes* types);
     srs_error_t get_twcc_sequence_number(uint16_t& twcc_sn);
     srs_error_t set_twcc_sequence_number(uint8_t id, uint16_t sn);
+public:
+    SrsRtpExtensionPictureID* get_picture_id();
 
 // ISrsCodec
 public:
@@ -203,6 +251,8 @@ public:
     void ignore_padding(bool v);
     srs_error_t get_twcc_sequence_number(uint16_t& twcc_sn);
     srs_error_t set_twcc_sequence_number(uint8_t id, uint16_t sn);
+public:
+    SrsRtpExtensionPictureID* get_picture_id();
 };
 
 class ISrsRtpPayloader : public ISrsCodec

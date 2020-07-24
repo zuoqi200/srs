@@ -62,6 +62,21 @@ using namespace std;
 #include <srs_api/srs_webrtc_api.hpp>
 #endif
 
+void srs_session_request_keyframe(SrsRtcStream* source, uint32_t ssrc)
+{
+    // When enable some video tracks, we should request PLI for that SSRC.
+    if (!source) {
+        return;
+    }
+
+    ISrsRtcPublishStream* publisher = source->publish_stream();
+    if (!publisher) {
+        return;
+    }
+
+    publisher->request_keyframe(ssrc);
+}
+
 SrsSecurityTransport::SrsSecurityTransport(SrsRtcConnection* s)
 {
     session_ = s;
@@ -231,6 +246,8 @@ SrsRtcPlayStream::SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid)
     is_started = false;
 
     _srs_config->subscribe(this);
+
+    video_group_rtp_ctx_ = new SrsTrackGroupRtpContext();
 }
 
 SrsRtcPlayStream::~SrsRtcPlayStream()
@@ -238,6 +255,20 @@ SrsRtcPlayStream::~SrsRtcPlayStream()
     _srs_config->unsubscribe(this);
 
     srs_freep(trd);
+
+    if (true) {
+        std::map<uint32_t, SrsRtcAudioSendTrack*>::iterator it;
+        for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
+            srs_freep(it->second);
+        }
+    }
+
+    if (true) {
+        std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
+        for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
+            srs_freep(it->second);
+        }
+    }
 }
 
 srs_error_t SrsRtcPlayStream::initialize(SrsRequest* req, std::map<uint32_t, SrsRtcTrackDescription*> sub_relations)
@@ -313,6 +344,17 @@ srs_error_t SrsRtcPlayStream::start()
     if (_srs_rtc_hijacker) {
         if ((err = _srs_rtc_hijacker->on_start_play(session_, this, session_->req)) != srs_success) {
             return srs_error_wrap(err, "on start play");
+        }
+    }
+
+    // When start play the stream, we request PLI to enable player to decode frame ASAP.
+    std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
+    for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
+        SrsRtcVideoSendTrack* track = it->second;
+
+        // If the track is merging stream, we should request PLI when it startup.
+        if (video_group_rtp_ctx_->is_track_preparing(track)) {
+            srs_session_request_keyframe(session_->source_, it->first);
         }
     }
 
@@ -462,6 +504,11 @@ srs_error_t SrsRtcPlayStream::send_packets(SrsRtcStream* source, const vector<Sr
             // TODO: FIXME: Padding audio to the max payload in RTP packets.
         } else {
             SrsRtcVideoSendTrack* video_track = video_tracks_[pkt->header.get_ssrc()];
+
+            // If got keyframe, switch to the preparing track,
+            // and disable previous active track.
+            video_group_rtp_ctx_->on_send_packet(video_track, pkt);
+
             // TODO: FIXME: Any simple solution?
             if ((err = video_track->on_rtp(pkt, info)) != srs_success) {
                 return srs_error_wrap(err, "audio_track on rtp");
@@ -764,6 +811,14 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
         std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
         for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
             SrsRtcVideoSendTrack* track = it->second;
+
+            // For example, track is small stream, that is track_id is sophon_video_camera_small,
+            // so the merge_track_id is parsed as sophon_video_camera which is the merged stream,
+            // if video_group_active_track_ is current track, we should not disable it.
+            if (video_group_rtp_ctx_->is_track_immutable(track)) {
+                continue;
+            }
+
             track->set_track_status(false);
         }
     }
@@ -794,9 +849,19 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
             std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
             for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
                 SrsRtcVideoSendTrack* track = it->second;
-                if (track->get_track_id() == cfg.label_) {
-                    track->set_track_status(cfg.active);
-                }  
+
+                bool should_active_track = (track->get_track_id() == cfg.label_);
+                if (!should_active_track) {
+                    continue;
+                }
+
+                // If stream will be merged, we will active it in future.
+                if (video_group_rtp_ctx_->set_track_active(track, cfg)) {
+                    srs_session_request_keyframe(session_->source_, it->first);
+                    continue;
+                }
+
+                track->set_track_status(cfg.active);
             }
         }
     }
@@ -847,12 +912,14 @@ srs_error_t SrsRtcPublishStream::initialize(SrsRequest* r, SrsRtcStreamDescripti
 
     int twcc_id = -1;
     uint32_t media_ssrc = 0;
+    int picture_id = 0;
     // because audio_track_desc have not twcc id, for example, h5demo
     // fetch twcc_id from video track description, 
     for (int i = 0; i < stream_desc->video_track_descs_.size(); ++i) {
         SrsRtcTrackDescription* desc = stream_desc->video_track_descs_.at(i);
         twcc_id = desc->get_rtp_extension_id(kTWCCExt);
         media_ssrc = desc->ssrc_;
+        picture_id = desc->get_rtp_extension_id(kPictureIDExt);
         break;
     }
     if (twcc_id != -1) {
@@ -860,12 +927,15 @@ srs_error_t SrsRtcPublishStream::initialize(SrsRequest* r, SrsRtcStreamDescripti
         extension_types_.register_by_uri(twcc_id_, kTWCCExt);
         rtcp_twcc_.set_media_ssrc(media_ssrc);
     }
+    if (picture_id) {
+        extension_types_.register_by_uri(picture_id, kPictureIDExt);
+    }
 
     nack_enabled_ = _srs_config->get_rtc_nack_enabled(req->vhost);
     pt_to_drop_ = (uint16_t)_srs_config->get_rtc_drop_for_pt(req->vhost);
     bool twcc_enabled = _srs_config->get_rtc_twcc_enabled(req->vhost);
 
-    srs_trace("RTC publisher nack=%d, pt-drop=%u, twcc=%u/%d", nack_enabled_, pt_to_drop_, twcc_enabled, twcc_id);
+    srs_trace("RTC publisher nack=%d, pt-drop=%u, twcc=%u/%d, picture_id=%u", nack_enabled_, pt_to_drop_, twcc_enabled, twcc_id, picture_id);
 
     session_->stat_->nn_publishers++;
 
@@ -2372,18 +2442,24 @@ srs_error_t SrsRtcConnection::negotiate_publish_capability(SrsRequest* req, cons
         track_desc->set_mid(remote_media_desc.mid_);
         // Whether feature enabled in remote extmap.
         int remote_twcc_id = 0;
+        int picture_id = 0;
         if (true) {
             map<int, string> extmaps = remote_media_desc.get_extmaps();
             for(map<int, string>::iterator it = extmaps.begin(); it != extmaps.end(); ++it) {
                 if (it->second == kTWCCExt) {
                     remote_twcc_id = it->first;
-                    break;
+                } else if(it->second == kPictureIDExt) {
+                    picture_id = it->first;
                 }
             }
         }
 
         if (twcc_enabled && remote_twcc_id) {
             track_desc->add_rtp_extension_desc(remote_twcc_id, kTWCCExt);
+        }
+
+        if (picture_id) {
+            track_desc->add_rtp_extension_desc(picture_id, kPictureIDExt);
         }
 
         if (remote_media_desc.is_audio()) {
@@ -2628,6 +2704,16 @@ srs_error_t SrsRtcConnection::generate_publish_local_sdp(SrsRequest* req, SrsSdp
         SrsVideoPayload* payload = (SrsVideoPayload*)video_track->media_;
         local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
 
+        if (video_track->red_) {
+            SrsRedPayload* payload = (SrsRedPayload*)video_track->red_;
+            local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
+        }
+
+        if (video_track->rsfec_) {
+            SrsCodecPayload* payload = (SrsCodecPayload*)video_track->rsfec_;
+            local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
+        }
+
         // only need media desc info, not ssrc info;
         break;
     }
@@ -2725,18 +2811,6 @@ srs_error_t SrsRtcConnection::negotiate_play_capability(SrsRequest* req, const S
                 srs_freep(track->rtx_);
                 track->rtx_ssrc_ = 0;
             }
-            // TODO: FIXME: if we support downlink ulpfec, MUST assign ulpfec params
-            // set_ulpfec_config;
-            if (true) {
-                srs_freep(track->ulpfec_);
-                track->fec_ssrc_ = 0;
-            }
-            // TODO: FIXME: if we support downlink , MUST assign fec_ssrc_
-            // set_rsfec_config;
-            if (true) {
-                srs_freep(track->rsfec_);
-                track->fec_ssrc_ = 0;
-            }
 
             track->set_direction("sendonly");
             sub_relations.insert(make_pair(publish_ssrc, track));
@@ -2800,15 +2874,10 @@ srs_error_t SrsRtcConnection::fetch_source_capability(SrsRequest* req, std::map<
         srs_freep(track->rtx_);
         track->rtx_ssrc_ = 0;
 
-        // TODO: FIXME: if we support downlink ulpfec, MUST assign ulpfec params
-        // set_ulpfec_config;
-        srs_freep(track->ulpfec_);
-        track->fec_ssrc_ = 0;
-        
-        // TODO: FIXME: if we support downlink , MUST assign fec_ssrc_
-        // set_rsfec_config;
-        srs_freep(track->rsfec_);
-        track->fec_ssrc_ = 0;
+        int local_picture_id = track->get_rtp_extension_id(kPictureIDExt);
+        if (local_picture_id) {
+            track->add_rtp_extension_desc(local_picture_id, kPictureIDExt);
+        }
 
         track->set_direction("sendonly");
         sub_relations.insert(make_pair(publish_ssrc, track));
@@ -2935,6 +3004,16 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
             SrsVideoPayload* payload = (SrsVideoPayload*)track->media_;
 
             local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
+
+            if (track->red_) {
+                SrsRedPayload* red_payload = (SrsRedPayload*)track->red_;
+                local_media_desc.payload_types_.push_back(red_payload->generate_media_payload_type());
+            }
+
+            if (track->rsfec_) {
+                SrsCodecPayload* payload = (SrsCodecPayload*)track->rsfec_;
+                local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
+            }
         }
 
         SrsMediaDesc& local_media_desc = local_sdp.media_descs_.back();
