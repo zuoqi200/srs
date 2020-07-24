@@ -184,12 +184,10 @@ void SrsRtpExtensionTwcc::set_sn(uint16_t sn)
 
 SrsRtpExtensions::SrsRtpExtensions() : has_ext_(false)
 {
-    picture_id_ = new SrsRtpExtensionPictureID();
 }
 
 SrsRtpExtensions::~SrsRtpExtensions()
 {
-    srs_freep(picture_id_);
 }
 
 srs_error_t SrsRtpExtensions::decode(SrsBuffer* buf)
@@ -258,7 +256,7 @@ srs_error_t SrsRtpExtensions::decode_0xbede(SrsBuffer* buf)
             }
             has_ext_ = true;
         } else if (xtype == kRtpExtensionPictureID) {
-            if (srs_success != (err = picture_id_->decode(buf))) {
+            if (srs_success != (err = picture_id_.decode(buf))) {
                 return srs_error_wrap(err, "decode picture_id extension");
             }
         } else {
@@ -272,7 +270,7 @@ srs_error_t SrsRtpExtensions::decode_0xbede(SrsBuffer* buf)
 int SrsRtpExtensions::nb_bytes()
 {
     int size = 4 + (twcc_.has_twcc_ext() ? twcc_.nb_bytes() : 0);
-    size += (picture_id_->exist() ? picture_id_->nb_bytes() : 0);
+    size += (picture_id_.exist() ? picture_id_.nb_bytes() : 0);
     return size;
 }
 
@@ -286,8 +284,8 @@ srs_error_t SrsRtpExtensions::encode(SrsBuffer* buf)
     if (twcc_.has_twcc_ext()) {
         len += twcc_.nb_bytes();
     }
-    if (picture_id_->exist()) {
-        len += picture_id_->nb_bytes();
+    if (picture_id_.exist()) {
+        len += picture_id_.nb_bytes();
     }
     buf->write_2bytes(len / 4);
 
@@ -297,8 +295,8 @@ srs_error_t SrsRtpExtensions::encode(SrsBuffer* buf)
         }
     }
 
-    if (picture_id_->exist()) {
-        if (srs_success != (err = picture_id_->encode(buf))) {
+    if (picture_id_.exist()) {
+        if (srs_success != (err = picture_id_.encode(buf))) {
             return srs_error_wrap(err, "encode picture_id extension");
         }
     }
@@ -337,7 +335,7 @@ srs_error_t SrsRtpExtensions::set_twcc_sequence_number(uint8_t id, uint16_t sn)
 
 SrsRtpExtensionPictureID* SrsRtpExtensions::get_picture_id()
 {
-    return picture_id_;
+    return &picture_id_;
 }
 
 SrsRtpHeader::SrsRtpHeader()

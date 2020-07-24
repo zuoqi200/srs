@@ -58,9 +58,6 @@ class SrsRtpRawPayload;
 class SrsRtpFUAPayload2;
 class SrsSharedPtrMessage;
 
-// Alibaba private extension.
-class SrsRtpExtensionPictureID;
-
 // The "distance" between two uint16 number, for example:
 //      distance(prev_value=3, value=5) === (int16_t)(uint16_t)((uint16_t)3-(uint16_t)5) === -2
 //      distance(prev_value=3, value=65534) === (int16_t)(uint16_t)((uint16_t)3-(uint16_t)65534) === 5
@@ -144,6 +141,47 @@ public:
     virtual int nb_bytes();
 };
 
+class SrsRtpExtensionPictureID : public ISrsCodec
+{
+private:
+    bool has_picture_id_;
+    uint8_t id_;
+    uint16_t picture_id_;
+    uint8_t tid_;
+    uint8_t ref_id_;
+    bool is_hard_codec_;
+    bool hard_codec_keyframe_;
+    uint8_t stream_id_;
+    uint16_t real_sn_;
+public:
+    SrsRtpExtensionPictureID();
+    virtual ~SrsRtpExtensionPictureID();
+
+    bool exist();
+    uint8_t get_id();
+    void set_id(uint8_t id);
+    uint16_t get_picture_id();
+    void set_picture_id(uint16_t id);
+    uint8_t get_tid();
+    void set_tid(uint8_t id);
+    uint8_t get_ref_id();
+    void set_ref_id(uint8_t id);
+    bool is_hard_codec();
+    void set_hard_codec(bool v);
+    bool is_hard_codec_keyframe();
+    void set_hard_codec_keyframe(bool v);
+    uint8_t get_stream_id();
+    void set_stream_id(uint8_t id);
+
+    bool is_keyframe();
+
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer* buf);
+    virtual srs_error_t encode(SrsBuffer* buf);
+    virtual int nb_bytes();
+};
+
 class SrsRtpExtensions : public ISrsCodec
 {
 private:
@@ -151,7 +189,7 @@ private:
     SrsRtpExtensionTypes types_;
     SrsRtpExtensionTwcc twcc_;
 private:
-    SrsRtpExtensionPictureID* picture_id_;
+    SrsRtpExtensionPictureID picture_id_;
 public:
     SrsRtpExtensions();
     virtual ~SrsRtpExtensions();
@@ -394,47 +432,6 @@ public:
     virtual srs_error_t encode(SrsBuffer* buf);
     virtual srs_error_t decode(SrsBuffer* buf);
     virtual ISrsRtpPayloader* copy();
-};
-
-class SrsRtpExtensionPictureID : public ISrsCodec
-{
-private:
-    bool has_picture_id_;
-    uint8_t id_;
-    uint16_t picture_id_;
-    uint8_t tid_;
-    uint8_t ref_id_;
-    bool is_hard_codec_;
-    bool hard_codec_keyframe_;
-    uint8_t stream_id_;
-    uint16_t real_sn_;
-public:
-    SrsRtpExtensionPictureID();
-    virtual ~SrsRtpExtensionPictureID();
-
-    bool exist();
-    uint8_t get_id();
-    void set_id(uint8_t id);
-    uint16_t get_picture_id();
-    void set_picture_id(uint16_t id);
-    uint8_t get_tid();
-    void set_tid(uint8_t id);
-    uint8_t get_ref_id();
-    void set_ref_id(uint8_t id);
-    bool is_hard_codec();
-    void set_hard_codec(bool v);
-    bool is_hard_codec_keyframe();
-    void set_hard_codec_keyframe(bool v);
-    uint8_t get_stream_id();
-    void set_stream_id(uint8_t id);
-
-    bool is_keyframe();
-
-public:
-    // ISrsCodec
-    virtual srs_error_t decode(SrsBuffer* buf);
-    virtual srs_error_t encode(SrsBuffer* buf);
-    virtual int nb_bytes();
 };
 
 #endif
