@@ -1964,9 +1964,11 @@ SrsTrackGroupRtpContext::~SrsTrackGroupRtpContext()
 {
 }
 
-bool SrsTrackGroupRtpContext::set_track_active(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg)
+bool SrsTrackGroupRtpContext::active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg)
 {
     std::string merge_track_id = _srs_track_id_group->get_merged_track_id(cfg.label_);
+
+    // If not merging stream, ignore it.
     if (merge_track_id == cfg.label_) {
         return false;
     }
@@ -1977,7 +1979,7 @@ bool SrsTrackGroupRtpContext::set_track_active(SrsRtcVideoSendTrack* track, cons
     return true;
 }
 
-void SrsTrackGroupRtpContext::on_send_packet(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt)
+void SrsTrackGroupRtpContext::try_switch_stream(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt)
 {
     if (track != video_group_prepare_track_) {
         return;

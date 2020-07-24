@@ -256,6 +256,9 @@ SrsRtcPlayStream::~SrsRtcPlayStream()
 
     srs_freep(trd);
 
+    // Free context before tracks, because context refers to them.
+    srs_freep(video_group_rtp_ctx_);
+
     if (true) {
         std::map<uint32_t, SrsRtcAudioSendTrack*>::iterator it;
         for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
@@ -507,7 +510,7 @@ srs_error_t SrsRtcPlayStream::send_packets(SrsRtcStream* source, const vector<Sr
 
             // If got keyframe, switch to the preparing track,
             // and disable previous active track.
-            video_group_rtp_ctx_->on_send_packet(video_track, pkt);
+            video_group_rtp_ctx_->try_switch_stream(video_track, pkt);
 
             // TODO: FIXME: Any simple solution?
             if ((err = video_track->on_rtp(pkt, info)) != srs_success) {
@@ -856,7 +859,7 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
                 }
 
                 // If stream will be merged, we will active it in future.
-                if (video_group_rtp_ctx_->set_track_active(track, cfg)) {
+                if (video_group_rtp_ctx_->active_it_in_future(track, cfg)) {
                     srs_session_request_keyframe(session_->source_, it->first);
                     continue;
                 }
