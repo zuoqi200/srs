@@ -56,6 +56,8 @@ class SrsRtpNackForReceiver;
 class SrsJsonObject;
 class SrsRtcPlayStreamStatistic;
 
+class SrsTrackGroupRtpContext;
+
 class SrsNtp
 {
 public:
@@ -474,6 +476,11 @@ public:
 public:
     virtual srs_error_t on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamStatistic& info);
     virtual srs_error_t on_rtcp(SrsRtpPacket2* pkt);
+protected:
+    // A group of stream for switching.
+    SrsTrackGroupRtpContext* group_ctx_;
+public:
+    void set_group_rtp_context(SrsTrackGroupRtpContext* v);
 };
 
 class SrsRtcAudioSendTrack : public SrsRtcSendTrack
@@ -534,6 +541,32 @@ public:
     virtual ~SrsTrackConfig();
 public:
     static SrsTrackConfig parse(SrsJsonObject* track);
+};
+
+class SrsTrackGroupRtpContext
+{
+private:
+    // Only track pointer, it's managed by video_tracks_.
+    SrsRtcVideoSendTrack* video_group_prepare_track_;
+    SrsRtcVideoSendTrack* video_group_active_track_;
+public:
+    bool update_base_seq;
+    uint16_t base_seq_prev;
+    uint16_t base_seq;
+    uint16_t last_seq;
+public:
+    SrsTrackGroupRtpContext();
+    virtual ~SrsTrackGroupRtpContext();
+public:
+    // Return whether stream is merging, we should request PLI if true.
+    bool set_track_active(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg);
+    // When send keyframe, we switch to preparing stream and disable previous one.
+    void on_send_packet(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt);
+    // If track is merging stream, such as large or small stream,
+    // and if track is active, it's immutable, we should never inactive it.
+    bool is_track_immutable(SrsRtcVideoSendTrack* track);
+    // Whether track is preparing to switch to.
+    bool is_track_preparing(SrsRtcVideoSendTrack* track);
 };
 
 // TODO: FIXME: Rename it, it's not a track group, but about merging.

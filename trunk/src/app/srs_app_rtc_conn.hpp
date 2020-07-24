@@ -190,6 +190,9 @@ private:
     bool is_started;
     // The statistic for consumer to send packets to player.
     SrsRtcPlayStreamStatistic info;
+private:
+    // The stream context to switch large stream with small one.
+    SrsTrackGroupRtpContext* video_group_rtp_ctx_;
 public:
     SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid);
     virtual ~SrsRtcPlayStream();

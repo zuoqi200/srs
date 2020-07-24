@@ -1699,6 +1699,8 @@ SrsRtcSendTrack::SrsRtcSendTrack(SrsRtcConnection* session, SrsRtcTrackDescripti
     } else {
         rtp_queue_ = new SrsRtpRingBuffer(1000);
     }
+
+    group_ctx_ = NULL;
 }
 SrsRtcSendTrack::~SrsRtcSendTrack()
 {
@@ -1727,6 +1729,11 @@ SrsRtpPacket2* SrsRtcSendTrack::fetch_rtp_packet(uint16_t seq)
 // TODO: FIXME: Should refine logs, set tracks in a time.
 void SrsRtcSendTrack::set_track_status(bool active)
 {
+    // If track status changed, we reset the context to let the stream keep sequence continous.
+    if (group_ctx_ && track_desc_->is_active_ != active) {
+        group_ctx_->update_base_seq = true;
+    }
+
     srs_trace("set status, track: %s, is_active: %u=>%u", track_desc_->id_.c_str(), track_desc_->is_active_, active);
     track_desc_->is_active_ = active;
 }
@@ -1744,6 +1751,11 @@ srs_error_t SrsRtcSendTrack::on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamStatisti
 srs_error_t SrsRtcSendTrack::on_rtcp(SrsRtpPacket2* pkt)
 {
     return srs_success;
+}
+
+void SrsRtcSendTrack::set_group_rtp_context(SrsTrackGroupRtpContext* v)
+{
+    group_ctx_ = v;
 }
 
 SrsRtcAudioSendTrack::SrsRtcAudioSendTrack(SrsRtcConnection* session, SrsRtcTrackDescription* track_desc)
@@ -1808,6 +1820,23 @@ srs_error_t SrsRtcVideoSendTrack::on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamSta
 
     if (!track_desc_->is_active_) {
         return err;
+    }
+
+    // If context exists, we should merge multiple tracks to one track,
+    // so we need to change the sequence to keep it continuous.
+    if (group_ctx_) {
+        uint16_t seq = pkt->header.get_sequence();
+
+        if (group_ctx_->update_base_seq) {
+            group_ctx_->update_base_seq = false;
+
+            group_ctx_->base_seq_prev = group_ctx_->last_seq;
+            group_ctx_->base_seq = seq;
+        }
+
+        // TODO: FIXME: Should use utest to cover it.
+        group_ctx_->last_seq = (seq - group_ctx_->base_seq) + group_ctx_->base_seq_prev + 1;
+        pkt->header.set_sequence(group_ctx_->last_seq);
     }
     
     std::vector<SrsRtpPacket2*> pkts;
@@ -1918,6 +1947,79 @@ SrsTrackConfig SrsTrackConfig::parse(SrsJsonObject* track)
     }
 
     return track_cfg;
+}
+
+SrsTrackGroupRtpContext::SrsTrackGroupRtpContext()
+{
+    update_base_seq = false;
+    base_seq_prev = 0;
+    base_seq = 0;
+    last_seq = 0;
+
+    video_group_prepare_track_ = NULL;
+    video_group_active_track_ = NULL;
+}
+
+SrsTrackGroupRtpContext::~SrsTrackGroupRtpContext()
+{
+}
+
+bool SrsTrackGroupRtpContext::set_track_active(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg)
+{
+    std::string merge_track_id = _srs_track_id_group->get_merged_track_id(cfg.label_);
+    if (merge_track_id == cfg.label_) {
+        return false;
+    }
+
+    video_group_prepare_track_ = track;
+    track->set_group_rtp_context(this);
+
+    return true;
+}
+
+void SrsTrackGroupRtpContext::on_send_packet(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt)
+{
+    if (track != video_group_prepare_track_) {
+        return;
+    }
+
+    if (!pkt->header.get_picture_id()->is_keyframe()) {
+        return;
+    }
+
+    // Active the track, which is preparing to switch to.
+    track->set_track_status(true);
+
+    // Disable previous track.
+    if (video_group_active_track_ && video_group_active_track_ != track) {
+        video_group_active_track_->set_track_status(false);
+    }
+
+    video_group_active_track_ = track;
+    video_group_prepare_track_ = NULL;
+}
+
+bool SrsTrackGroupRtpContext::is_track_immutable(SrsRtcVideoSendTrack* track)
+{
+    std::string track_id = track->get_track_id();
+    std::string merge_track_id = _srs_track_id_group->get_merged_track_id(track_id);
+
+    // If not merging stream, it's not immutable.
+    if (merge_track_id == track_id) {
+        return false;
+    }
+
+    // If stream is not active, it's not immutable.
+    if (video_group_active_track_ != track) {
+        return false;
+    }
+
+    return true;
+}
+
+bool SrsTrackGroupRtpContext::is_track_preparing(SrsRtcVideoSendTrack* track)
+{
+    return video_group_prepare_track_ == track;
 }
 
 SrsTrackGroupDescription::SrsTrackGroupDescription()
