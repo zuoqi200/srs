@@ -547,6 +547,10 @@ public:
     SrsTrackGroupDescription();
     virtual ~SrsTrackGroupDescription();
 public:
+    // Transform the track name for streaming down-link merge.
+    // For example, track_id is sophon_video_camera_small, return sophon_video_camera.
+    // For example, track_id is sophon_video_screen_share, return sophon_video_screen_share.
+    // TODO: FIXME: Rename get to transform or parse.
     std::string get_merged_track_id(std::string track_id);
 };
 
