@@ -178,10 +178,12 @@ void SrsRtpExtensionTwcc::set_sn(uint16_t sn)
 
 SrsRtpExtensions::SrsRtpExtensions() : has_ext_(false)
 {
+    picture_id_ = new SrsRtpExtensionPictureID();
 }
 
 SrsRtpExtensions::~SrsRtpExtensions()
 {
+    srs_freep(picture_id_);
 }
 
 srs_error_t SrsRtpExtensions::decode(SrsBuffer* buf)
@@ -249,6 +251,10 @@ srs_error_t SrsRtpExtensions::decode_0xbede(SrsBuffer* buf)
                 return srs_error_wrap(err, "decode twcc extension");
             }
             has_ext_ = true;
+        } else if (xtype == kRtpExtensionPictureID) {
+            if (srs_success != (err = picture_id_->decode(buf))) {
+                return srs_error_wrap(err, "decode picture_id extension");
+            }
         } else {
             buf->skip(1 + (len + 1));
         }
@@ -259,25 +265,38 @@ srs_error_t SrsRtpExtensions::decode_0xbede(SrsBuffer* buf)
 
 int SrsRtpExtensions::nb_bytes()
 {
-    return 4 + (twcc_.has_twcc_ext() ? twcc_.nb_bytes() : 0);
+    int size = 4 + (twcc_.has_twcc_ext() ? twcc_.nb_bytes() : 0);
+    size += (picture_id_->exist() ? picture_id_->nb_bytes() : 0);
+    return size;
 }
 
 srs_error_t SrsRtpExtensions::encode(SrsBuffer* buf)
 {
     srs_error_t err = srs_success;
+
     buf->write_2bytes(0xBEDE);
+
     int len = 0;
-    //TODO: When add new rtp extension, it should add the extension length into len
-    if(twcc_.has_twcc_ext()) {
+    if (twcc_.has_twcc_ext()) {
         len += twcc_.nb_bytes();
+    }
+    if (picture_id_->exist()) {
+        len += picture_id_->nb_bytes();
     }
     buf->write_2bytes(len / 4);
 
-    if(twcc_.has_twcc_ext()) {
-        if(srs_success != (err = twcc_.encode(buf))) {
+    if (twcc_.has_twcc_ext()) {
+        if (srs_success != (err = twcc_.encode(buf))) {
             return srs_error_wrap(err, "encode twcc extension");
         }
     }
+
+    if (picture_id_->exist()) {
+        if (srs_success != (err = picture_id_->encode(buf))) {
+            return srs_error_wrap(err, "encode picture_id extension");
+        }
+    }
+
     return err;
 }
 
@@ -308,6 +327,11 @@ srs_error_t SrsRtpExtensions::set_twcc_sequence_number(uint8_t id, uint16_t sn)
     twcc_.set_id(id);
     twcc_.set_sn(sn);
     return srs_success;
+}
+
+SrsRtpExtensionPictureID* SrsRtpExtensions::get_picture_id()
+{
+    return picture_id_;
 }
 
 SrsRtpHeader::SrsRtpHeader()
@@ -530,6 +554,11 @@ void SrsRtpHeader::set_padding(uint8_t v)
 uint8_t SrsRtpHeader::get_padding() const
 {
     return padding_length;
+}
+
+SrsRtpExtensionPictureID* SrsRtpHeader::get_picture_id()
+{
+    return extensions_.get_picture_id();
 }
 
 ISrsRtpPayloader::ISrsRtpPayloader()
@@ -1215,3 +1244,210 @@ ISrsRtpPayloader* SrsRtpFUAPayload2::copy()
 
     return cp;
 }
+
+SrsRtpExtensionPictureID::SrsRtpExtensionPictureID(): has_picture_id_(false),
+    id_(0),
+    picture_id_(0),
+    tid_(0),
+    ref_id_(0),
+    is_hard_codec_(false),
+    hard_codec_keyframe_(false),
+    stream_id_(0),
+    real_sn_(0)
+{
+}
+
+SrsRtpExtensionPictureID::~SrsRtpExtensionPictureID()
+{
+}
+
+bool SrsRtpExtensionPictureID::exist()
+{
+    return has_picture_id_;
+}
+
+uint8_t SrsRtpExtensionPictureID::get_id()
+{
+    return id_;
+}
+
+void SrsRtpExtensionPictureID::set_id(uint8_t id)
+{
+    has_picture_id_ = true;
+    id_ = id;
+}
+
+uint16_t SrsRtpExtensionPictureID::get_picture_id()
+{
+    return picture_id_;
+}
+
+void SrsRtpExtensionPictureID::set_picture_id(uint16_t id)
+{
+    has_picture_id_ = true;
+    picture_id_ = id;
+}
+
+uint8_t SrsRtpExtensionPictureID::get_tid()
+{
+    return tid_;
+}
+
+void SrsRtpExtensionPictureID::set_tid(uint8_t id)
+{
+    has_picture_id_ = true;
+    tid_ = id;
+}
+
+uint8_t SrsRtpExtensionPictureID::get_ref_id()
+{
+    return ref_id_;
+}
+
+void SrsRtpExtensionPictureID::set_ref_id(uint8_t id)
+{
+    has_picture_id_ = true;
+    ref_id_ = id;
+}
+
+bool SrsRtpExtensionPictureID::is_hard_codec()
+{
+    return is_hard_codec_;
+}
+
+void SrsRtpExtensionPictureID::set_hard_codec(bool v)
+{
+    has_picture_id_ = true;
+    is_hard_codec_ = v;
+}
+
+bool SrsRtpExtensionPictureID::is_hard_codec_keyframe()
+{
+    return hard_codec_keyframe_;
+}
+
+void SrsRtpExtensionPictureID::set_hard_codec_keyframe(bool v)
+{
+    has_picture_id_ = true;
+    hard_codec_keyframe_ = v;
+}
+
+uint8_t SrsRtpExtensionPictureID::get_stream_id()
+{
+    return stream_id_;
+}
+
+void SrsRtpExtensionPictureID::set_stream_id(uint8_t id)
+{
+    has_picture_id_ = true;
+    stream_id_ = id;
+}
+
+bool SrsRtpExtensionPictureID::is_keyframe()
+{
+    if (!has_picture_id_) {
+        return false;
+    }
+
+    // Remark: Large stream use tid == 0 and small stream use tid == 3.
+    if ((tid_ == 0 || tid_ == 3) && ref_id_ == 0) {
+        return true;
+    }
+
+    if(is_hard_codec_) {
+        return hard_codec_keyframe_;
+    }
+
+    return false;
+}
+
+srs_error_t SrsRtpExtensionPictureID::decode(SrsBuffer* buf)
+{
+    srs_error_t err = srs_success;
+    // @doc: http://gitlab.alibaba-inc.com/AliRTC/sophon-infra/wikis/PictureID
+    // @doc: https://yuque.antfin-inc.com/250ms-sophon/tech/uznzx6
+    /*
+         0                   1                   2                   3
+         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |-|      PictureID              |T|R|TID| RefID |S|H|I|SID| rsd |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |      Real Sequence Number     |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    */
+    // extension header
+    if (!buf->require(1)) {
+        return srs_error_new(ERROR_RTC_RTP_MUXER, "requires %d bytes", 1);
+    }
+    uint8_t v = buf->read_1bytes();
+
+    id_ = (v & 0xF0) >> 4;
+    uint8_t len = (v & 0x0F);
+    if(!id_ || len != 5) {
+        return srs_error_new(ERROR_RTC_RTP, "invalid picture id=%d, len=%d", id_, len);
+    }
+
+    len++;
+    if (!buf->require(len)) {
+        return srs_error_new(ERROR_RTC_RTP_MUXER, "requires %d bytes", len);
+    }
+
+    picture_id_ = buf->read_2bytes() & 0x7fff;
+
+    v = buf->read_1bytes();
+    tid_ = (v & 0x80) ? (v & 0x30) >> 4 : 0xFF;
+    ref_id_ = (v & 0x40) ? (v & 0x0f) : 0xFF;
+
+    v = buf->read_1bytes();
+    is_hard_codec_ = (v & 0x40) >> 6;
+    hard_codec_keyframe_ = (v & 0x20) >> 5;
+    stream_id_ = (v & 0x18) >> 3;
+    real_sn_ = buf->read_2bytes();
+    //buf->skip(len - 4);
+
+    has_picture_id_ = true;
+
+    return err;
+}
+
+srs_error_t SrsRtpExtensionPictureID::encode(SrsBuffer* buf)
+{
+    srs_error_t err = srs_success;
+    if(!buf->require(8)) {
+        return srs_error_new(ERROR_RTC_RTP_MUXER, "requires %d bytes", 8);
+    }
+    uint8_t v = (id_ & 0x0F)<< 4| 0x05;
+    buf->write_1bytes(v);
+
+    // @doc: http://gitlab.alibaba-inc.com/AliRTC/sophon-infra/wikis/PictureID
+    // @doc: https://yuque.antfin-inc.com/250ms-sophon/tech/uznzx6
+    /*
+         0                   1                   2                   3
+         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |-|      PictureID              |T|R|TID| RefID |S|H|I|SID| rsd |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |      Real Sequence Number     |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    */
+    //picture id
+    buf->write_2bytes(picture_id_);
+
+    // tid and ref id
+    v = 0xc0 | ((tid_ << 4) & 0x30) | (ref_id_ & 0x0f);
+    buf->write_1bytes(v);
+
+    // hard codec, hard codec I frame and stream id
+    v = ((is_hard_codec_ << 6) & 0x40) | ((hard_codec_keyframe_ << 5) & 0x20) | ((stream_id_ << 3) & 0x18);
+    buf->write_1bytes(v);
+    buf->write_2bytes(real_sn_);
+    buf->write_1bytes(0x00);
+
+    return err;
+}
+
+int SrsRtpExtensionPictureID::nb_bytes()
+{
+    return 1 + 4 + 3;
+}
+

@@ -34,6 +34,9 @@
 #include <map>
 const std::string kTWCCExt = "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01";
 
+// Alibaba Private extensions.
+const std::string kPictureIDExt = "http://www.alibaba.com/experiments/rtp-hdrext/picture_id";
+
 // TDOO: FIXME: Rename it, and add utest.
 extern std::vector<std::string> split_str(const std::string& str, const std::string& delim);
 

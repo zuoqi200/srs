@@ -847,12 +847,14 @@ srs_error_t SrsRtcPublishStream::initialize(SrsRequest* r, SrsRtcStreamDescripti
 
     int twcc_id = -1;
     uint32_t media_ssrc = 0;
+    int picture_id = 0;
     // because audio_track_desc have not twcc id, for example, h5demo
     // fetch twcc_id from video track description, 
     for (int i = 0; i < stream_desc->video_track_descs_.size(); ++i) {
         SrsRtcTrackDescription* desc = stream_desc->video_track_descs_.at(i);
         twcc_id = desc->get_rtp_extension_id(kTWCCExt);
         media_ssrc = desc->ssrc_;
+        picture_id = desc->get_rtp_extension_id(kPictureIDExt);
         break;
     }
     if (twcc_id != -1) {
@@ -860,12 +862,15 @@ srs_error_t SrsRtcPublishStream::initialize(SrsRequest* r, SrsRtcStreamDescripti
         extension_types_.register_by_uri(twcc_id_, kTWCCExt);
         rtcp_twcc_.set_media_ssrc(media_ssrc);
     }
+    if (picture_id) {
+        extension_types_.register_by_uri(picture_id, kPictureIDExt);
+    }
 
     nack_enabled_ = _srs_config->get_rtc_nack_enabled(req->vhost);
     pt_to_drop_ = (uint16_t)_srs_config->get_rtc_drop_for_pt(req->vhost);
     bool twcc_enabled = _srs_config->get_rtc_twcc_enabled(req->vhost);
 
-    srs_trace("RTC publisher nack=%d, pt-drop=%u, twcc=%u/%d", nack_enabled_, pt_to_drop_, twcc_enabled, twcc_id);
+    srs_trace("RTC publisher nack=%d, pt-drop=%u, twcc=%u/%d, picture_id=%u", nack_enabled_, pt_to_drop_, twcc_enabled, twcc_id, picture_id);
 
     session_->stat_->nn_publishers++;
 
@@ -2372,18 +2377,24 @@ srs_error_t SrsRtcConnection::negotiate_publish_capability(SrsRequest* req, cons
         track_desc->set_mid(remote_media_desc.mid_);
         // Whether feature enabled in remote extmap.
         int remote_twcc_id = 0;
+        int picture_id = 0;
         if (true) {
             map<int, string> extmaps = remote_media_desc.get_extmaps();
             for(map<int, string>::iterator it = extmaps.begin(); it != extmaps.end(); ++it) {
                 if (it->second == kTWCCExt) {
                     remote_twcc_id = it->first;
-                    break;
+                } else if(it->second == kPictureIDExt) {
+                    picture_id = it->first;
                 }
             }
         }
 
         if (twcc_enabled && remote_twcc_id) {
             track_desc->add_rtp_extension_desc(remote_twcc_id, kTWCCExt);
+        }
+
+        if (picture_id) {
+            track_desc->add_rtp_extension_desc(picture_id, kPictureIDExt);
         }
 
         if (remote_media_desc.is_audio()) {
@@ -2809,6 +2820,11 @@ srs_error_t SrsRtcConnection::fetch_source_capability(SrsRequest* req, std::map<
         // set_rsfec_config;
         srs_freep(track->rsfec_);
         track->fec_ssrc_ = 0;
+
+        int local_picture_id = track->get_rtp_extension_id(kPictureIDExt);
+        if (local_picture_id) {
+            track->add_rtp_extension_desc(local_picture_id, kPictureIDExt);
+        }
 
         track->set_direction("sendonly");
         sub_relations.insert(make_pair(publish_ssrc, track));
