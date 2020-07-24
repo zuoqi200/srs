@@ -200,7 +200,7 @@ srs_error_t SrsSecurityTransport::unprotect_rtcp(const char* cipher, char* plain
     return srtp_->unprotect_rtcp(cipher, plaintext, nb_plaintext);
 }
 
-SrsRtcOutgoingInfo::SrsRtcOutgoingInfo()
+SrsRtcPlayStreamStatistic::SrsRtcPlayStreamStatistic()
 {
 #if defined(SRS_DEBUG)
     debug_id = 0;
@@ -213,7 +213,7 @@ SrsRtcOutgoingInfo::SrsRtcOutgoingInfo()
     nn_padding_bytes = nn_paddings = 0;
 }
 
-SrsRtcOutgoingInfo::~SrsRtcOutgoingInfo()
+SrsRtcPlayStreamStatistic::~SrsRtcPlayStreamStatistic()
 {
 }
 
@@ -433,7 +433,7 @@ srs_error_t SrsRtcPlayStream::cycle()
     }
 }
 
-srs_error_t SrsRtcPlayStream::send_packets(SrsRtcStream* source, const vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info)
+srs_error_t SrsRtcPlayStream::send_packets(SrsRtcStream* source, const vector<SrsRtpPacket2*>& pkts, SrsRtcPlayStreamStatistic& info)
 {
     srs_error_t err = srs_success;
 
@@ -1548,7 +1548,7 @@ void SrsRtcPublishStream::update_send_report_time(uint32_t ssrc, const SrsNtp& n
     }
 }
 
-SrsRtcConnectionStat::SrsRtcConnectionStat()
+SrsRtcConnectionStatistic::SrsRtcConnectionStatistic()
 {
     dead = born = srs_get_system_time();
     nn_publishers = nn_subscribers = 0;
@@ -1558,11 +1558,11 @@ SrsRtcConnectionStat::SrsRtcConnectionStat()
     nn_out_twcc = nn_out_rtp = nn_out_audios = nn_out_videos = 0;
 }
 
-SrsRtcConnectionStat::~SrsRtcConnectionStat()
+SrsRtcConnectionStatistic::~SrsRtcConnectionStatistic()
 {
 }
 
-string SrsRtcConnectionStat::summary()
+string SrsRtcConnectionStatistic::summary()
 {
     dead = srs_get_system_time();
 
@@ -1599,7 +1599,7 @@ SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
     is_publisher_ = false;
     encrypt = true;
     cid = context_id;
-    stat_ = new SrsRtcConnectionStat();
+    stat_ = new SrsRtcConnectionStatistic();
 
     source_ = NULL;
     publisher_ = NULL;
@@ -1610,7 +1610,7 @@ SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
 
     state_ = INIT;
     last_stun_time = 0;
-    sessionStunTimeout = 0;
+    session_timeout = 0;
     disposing_ = false;
 
     twcc_id_ = 0;
@@ -1812,11 +1812,11 @@ srs_error_t SrsRtcConnection::initialize(SrsRtcStream* source, SrsRequest* r, bo
     }
 
     // TODO: FIXME: Support reload.
-    sessionStunTimeout = _srs_config->get_rtc_stun_timeout(req->vhost);
+    session_timeout = _srs_config->get_rtc_stun_timeout(req->vhost);
     last_stun_time = srs_get_system_time();
 
     srs_trace("RTC init session, DTLS(role=%s, version=%s), timeout=%dms",
-        cfg->dtls_role.c_str(), cfg->dtls_version.c_str(), srsu2msi(sessionStunTimeout));
+        cfg->dtls_role.c_str(), cfg->dtls_version.c_str(), srsu2msi(session_timeout));
 
     return err;
 }
@@ -1928,7 +1928,7 @@ srs_error_t SrsRtcConnection::on_connection_established()
     srs_error_t err = srs_success;
 
     srs_trace("RTC %s session=%s, to=%dms connection established", (is_publisher_? "Publisher":"Subscriber"),
-        id().c_str(), srsu2msi(sessionStunTimeout));
+        id().c_str(), srsu2msi(session_timeout));
 
     if (is_publisher_) {
         if ((err = start_publish()) != srs_success) {
@@ -1967,7 +1967,7 @@ srs_error_t SrsRtcConnection::start_publish()
 
 bool SrsRtcConnection::is_stun_timeout()
 {
-    return last_stun_time + sessionStunTimeout < srs_get_system_time();
+    return last_stun_time + session_timeout < srs_get_system_time();
 }
 
 // TODO: FIXME: We should support multiple addresses, because client may use more than one addresses.
@@ -2211,7 +2211,7 @@ void SrsRtcConnection::simulate_player_drop_packet(SrsRtpHeader* h, int nn_bytes
     nn_simulate_player_nack_drop--;
 }
 
-srs_error_t SrsRtcConnection::do_send_packets(const std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info)
+srs_error_t SrsRtcConnection::do_send_packets(const std::vector<SrsRtpPacket2*>& pkts, SrsRtcPlayStreamStatistic& info)
 {
     srs_error_t err = srs_success;
 

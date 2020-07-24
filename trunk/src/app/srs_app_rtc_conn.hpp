@@ -92,6 +92,7 @@ enum SrsRtcConnectionStateType
     CLOSED = 5,
 };
 
+// The security transport, use DTLS/SRTP to protect the data.
 class SrsSecurityTransport : public ISrsDtlsCallback
 {
 private:
@@ -131,8 +132,7 @@ private:
 };
 
 // A group of RTP packets for outgoing(send to players).
-// TODO: FIXME: Rename to stat for RTP packets.
-class SrsRtcOutgoingInfo
+class SrsRtcPlayStreamStatistic
 {
 public:
 #if defined(SRS_DEBUG)
@@ -164,8 +164,8 @@ public:
     // The number of padded packet.
     int nn_paddings;
 public:
-    SrsRtcOutgoingInfo();
-    virtual ~SrsRtcOutgoingInfo();
+    SrsRtcPlayStreamStatistic();
+    virtual ~SrsRtcPlayStreamStatistic();
 };
 
 // A RTC play stream, client pull and play stream from SRS.
@@ -188,8 +188,8 @@ private:
 private:
     // Whether palyer started.
     bool is_started;
-    // statistic send packets.
-    SrsRtcOutgoingInfo info;
+    // The statistic for consumer to send packets to player.
+    SrsRtcPlayStreamStatistic info;
 public:
     SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid);
     virtual ~SrsRtcPlayStream();
@@ -209,7 +209,7 @@ public:
 public:
     virtual srs_error_t cycle();
 private:
-    srs_error_t send_packets(SrsRtcStream* source, const std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
+    srs_error_t send_packets(SrsRtcStream* source, const std::vector<SrsRtpPacket2*>& pkts, SrsRtcPlayStreamStatistic& info);
 public:
     void nack_fetch(std::vector<SrsRtpPacket2*>& pkts, uint32_t ssrc, uint16_t seq);
 public:
@@ -295,21 +295,19 @@ private:
 };
 
 // The statistics for RTC connection.
-class SrsRtcConnectionStat
+class SrsRtcConnectionStatistic
 {
 public:
-    int nn_publishers;
-    int nn_subscribers;
-    int nn_rr; int nn_xr;
-    int nn_sr; int nn_nack; int nn_pli;
+    int nn_publishers; int nn_subscribers;
+    int nn_rr; int nn_xr; int nn_sr; int nn_nack; int nn_pli;
     uint64_t nn_in_twcc; uint64_t nn_in_rtp; uint64_t nn_in_audios; uint64_t nn_in_videos;
     uint64_t nn_out_twcc; uint64_t nn_out_rtp; uint64_t nn_out_audios; uint64_t nn_out_videos;
 private:
     srs_utime_t born;
     srs_utime_t dead;
 public:
-    SrsRtcConnectionStat();
-    virtual ~SrsRtcConnectionStat();
+    SrsRtcConnectionStatistic();
+    virtual ~SrsRtcConnectionStatistic();
 public:
     std::string summary();
 };
@@ -322,7 +320,7 @@ class SrsRtcConnection
     friend class SrsRtcPublishStream;
 public:
     bool disposing_;
-    SrsRtcConnectionStat* stat_;
+    SrsRtcConnectionStatistic* stat_;
 private:
     SrsRtcServer* server_;
     SrsRtcConnectionStateType state_;
@@ -336,7 +334,7 @@ private:
     std::string peer_id_;
 private:
     // The timeout of session, keep alive by STUN ping pong.
-    srs_utime_t sessionStunTimeout;
+    srs_utime_t session_timeout;
     srs_utime_t last_stun_time;
 private:
     // For each RTC session, we use a specified cid for debugging logs.
@@ -415,7 +413,7 @@ public:
     // Simulate the NACK to drop nn packets.
     void simulate_nack_drop(int nn);
     void simulate_player_drop_packet(SrsRtpHeader* h, int nn_bytes);
-    srs_error_t do_send_packets(const std::vector<SrsRtpPacket2*>& pkts, SrsRtcOutgoingInfo& info);
+    srs_error_t do_send_packets(const std::vector<SrsRtpPacket2*>& pkts, SrsRtcPlayStreamStatistic& info);
 private:
     srs_error_t on_binding_request(SrsStunPacket* r);
     // publish media capabilitiy negotiate
