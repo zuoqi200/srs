@@ -1731,7 +1731,7 @@ void SrsRtcSendTrack::set_track_status(bool active)
 {
     // If track status changed, we reset the context to let the stream keep sequence continous.
     if (group_ctx_ && track_desc_->is_active_ != active) {
-        group_ctx_->update_base_seq = true;
+        group_ctx_->switch_sequence_base();
     }
 
     srs_trace("set status, track: %s, is_active: %u=>%u", track_desc_->id_.c_str(), track_desc_->is_active_, active);
@@ -1826,17 +1826,7 @@ srs_error_t SrsRtcVideoSendTrack::on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamSta
     // so we need to change the sequence to keep it continuous.
     if (group_ctx_) {
         uint16_t seq = pkt->header.get_sequence();
-
-        if (group_ctx_->update_base_seq) {
-            group_ctx_->update_base_seq = false;
-
-            group_ctx_->base_seq_prev = group_ctx_->last_seq;
-            group_ctx_->base_seq = seq;
-        }
-
-        // TODO: FIXME: Should use utest to cover it.
-        group_ctx_->last_seq = (seq - group_ctx_->base_seq) + group_ctx_->base_seq_prev + 1;
-        pkt->header.set_sequence(group_ctx_->last_seq);
+        pkt->header.set_sequence(group_ctx_->correct_sequence(seq));
     }
     
     std::vector<SrsRtpPacket2*> pkts;
@@ -2022,6 +2012,25 @@ bool SrsTrackGroupRtpContext::is_track_immutable(SrsRtcVideoSendTrack* track)
 bool SrsTrackGroupRtpContext::is_track_preparing(SrsRtcVideoSendTrack* track)
 {
     return video_group_prepare_track_ == track;
+}
+
+void SrsTrackGroupRtpContext::switch_sequence_base()
+{
+    update_base_seq = true;
+}
+
+uint16_t SrsTrackGroupRtpContext::correct_sequence(uint16_t seq)
+{
+    if (update_base_seq) {
+        update_base_seq = false;
+
+        base_seq_prev = last_seq;
+        base_seq = seq;
+    }
+
+    // TODO: FIXME: Should use utest to cover it.
+    last_seq = (seq - base_seq) + base_seq_prev + 1;
+    return last_seq;
 }
 
 SrsTrackGroupDescription::SrsTrackGroupDescription()

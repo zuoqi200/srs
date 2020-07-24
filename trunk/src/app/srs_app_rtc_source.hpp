@@ -543,13 +543,14 @@ public:
     static SrsTrackConfig parse(SrsJsonObject* track);
 };
 
+// The stream switch context, to switch with large and small streams.
 class SrsTrackGroupRtpContext
 {
 private:
     // Only track pointer, it's managed by video_tracks_.
     SrsRtcVideoSendTrack* video_group_prepare_track_;
     SrsRtcVideoSendTrack* video_group_active_track_;
-public:
+private:
     bool update_base_seq;
     uint16_t base_seq_prev;
     uint16_t base_seq;
@@ -567,6 +568,11 @@ public:
     bool is_track_immutable(SrsRtcVideoSendTrack* track);
     // Whether track is preparing to switch to.
     bool is_track_preparing(SrsRtcVideoSendTrack* track);
+public:
+    // Start stream switch, use different sequence base.
+    void switch_sequence_base();
+    // Correct the sequence, to use sequence base of active stream.
+    uint16_t correct_sequence(uint16_t seq);
 };
 
 // TODO: FIXME: Rename it, it's not a track group, but about merging.
