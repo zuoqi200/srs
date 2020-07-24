@@ -56,7 +56,7 @@ class SrsRtpNackForReceiver;
 class SrsJsonObject;
 class SrsRtcPlayStreamStatistic;
 
-class SrsTrackGroupRtpContext;
+class SrsStreamSwitchContext;
 
 class SrsNtp
 {
@@ -478,9 +478,9 @@ public:
     virtual srs_error_t on_rtcp(SrsRtpPacket2* pkt);
 protected:
     // A group of stream for switching.
-    SrsTrackGroupRtpContext* group_ctx_;
+    SrsStreamSwitchContext* switch_context_;
 public:
-    void set_group_rtp_context(SrsTrackGroupRtpContext* v);
+    void set_stream_switch_context(SrsStreamSwitchContext* v);
 };
 
 class SrsRtcAudioSendTrack : public SrsRtcSendTrack
@@ -543,20 +543,21 @@ public:
     static SrsTrackConfig parse(SrsJsonObject* track);
 };
 
-class SrsTrackGroupRtpContext
+// The context to switch with large and small streams.
+class SrsStreamSwitchContext
 {
 private:
     // Only track pointer, it's managed by video_tracks_.
     SrsRtcVideoSendTrack* video_group_prepare_track_;
     SrsRtcVideoSendTrack* video_group_active_track_;
-public:
+private:
     bool update_base_seq;
     uint16_t base_seq_prev;
     uint16_t base_seq;
     uint16_t last_seq;
 public:
-    SrsTrackGroupRtpContext();
-    virtual ~SrsTrackGroupRtpContext();
+    SrsStreamSwitchContext();
+    virtual ~SrsStreamSwitchContext();
 public:
     // Return whether stream is merging, we should active it in future(get keyframe).
     bool active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg);
@@ -567,6 +568,11 @@ public:
     bool is_track_immutable(SrsRtcVideoSendTrack* track);
     // Whether track is preparing to switch to.
     bool is_track_preparing(SrsRtcVideoSendTrack* track);
+public:
+    // Start stream switch, use different sequence base.
+    void switch_sequence_base();
+    // Correct the sequence, to use sequence base of active stream.
+    uint16_t correct_sequence(uint16_t seq);
 };
 
 // TODO: FIXME: Rename it, it's not a track group, but about merging.

@@ -192,7 +192,7 @@ private:
     SrsRtcPlayStreamStatistic info;
 private:
     // The stream context to switch large stream with small one.
-    SrsTrackGroupRtpContext* video_group_rtp_ctx_;
+    SrsStreamSwitchContext* switch_context_;
 public:
     SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid);
     virtual ~SrsRtcPlayStream();

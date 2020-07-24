@@ -247,7 +247,7 @@ SrsRtcPlayStream::SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid)
 
     _srs_config->subscribe(this);
 
-    video_group_rtp_ctx_ = new SrsTrackGroupRtpContext();
+    switch_context_ = new SrsStreamSwitchContext();
 }
 
 SrsRtcPlayStream::~SrsRtcPlayStream()
@@ -257,7 +257,7 @@ SrsRtcPlayStream::~SrsRtcPlayStream()
     srs_freep(trd);
 
     // Free context before tracks, because context refers to them.
-    srs_freep(video_group_rtp_ctx_);
+    srs_freep(switch_context_);
 
     if (true) {
         std::map<uint32_t, SrsRtcAudioSendTrack*>::iterator it;
@@ -356,7 +356,7 @@ srs_error_t SrsRtcPlayStream::start()
         SrsRtcVideoSendTrack* track = it->second;
 
         // If the track is merging stream, we should request PLI when it startup.
-        if (video_group_rtp_ctx_->is_track_preparing(track)) {
+        if (switch_context_->is_track_preparing(track)) {
             srs_session_request_keyframe(session_->source_, it->first);
         }
     }
@@ -510,7 +510,7 @@ srs_error_t SrsRtcPlayStream::send_packets(SrsRtcStream* source, const vector<Sr
 
             // If got keyframe, switch to the preparing track,
             // and disable previous active track.
-            video_group_rtp_ctx_->try_switch_stream(video_track, pkt);
+            switch_context_->try_switch_stream(video_track, pkt);
 
             // TODO: FIXME: Any simple solution?
             if ((err = video_track->on_rtp(pkt, info)) != srs_success) {
@@ -818,7 +818,7 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
             // For example, track is small stream, that is track_id is sophon_video_camera_small,
             // so the merge_track_id is parsed as sophon_video_camera which is the merged stream,
             // if video_group_active_track_ is current track, we should not disable it.
-            if (video_group_rtp_ctx_->is_track_immutable(track)) {
+            if (switch_context_->is_track_immutable(track)) {
                 continue;
             }
 
@@ -859,7 +859,7 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
                 }
 
                 // If stream will be merged, we will active it in future.
-                if (video_group_rtp_ctx_->active_it_in_future(track, cfg)) {
+                if (switch_context_->active_it_in_future(track, cfg)) {
                     srs_session_request_keyframe(session_->source_, it->first);
                     continue;
                 }
