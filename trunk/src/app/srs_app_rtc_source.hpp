@@ -56,7 +56,7 @@ class SrsRtpNackForReceiver;
 class SrsJsonObject;
 class SrsRtcPlayStreamStatistic;
 
-class SrsTrackGroupRtpContext;
+class SrsStreamSwitchContext;
 
 class SrsNtp
 {
@@ -478,9 +478,9 @@ public:
     virtual srs_error_t on_rtcp(SrsRtpPacket2* pkt);
 protected:
     // A group of stream for switching.
-    SrsTrackGroupRtpContext* group_ctx_;
+    SrsStreamSwitchContext* switch_context_;
 public:
-    void set_group_rtp_context(SrsTrackGroupRtpContext* v);
+    void set_stream_switch_context(SrsStreamSwitchContext* v);
 };
 
 class SrsRtcAudioSendTrack : public SrsRtcSendTrack
@@ -543,8 +543,8 @@ public:
     static SrsTrackConfig parse(SrsJsonObject* track);
 };
 
-// The stream switch context, to switch with large and small streams.
-class SrsTrackGroupRtpContext
+// The context to switch with large and small streams.
+class SrsStreamSwitchContext
 {
 private:
     // Only track pointer, it's managed by video_tracks_.
@@ -556,8 +556,8 @@ private:
     uint16_t base_seq;
     uint16_t last_seq;
 public:
-    SrsTrackGroupRtpContext();
-    virtual ~SrsTrackGroupRtpContext();
+    SrsStreamSwitchContext();
+    virtual ~SrsStreamSwitchContext();
 public:
     // Return whether stream is merging, we should active it in future(get keyframe).
     bool active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg);

@@ -1700,7 +1700,7 @@ SrsRtcSendTrack::SrsRtcSendTrack(SrsRtcConnection* session, SrsRtcTrackDescripti
         rtp_queue_ = new SrsRtpRingBuffer(1000);
     }
 
-    group_ctx_ = NULL;
+    switch_context_ = NULL;
 }
 SrsRtcSendTrack::~SrsRtcSendTrack()
 {
@@ -1730,8 +1730,8 @@ SrsRtpPacket2* SrsRtcSendTrack::fetch_rtp_packet(uint16_t seq)
 void SrsRtcSendTrack::set_track_status(bool active)
 {
     // If track status changed, we reset the context to let the stream keep sequence continous.
-    if (group_ctx_ && track_desc_->is_active_ != active) {
-        group_ctx_->switch_sequence_base();
+    if (switch_context_ && track_desc_->is_active_ != active) {
+        switch_context_->switch_sequence_base();
     }
 
     srs_trace("set status, track: %s, is_active: %u=>%u", track_desc_->id_.c_str(), track_desc_->is_active_, active);
@@ -1753,9 +1753,9 @@ srs_error_t SrsRtcSendTrack::on_rtcp(SrsRtpPacket2* pkt)
     return srs_success;
 }
 
-void SrsRtcSendTrack::set_group_rtp_context(SrsTrackGroupRtpContext* v)
+void SrsRtcSendTrack::set_stream_switch_context(SrsStreamSwitchContext* v)
 {
-    group_ctx_ = v;
+    switch_context_ = v;
 }
 
 SrsRtcAudioSendTrack::SrsRtcAudioSendTrack(SrsRtcConnection* session, SrsRtcTrackDescription* track_desc)
@@ -1824,9 +1824,9 @@ srs_error_t SrsRtcVideoSendTrack::on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamSta
 
     // If context exists, we should merge multiple tracks to one track,
     // so we need to change the sequence to keep it continuous.
-    if (group_ctx_) {
+    if (switch_context_) {
         uint16_t seq = pkt->header.get_sequence();
-        pkt->header.set_sequence(group_ctx_->correct_sequence(seq));
+        pkt->header.set_sequence(switch_context_->correct_sequence(seq));
     }
     
     std::vector<SrsRtpPacket2*> pkts;
@@ -1939,7 +1939,7 @@ SrsTrackConfig SrsTrackConfig::parse(SrsJsonObject* track)
     return track_cfg;
 }
 
-SrsTrackGroupRtpContext::SrsTrackGroupRtpContext()
+SrsStreamSwitchContext::SrsStreamSwitchContext()
 {
     update_base_seq = false;
     base_seq_prev = 0;
@@ -1950,11 +1950,11 @@ SrsTrackGroupRtpContext::SrsTrackGroupRtpContext()
     video_group_active_track_ = NULL;
 }
 
-SrsTrackGroupRtpContext::~SrsTrackGroupRtpContext()
+SrsStreamSwitchContext::~SrsStreamSwitchContext()
 {
 }
 
-bool SrsTrackGroupRtpContext::active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg)
+bool SrsStreamSwitchContext::active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg)
 {
     std::string merge_track_id = _srs_track_id_group->get_merged_track_id(cfg.label_);
 
@@ -1964,12 +1964,12 @@ bool SrsTrackGroupRtpContext::active_it_in_future(SrsRtcVideoSendTrack* track, c
     }
 
     video_group_prepare_track_ = track;
-    track->set_group_rtp_context(this);
+    track->set_stream_switch_context(this);
 
     return true;
 }
 
-void SrsTrackGroupRtpContext::try_switch_stream(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt)
+void SrsStreamSwitchContext::try_switch_stream(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt)
 {
     if (track != video_group_prepare_track_) {
         return;
@@ -1991,7 +1991,7 @@ void SrsTrackGroupRtpContext::try_switch_stream(SrsRtcVideoSendTrack* track, Srs
     video_group_prepare_track_ = NULL;
 }
 
-bool SrsTrackGroupRtpContext::is_track_immutable(SrsRtcVideoSendTrack* track)
+bool SrsStreamSwitchContext::is_track_immutable(SrsRtcVideoSendTrack* track)
 {
     std::string track_id = track->get_track_id();
     std::string merge_track_id = _srs_track_id_group->get_merged_track_id(track_id);
@@ -2009,17 +2009,17 @@ bool SrsTrackGroupRtpContext::is_track_immutable(SrsRtcVideoSendTrack* track)
     return true;
 }
 
-bool SrsTrackGroupRtpContext::is_track_preparing(SrsRtcVideoSendTrack* track)
+bool SrsStreamSwitchContext::is_track_preparing(SrsRtcVideoSendTrack* track)
 {
     return video_group_prepare_track_ == track;
 }
 
-void SrsTrackGroupRtpContext::switch_sequence_base()
+void SrsStreamSwitchContext::switch_sequence_base()
 {
     update_base_seq = true;
 }
 
-uint16_t SrsTrackGroupRtpContext::correct_sequence(uint16_t seq)
+uint16_t SrsStreamSwitchContext::correct_sequence(uint16_t seq)
 {
     if (update_base_seq) {
         update_base_seq = false;
