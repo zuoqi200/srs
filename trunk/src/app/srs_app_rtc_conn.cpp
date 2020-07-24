@@ -2644,6 +2644,11 @@ srs_error_t SrsRtcConnection::generate_publish_local_sdp(SrsRequest* req, SrsSdp
             local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
         }
 
+        if (video_track->rsfec_) {
+            SrsCodecPayload* payload = (SrsCodecPayload*)video_track->rsfec_;
+            local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
+        }
+
         // only need media desc info, not ssrc info;
         break;
     }
@@ -2938,6 +2943,11 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
             if (track->red_) {
                 SrsRedPayload* red_payload = (SrsRedPayload*)track->red_;
                 local_media_desc.payload_types_.push_back(red_payload->generate_media_payload_type());
+            }
+
+            if (track->rsfec_) {
+                SrsCodecPayload* payload = (SrsCodecPayload*)track->rsfec_;
+                local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
             }
         }
 
