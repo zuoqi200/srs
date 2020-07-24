@@ -548,8 +548,8 @@ class SrsStreamSwitchContext
 {
 private:
     // Only track pointer, it's managed by video_tracks_.
-    SrsRtcVideoSendTrack* video_group_prepare_track_;
-    SrsRtcVideoSendTrack* video_group_active_track_;
+    SrsRtcVideoSendTrack* prepare_;
+    SrsRtcVideoSendTrack* active_;
 private:
     bool update_base_seq;
     uint16_t base_seq_prev;
