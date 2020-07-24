@@ -1946,8 +1946,8 @@ SrsStreamSwitchContext::SrsStreamSwitchContext()
     base_seq = 0;
     last_seq = 0;
 
-    video_group_prepare_track_ = NULL;
-    video_group_active_track_ = NULL;
+    prepare_ = NULL;
+    active_ = NULL;
 }
 
 SrsStreamSwitchContext::~SrsStreamSwitchContext()
@@ -1963,7 +1963,7 @@ bool SrsStreamSwitchContext::active_it_in_future(SrsRtcVideoSendTrack* track, co
         return false;
     }
 
-    video_group_prepare_track_ = track;
+    prepare_ = track;
     track->set_stream_switch_context(this);
 
     return true;
@@ -1971,7 +1971,7 @@ bool SrsStreamSwitchContext::active_it_in_future(SrsRtcVideoSendTrack* track, co
 
 void SrsStreamSwitchContext::try_switch_stream(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt)
 {
-    if (track != video_group_prepare_track_) {
+    if (track != prepare_) {
         return;
     }
 
@@ -1983,12 +1983,12 @@ void SrsStreamSwitchContext::try_switch_stream(SrsRtcVideoSendTrack* track, SrsR
     track->set_track_status(true);
 
     // Disable previous track.
-    if (video_group_active_track_ && video_group_active_track_ != track) {
-        video_group_active_track_->set_track_status(false);
+    if (active_ && active_ != track) {
+        active_->set_track_status(false);
     }
 
-    video_group_active_track_ = track;
-    video_group_prepare_track_ = NULL;
+    active_ = track;
+    prepare_ = NULL;
 }
 
 bool SrsStreamSwitchContext::is_track_immutable(SrsRtcVideoSendTrack* track)
@@ -2002,7 +2002,7 @@ bool SrsStreamSwitchContext::is_track_immutable(SrsRtcVideoSendTrack* track)
     }
 
     // If stream is not active, it's not immutable.
-    if (video_group_active_track_ != track) {
+    if (active_ != track) {
         return false;
     }
 
@@ -2011,7 +2011,7 @@ bool SrsStreamSwitchContext::is_track_immutable(SrsRtcVideoSendTrack* track)
 
 bool SrsStreamSwitchContext::is_track_preparing(SrsRtcVideoSendTrack* track)
 {
-    return video_group_prepare_track_ == track;
+    return prepare_ == track;
 }
 
 void SrsStreamSwitchContext::switch_sequence_base()
