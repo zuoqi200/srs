@@ -942,3 +942,89 @@ void SrsLogWriterCallstack::write(SrsJanusSession* s, SrsJanusUserConf* c, SrsJa
     write_log(data.data(), data.length());
 }
 
+SrsLogWriterRelation::SrsLogWriterRelation() : SrsLogWriter("relation")
+{
+}
+
+SrsLogWriterRelation::~SrsLogWriterRelation()
+{
+}
+
+struct SrsJanusRelation
+{
+    // time: write log time
+    std::string time;
+    // appid: app id.
+    std::string appid;
+    // channelid: channel id.
+    std::string channel;
+    // trackID: track id.
+    std::string track_id;
+
+    // publisher_session_id: publish session id.
+    std::string publisher_session_id;
+    // publisher_call_id: publish call id.
+    std::string publisher_call_id;
+    // publisher_user_id: publish user id.
+    std::string publisher_user_id;
+    // publisher_ssrc: publish ssrc;
+    uint32_t publisher_ssrc;
+
+    // subscriber_session_id: subscriber session id.
+    std::string subscriber_session_id;
+    // subscriber_call_id: subscriber call id.
+    std::string subscriber_call_id;
+    // subscriber_user_id: subscriber user id.
+    std::string subscriber_user_id;
+    // subscriber_ssrc: subscriber ssrc.
+    uint32_t subscriber_ssrc;
+
+    void marshal(SrsJsonObject* obj) {
+        obj->set("time",    SrsJsonAny::str(time.c_str()));
+        obj->set("appid",   SrsJsonAny::str(appid.c_str()));
+        obj->set("channelid", SrsJsonAny::str(channel.c_str()));
+        obj->set("trackID",  SrsJsonAny::str(track_id.c_str()));
+
+        obj->set("publisher_session_id", SrsJsonAny::str(publisher_session_id.c_str()));
+        obj->set("publisher_call_id",    SrsJsonAny::str(publisher_call_id.c_str()));
+        obj->set("publisher_user_id",    SrsJsonAny::str(publisher_user_id.c_str()));
+        obj->set("publisher_ssrc",       SrsJsonAny::integer(publisher_ssrc));
+
+        obj->set("subscriber_session_id", SrsJsonAny::str(subscriber_session_id.c_str()));
+        obj->set("subscriber_call_id",    SrsJsonAny::str(subscriber_call_id.c_str()));
+        obj->set("subscriber_user_id",    SrsJsonAny::str(subscriber_user_id.c_str()));
+        obj->set("subscriber_ssrc",       SrsJsonAny::integer(subscriber_ssrc));
+    }
+};
+
+void SrsLogWriterRelation::write(SrsJanusRelationPublishInfo* pub_info, SrsJanusRelationSubscribeInfo* sub_info)
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    if (true) {
+        SrsJanusRelation relation;
+
+        relation.time = srs_current_time(false);
+
+        relation.appid = pub_info->appid;
+        relation.channel = pub_info->channel;
+        relation.track_id = pub_info->track_id;
+
+        relation.publisher_session_id = pub_info->publisher_session_id;
+        relation.publisher_call_id = pub_info->publisher_call_id;
+        relation.publisher_user_id = pub_info->publisher_user_id;
+        relation.publisher_ssrc = pub_info->publisher_ssrc;
+
+        relation.subscriber_session_id = sub_info->subscriber_session_id;
+        relation.subscriber_call_id = sub_info->subscriber_call_id;
+        relation.subscriber_user_id = sub_info->subscriber_user_id;
+        relation.subscriber_ssrc = sub_info->subscriber_ssrc;
+
+        relation.marshal(obj);
+    }
+
+    string data = obj->dumps();
+    data += LOG_TAIL;
+    write_log(data.data(), data.length());
+}

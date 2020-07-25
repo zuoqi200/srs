@@ -144,5 +144,16 @@ public:
     virtual void write(SrsJanusSession* s, SrsJanusUserConf* c, SrsJanusMessage* m);
 };
 
+struct SrsJanusRelationPublishInfo;
+struct SrsJanusRelationSubscribeInfo;
+class SrsLogWriterRelation : public SrsLogWriter
+{
+public:
+    SrsLogWriterRelation();
+    virtual ~SrsLogWriterRelation();
+public:
+    void write(SrsJanusRelationPublishInfo* pub_info, SrsJanusRelationSubscribeInfo* sub_info);
+};
+
 #endif
 

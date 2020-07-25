@@ -40,6 +40,7 @@ using namespace std;
 
 // SLS log writers.
 SrsLogWriterCallstack* _sls_callstack = new SrsLogWriterCallstack();
+SrsLogWriterRelation* _sls_relation = new SrsLogWriterRelation();
 
 // When API error, limit the request by sleep for a while.
 srs_utime_t API_ERROR_LIMIT = 10 * SRS_UTIME_SECONDS;
@@ -303,6 +304,10 @@ srs_error_t SrsJanusServer::listen_api()
 
     if ((err = _sls_callstack->initialize()) != srs_success) {
         return srs_error_wrap(err, "sls callstack");
+    }
+
+    if ((err = _sls_relation->initialize()) != srs_success) {
+        return srs_error_wrap(err, "sls relation");
     }
 
     // Handle the session timeout event.
@@ -1131,6 +1136,9 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         res_msg->sender, res_msg->private_id, publisher_, local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
     srs_trace("RTC local offer: %s", srs_string_replace(local_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
 
+    //TODO: FIXME: add error check
+    write_sub_relations(&request, callee, &local_sdp);
+
     return err;
 }
 
@@ -1766,3 +1774,70 @@ srs_error_t SrsJanusCall::publisher_exchange_sdp(SrsRequest* req, const SrsSdp& 
     return err;
 }
 
+srs_error_t SrsJanusCall::write_sub_relations(SrsRequest* req, SrsJanusCall* callee, SrsSdp* sub_offer_sdp)
+{
+    srs_error_t err = srs_success;
+
+    SrsRtcStream* source = NULL;
+    if ((err = _srs_rtc_sources->fetch_or_create(req, &source)) != srs_success) {
+        return srs_error_wrap(err, "fetch rtc source");
+    }
+
+    // Init Relation publish info
+    SrsJanusRelationPublishInfo* pub_info = new SrsJanusRelationPublishInfo();
+    SrsAutoFree(SrsJanusRelationPublishInfo, pub_info);
+    pub_info->appid = callee->session_->appid_;
+    pub_info->channel = callee->session_->channel_;
+    pub_info->publisher_session_id = callee->session_->sessionid_;
+    pub_info->publisher_user_id = callee->session_->userid_;
+    pub_info->publisher_call_id = callee->callid_;
+
+
+    // Init Relation publish info
+    SrsJanusRelationSubscribeInfo* sub_info = new SrsJanusRelationSubscribeInfo();
+    SrsAutoFree(SrsJanusRelationSubscribeInfo, sub_info);
+    sub_info->subscriber_session_id = session_->sessionid_;
+    sub_info->subscriber_user_id = session_->userid_;
+    sub_info->subscriber_call_id = callid_;
+
+    std::vector<SrsRtcTrackDescription*> audio_track_descs = source->get_track_desc("audio", "opus");
+    for (size_t i = 0; i < audio_track_descs.size(); ++i) {
+        SrsRtcTrackDescription* track_desc = audio_track_descs.at(i);
+        std::string track_id = track_desc->id_;
+
+        pub_info->track_id = track_id;
+        pub_info->publisher_ssrc = track_desc->ssrc_;
+
+        const SrsMediaDesc* media_desc = sub_offer_sdp->find_media_desc("audio");
+        for (int j = 0; j < media_desc->ssrc_infos_.size(); ++j) {
+            SrsSSRCInfo ssrc_info = media_desc->ssrc_infos_.at(j);
+            if (ssrc_info.msid_tracker_ != track_id) {
+                continue;
+            }
+
+            sub_info->subscriber_ssrc = ssrc_info.ssrc_;
+            _sls_relation->write(pub_info, sub_info);
+        }
+    }
+
+    std::vector<SrsRtcTrackDescription*> video_track_descs = source->get_track_desc("video", "H264");
+    for (size_t i = 0; i < video_track_descs.size(); ++i) {
+        SrsRtcTrackDescription* track_desc = video_track_descs.at(i);
+        std::string track_id = track_desc->id_;
+        std::string merged_track_id = _srs_track_id_group->get_merged_track_id(track_id);
+
+        pub_info->track_id = track_id;
+        pub_info->publisher_ssrc = track_desc->ssrc_;
+
+        const SrsMediaDesc* media_desc = sub_offer_sdp->find_media_desc("video");
+        for (int j = 0; j < media_desc->ssrc_infos_.size(); ++j) {
+            SrsSSRCInfo ssrc_info = media_desc->ssrc_infos_.at(j);
+            if (ssrc_info.msid_tracker_ != merged_track_id) {
+                continue;
+            }
+
+            sub_info->subscriber_ssrc = ssrc_info.ssrc_;
+            _sls_relation->write(pub_info, sub_info);
+        }
+    }
+}

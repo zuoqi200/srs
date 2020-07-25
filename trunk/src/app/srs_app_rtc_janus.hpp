@@ -230,6 +230,36 @@ struct SrsJuanusVideoGroupPolicy
     uint32_t target_active_ssrc;
 };
 
+struct SrsJanusRelationPublishInfo
+{
+    // appid: app id.
+    std::string appid;
+    // channelid: channel id.
+    std::string channel;
+    // trackID: track id.
+    std::string track_id;
+    // publisher_session_id: publish session id.
+    std::string publisher_session_id;
+    // publisher_call_id: publish call id.
+    std::string publisher_call_id;
+    // publisher_user_id: publish user id.
+    std::string publisher_user_id;
+    // publisher_ssrc: publish ssrc;
+    uint32_t publisher_ssrc;
+};
+
+struct SrsJanusRelationSubscribeInfo
+{
+    // subscriber_session_id: subscriber session id.
+    std::string subscriber_session_id;
+    // subscriber_call_id: subscriber call id.
+    std::string subscriber_call_id;
+    // subscriber_user_id: subscriber user id.
+    std::string subscriber_user_id;
+    // subscriber_ssrc: subscriber ssrc.
+    uint32_t subscriber_ssrc;
+};
+
 class SrsJanusCall
 {
     friend class SrsJanusSession;
@@ -269,6 +299,7 @@ private:
     srs_error_t on_reconfigure_publisher(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg);
     srs_error_t on_reconfigure_subscriber(SrsJsonObject* req, SrsJsonObject* body, SrsJanusMessage* msg);
     srs_error_t publisher_exchange_sdp(SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp);
+    srs_error_t write_sub_relations(SrsRequest* req, SrsJanusCall* callee, SrsSdp* sub_offer_sdp);
 };
 
 #endif
