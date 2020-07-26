@@ -1201,12 +1201,12 @@ void SrsLogWriteDataStatistic::write(SrsRtcParticipantID* p, SrsRtcTrackRecvData
             data_statistic.turn = r->turn;
 
             data_statistic.ssrc = r->ssrc;
-            data_statistic.in_replays = r->in_replays;
-            data_statistic.in_replay_bytes = r->in_replay_bytes;
-            data_statistic.in_paddings = r->in_paddings;
-            data_statistic.in_padding_bytes = r->in_padding_bytes;
-            data_statistic.in_packets = r->in_packets;
-            data_statistic.in_bytes = r->in_bytes;
+            data_statistic.in_replays = r->replays;
+            data_statistic.in_replay_bytes = r->replay_bytes;
+            data_statistic.in_paddings = r->paddings;
+            data_statistic.in_padding_bytes = r->padding_bytes;
+            data_statistic.in_packets = r->packets;
+            data_statistic.in_bytes = r->bytes;
             data_statistic.nack_sent = r->nack_sent;
             data_statistic.lost = r->lost;
             data_statistic.lost_rate = r->lost_rate;
@@ -1221,12 +1221,12 @@ void SrsLogWriteDataStatistic::write(SrsRtcParticipantID* p, SrsRtcTrackRecvData
             data_statistic.turn = s->turn;
 
             data_statistic.ssrc = s->ssrc;
-            data_statistic.out_replays = s->out_replays;
-            data_statistic.out_replay_bytes = s->out_replay_bytes;
-            data_statistic.out_paddings = s->out_paddings;
-            data_statistic.out_padding_bytes = s->out_padding_bytes;
-            data_statistic.out_packets = s->out_packets;
-            data_statistic.out_bytes = s->out_bytes;
+            data_statistic.out_replays = s->replays;
+            data_statistic.out_replay_bytes = s->replay_bytes;
+            data_statistic.out_paddings = s->paddings;
+            data_statistic.out_padding_bytes = s->padding_bytes;
+            data_statistic.out_packets = s->packets;
+            data_statistic.out_bytes = s->bytes;
             data_statistic.nack_recv = s->nack_recv;
             data_statistic.lost_remote = s->lost_remote;
             data_statistic.lost_rate_remote = s->lost_rate_remote;

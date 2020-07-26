@@ -170,7 +170,7 @@ public:
     std::string call;
 };
 
-class SrsRtcTrackRecvDataStatistic
+class SrsRtcTrackDataStatistic
 {
 public:
     // type: audio or video.
@@ -185,17 +185,34 @@ public:
     uint32_t ssrc;
 
     // inReplays: in replay packets.
-    uint32_t in_replays;
+    uint32_t replays;
     // inReplayBytes: in replay bytes.
-    uint32_t in_replay_bytes;
+    uint32_t replay_bytes;
     // inPaddings: in padding packets.
-    uint32_t in_paddings;
+    uint32_t paddings;
     // inPaddingBytes: in padding bytes.
-    uint32_t in_padding_bytes;
+    uint32_t padding_bytes;
     // inPackets: in packets.
-    uint32_t in_packets;
+    uint32_t packets;
     // inBytes: in bytes.
-    uint32_t in_bytes;
+    uint32_t bytes;
+
+    SrsRtcTrackDataStatistic()
+    {
+        ssrc = 0;
+
+        replays = 0;
+        replay_bytes = 0;
+        paddings = 0;
+        padding_bytes = 0;
+        packets = 0;
+        bytes = 0;
+    }
+};
+
+class SrsRtcTrackRecvDataStatistic : public SrsRtcTrackDataStatistic
+{
+public:
     // nackSent: the number of send nack.
     uint32_t nack_sent;
     // lost: lost packets.
@@ -211,13 +228,6 @@ public:
 
     SrsRtcTrackRecvDataStatistic()
     {
-        ssrc = 0;
-        in_replays = 0;
-        in_replay_bytes = 0;
-        in_paddings = 0;
-        in_padding_bytes = 0;
-        in_packets = 0;
-        in_bytes = 0;
         nack_sent = 0;
         lost = 0;
         lost_rate = 0;
@@ -227,32 +237,9 @@ public:
     };
 };
 
-class SrsRtcTrackSendDataStatistic
+class SrsRtcTrackSendDataStatistic : public SrsRtcTrackDataStatistic
 {
 public:
-    // type: audio or video.
-    std::string type;
-    // trackID: the track id.
-    std::string track_id;
-    // direction: recv or send.
-    std::string direction;
-    // turn: turn ip addr.
-    std::string turn;
-    // ssrc: the ssrc of track.
-    uint32_t ssrc;
-
-    // outReplays: out replay packets.
-    uint32_t out_replays;
-    // outReplayBytes: out replay bytes.
-    uint32_t out_replay_bytes;
-    // outPaddings: out padding packets.
-    uint32_t out_paddings;
-    // outPaddingBytes: out padding bytes.
-    uint32_t out_padding_bytes;
-    // outPackets: out packets.
-    uint32_t out_packets;
-    // outBytes: out bytes.
-    uint32_t out_bytes;
     // nackRecv: the number of send nack.
     uint32_t nack_recv;
     // lostRemote: out lost packets.
@@ -264,13 +251,6 @@ public:
 
     SrsRtcTrackSendDataStatistic()
     {
-        ssrc = 0;
-        out_replays = 0;
-        out_replay_bytes = 0;
-        out_paddings = 0;
-        out_padding_bytes = 0;
-        out_packets = 0;
-        out_bytes = 0;
         nack_recv = 0;
         lost_remote = 0;
         lost_rate_remote = 0;
