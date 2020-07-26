@@ -155,5 +155,140 @@ public:
     void write(SrsJanusRelationPublishInfo* pub_info, SrsJanusRelationSubscribeInfo* sub_info);
 };
 
+class SrsRtcParticipantID
+{
+public:
+    // appid: app id.
+    std::string appid;
+    // channelID: channel id.
+    std::string channel;
+    // userID: user id.
+    std::string user;
+    // sessionID: session id.
+    std::string session;
+    // callID: call id.
+    std::string call;
+};
+
+class SrsRtcTrackRecvDataStatistic
+{
+public:
+    // type: audio or video.
+    std::string type;
+    // trackID: the track id.
+    std::string track_id;
+    // direction: recv or send.
+    std::string direction;
+    // turn: turn ip addr.
+    std::string turn;
+    // ssrc: the ssrc of track.
+    uint32_t ssrc;
+
+    // inReplays: in replay packets.
+    uint32_t in_replays;
+    // inReplayBytes: in replay bytes.
+    uint32_t in_replay_bytes;
+    // inPaddings: in padding packets.
+    uint32_t in_paddings;
+    // inPaddingBytes: in padding bytes.
+    uint32_t in_padding_bytes;
+    // inPackets: in packets.
+    uint32_t in_packets;
+    // inBytes: in bytes.
+    uint32_t in_bytes;
+    // nackSent: the number of send nack.
+    uint32_t nack_sent;
+    // lost: lost packets.
+    uint32_t lost;
+    // lostRate: lost rate;
+    uint32_t lost_rate;
+    // validPacketRate: valid packet rate;
+    double valid_packet_rate;
+    // twccLossRate: twcc loss rate;
+    uint32_t twcc_loss_rate;
+    // twccMaxLossRate: twcc max loss Rate;
+    uint32_t twcc_max_loss_rate;
+
+    SrsRtcTrackRecvDataStatistic()
+    {
+        ssrc = 0;
+        in_replays = 0;
+        in_replay_bytes = 0;
+        in_paddings = 0;
+        in_padding_bytes = 0;
+        in_packets = 0;
+        in_bytes = 0;
+        nack_sent = 0;
+        lost = 0;
+        lost_rate = 0;
+        twcc_loss_rate = 0;
+        twcc_max_loss_rate = 0;
+        valid_packet_rate = 0;
+    };
+};
+
+class SrsRtcTrackSendDataStatistic
+{
+public:
+    // type: audio or video.
+    std::string type;
+    // trackID: the track id.
+    std::string track_id;
+    // direction: recv or send.
+    std::string direction;
+    // turn: turn ip addr.
+    std::string turn;
+    // ssrc: the ssrc of track.
+    uint32_t ssrc;
+
+    // outReplays: out replay packets.
+    uint32_t out_replays;
+    // outReplayBytes: out replay bytes.
+    uint32_t out_replay_bytes;
+    // outPaddings: out padding packets.
+    uint32_t out_paddings;
+    // outPaddingBytes: out padding bytes.
+    uint32_t out_padding_bytes;
+    // outPackets: out packets.
+    uint32_t out_packets;
+    // outBytes: out bytes.
+    uint32_t out_bytes;
+    // nackRecv: the number of send nack.
+    uint32_t nack_recv;
+    // lostRemote: out lost packets.
+    uint32_t lost_remote;
+    // lostRateRemote: out lost rate;
+    uint32_t lost_rate_remote;
+    // validPacketRate: valid packet rate;
+    double valid_packet_rate;
+
+    SrsRtcTrackSendDataStatistic()
+    {
+        ssrc = 0;
+        out_replays = 0;
+        out_replay_bytes = 0;
+        out_paddings = 0;
+        out_padding_bytes = 0;
+        out_packets = 0;
+        out_bytes = 0;
+        nack_recv = 0;
+        lost_remote = 0;
+        lost_rate_remote = 0;
+        valid_packet_rate = 0;
+    };
+};
+
+class SrsRtcParticipantID;
+class SrsRtcTrackRecvDataStatistic;
+class SrsRtcTrackSendDataStatistic;
+class SrsLogWriteDataStatistic : public SrsLogWriter
+{
+public:
+    SrsLogWriteDataStatistic();
+    virtual ~SrsLogWriteDataStatistic();
+public:
+    virtual void write(SrsRtcParticipantID* paticipant, SrsRtcTrackRecvDataStatistic* recv_data_statistic, SrsRtcTrackSendDataStatistic* send_data_statistic);
+};
+
 #endif
 

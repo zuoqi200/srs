@@ -1028,3 +1028,215 @@ void SrsLogWriterRelation::write(SrsJanusRelationPublishInfo* pub_info, SrsJanus
     data += LOG_TAIL;
     write_log(data.data(), data.length());
 }
+
+SrsLogWriteDataStatistic::SrsLogWriteDataStatistic() : SrsLogWriter("data_statistic")
+{
+}
+
+SrsLogWriteDataStatistic::~SrsLogWriteDataStatistic()
+{
+}
+
+struct SrsJanusTrackDataStatistic
+{
+    // time: write log time
+    std::string time;
+    // appid: app id.
+    std::string appid;
+    // channelID: channel id.
+    std::string channel;
+    // userID: user id.
+    std::string user;
+    // sessionID: session id.
+    std::string session;
+    // callID: call id.
+    std::string call;
+
+    // type: audio or video.
+    std::string type;
+    // trackID: the track id.
+    std::string track_id;
+    // direction: recv or send.
+    std::string direction;
+    // turn: turn ip addr.
+    std::string turn;
+    // ssrc: the ssrc of track.
+    uint32_t ssrc;
+
+    // inReplays: in replay packets.
+    uint32_t in_replays;
+    // inReplayBytes: in replay bytes.
+    uint32_t in_replay_bytes;
+    // inPaddings: in padding packets.
+    uint32_t in_paddings;
+    // inPaddingBytes: in padding bytes.
+    uint32_t in_padding_bytes;
+    // inPackets: in packets.
+    uint32_t in_packets;
+    // inBytes: in bytes.
+    uint32_t in_bytes;
+    // nackSent: the number of send nack.
+    uint32_t nack_sent;
+    // lost: lost packets.
+    uint32_t lost;
+    // lostRate: lost rate;
+    uint32_t lost_rate;
+    // twccLossRate: twcc loss rate;
+    uint32_t twcc_loss_rate;
+    // twccMaxLossRate: twcc max loss Rate;
+    uint32_t twcc_max_loss_rate;
+
+    // outReplays: out replay packets.
+    uint32_t out_replays;
+    // outReplayBytes: out replay bytes.
+    uint32_t out_replay_bytes;
+    // outPaddings: out padding packets.
+    uint32_t out_paddings;
+    // outPaddingBytes: out padding bytes.
+    uint32_t out_padding_bytes;
+    // outPackets: out packets.
+    uint32_t out_packets;
+    // outBytes: out bytes.
+    uint32_t out_bytes;
+    // nackRecv: the number of send nack.
+    uint32_t nack_recv;
+    // lostRemote: out lost packets.
+    uint32_t lost_remote;
+    // lostRateRemote: out lost rate;
+    uint32_t lost_rate_remote;
+
+    // validPacketRate: valid packet rate.
+    double valid_packet_rate;
+
+    SrsJanusTrackDataStatistic()
+    {
+        ssrc = 0;
+        in_replays = 0;
+        in_replay_bytes = 0;
+        in_paddings = 0;
+        in_padding_bytes = 0;
+        in_packets = 0;
+        in_bytes = 0;
+        nack_sent = 0;
+        lost = 0;
+        lost_rate = 0;
+        twcc_loss_rate = 0;
+        twcc_max_loss_rate = 0;
+
+        out_replays = 0;
+        out_replay_bytes = 0;
+        out_paddings = 0;
+        out_padding_bytes = 0;
+        out_packets = 0;
+        out_bytes = 0;
+        nack_recv = 0;
+        lost_remote = 0;
+        lost_rate_remote = 0;
+
+        valid_packet_rate = 0;
+    };
+
+    void marshal(SrsJsonObject* obj) {
+        obj->set("time",        SrsJsonAny::str(time.c_str()));
+        obj->set("appid",       SrsJsonAny::str(appid.c_str()));
+        obj->set("channelID",   SrsJsonAny::str(channel.c_str()));
+        obj->set("userID",      SrsJsonAny::str(user.c_str()));
+        obj->set("sessionID",   SrsJsonAny::str(session.c_str()));
+        obj->set("callID",      SrsJsonAny::str(call.c_str()));
+
+        obj->set("type",        SrsJsonAny::str(type.c_str()));
+        obj->set("trackID",     SrsJsonAny::str(track_id.c_str()));
+        obj->set("direction",   SrsJsonAny::str(direction.c_str()));
+        obj->set("turn",        SrsJsonAny::str(turn.c_str()));
+        obj->set("ssrc",        SrsJsonAny::integer(ssrc));
+
+        obj->set("inReplays",      SrsJsonAny::integer(in_replays));
+        obj->set("inReplayBytes",  SrsJsonAny::integer(in_replay_bytes));
+        obj->set("inPaddings",     SrsJsonAny::integer(in_paddings));
+        obj->set("inPaddingBytes", SrsJsonAny::integer(in_padding_bytes));
+        obj->set("inPackets",      SrsJsonAny::integer(in_packets));
+        obj->set("inBytes",        SrsJsonAny::integer(in_bytes));
+        obj->set("nackSent",       SrsJsonAny::integer(nack_sent));
+        obj->set("lost",           SrsJsonAny::integer(lost));
+        obj->set("lostRate",       SrsJsonAny::integer(lost_rate));
+        obj->set("twccLossRate",   SrsJsonAny::integer(twcc_loss_rate));
+        obj->set("twccMaxLossRate",SrsJsonAny::integer(twcc_max_loss_rate));
+
+        obj->set("outReplays",      SrsJsonAny::integer(out_replays));
+        obj->set("outReplayBytes",  SrsJsonAny::integer(out_replay_bytes));
+        obj->set("outPaddings",     SrsJsonAny::integer(out_paddings));
+        obj->set("outPaddingBytes", SrsJsonAny::integer(out_padding_bytes));
+        obj->set("outPackets",      SrsJsonAny::integer(out_packets));
+        obj->set("outBytes",        SrsJsonAny::integer(out_bytes));
+        obj->set("nackRecv",        SrsJsonAny::integer(nack_recv));
+        obj->set("lostRemote",      SrsJsonAny::integer(lost_remote));
+        obj->set("lostRateRemote",  SrsJsonAny::integer(lost_rate_remote));
+
+        obj->set("validPacketRate", SrsJsonAny::number(valid_packet_rate));
+    }
+};
+
+void SrsLogWriteDataStatistic::write(SrsRtcParticipantID* paticipant, SrsRtcTrackRecvDataStatistic* recv_data_statistic, SrsRtcTrackSendDataStatistic* send_data_statistic)
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    if (true) {
+        SrsJanusTrackDataStatistic data_statistic;
+
+        data_statistic.time = srs_current_time(false);
+
+        data_statistic.appid    = paticipant->appid;
+        data_statistic.channel  = paticipant->channel;
+        data_statistic.user     = paticipant->user;
+        data_statistic.session  = paticipant->session;
+        data_statistic.call     = paticipant->call;
+
+        if (recv_data_statistic) {
+            data_statistic.type = recv_data_statistic->type;
+            data_statistic.track_id = recv_data_statistic->track_id;
+            data_statistic.direction = recv_data_statistic->direction;
+            data_statistic.turn = recv_data_statistic->turn;
+
+            data_statistic.ssrc = recv_data_statistic->ssrc;
+            data_statistic.in_replays = recv_data_statistic->in_replays;
+            data_statistic.in_replay_bytes = recv_data_statistic->in_replay_bytes;
+            data_statistic.in_paddings = recv_data_statistic->in_paddings;
+            data_statistic.in_padding_bytes = recv_data_statistic->in_padding_bytes;
+            data_statistic.in_packets = recv_data_statistic->in_packets;
+            data_statistic.in_bytes = recv_data_statistic->in_bytes;
+            data_statistic.nack_sent = recv_data_statistic->nack_sent;
+            data_statistic.lost = recv_data_statistic->lost;
+            data_statistic.lost_rate = recv_data_statistic->lost_rate;
+            data_statistic.valid_packet_rate = recv_data_statistic->valid_packet_rate;
+            data_statistic.twcc_loss_rate = recv_data_statistic->twcc_loss_rate;
+            data_statistic.twcc_max_loss_rate = recv_data_statistic->twcc_max_loss_rate;
+
+        } else if (send_data_statistic) {
+            data_statistic.type = send_data_statistic->type;
+            data_statistic.track_id = send_data_statistic->track_id;
+            data_statistic.direction = send_data_statistic->direction;
+            data_statistic.turn = send_data_statistic->turn;
+
+            data_statistic.ssrc = send_data_statistic->ssrc;
+            data_statistic.out_replays = send_data_statistic->out_replays;
+            data_statistic.out_replay_bytes = send_data_statistic->out_replay_bytes;
+            data_statistic.out_paddings = send_data_statistic->out_paddings;
+            data_statistic.out_padding_bytes = send_data_statistic->out_padding_bytes;
+            data_statistic.out_packets = send_data_statistic->out_packets;
+            data_statistic.out_bytes = send_data_statistic->out_bytes;
+            data_statistic.nack_recv = send_data_statistic->nack_recv;
+            data_statistic.lost_remote = send_data_statistic->lost_remote;
+            data_statistic.lost_rate_remote = send_data_statistic->lost_rate_remote;
+            data_statistic.valid_packet_rate = send_data_statistic->valid_packet_rate;
+
+        }
+
+        data_statistic.marshal(obj);
+    }
+
+    string data = obj->dumps();
+    data += LOG_TAIL;
+    write_log(data.data(), data.length());
+}
+

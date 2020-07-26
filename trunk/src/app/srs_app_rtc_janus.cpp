@@ -41,6 +41,7 @@ using namespace std;
 // SLS log writers.
 SrsLogWriterCallstack* _sls_callstack = new SrsLogWriterCallstack();
 SrsLogWriterRelation* _sls_relation = new SrsLogWriterRelation();
+SrsLogWriteDataStatistic* _sls_data_statistic = new SrsLogWriteDataStatistic();
 
 // When API error, limit the request by sleep for a while.
 srs_utime_t API_ERROR_LIMIT = 10 * SRS_UTIME_SECONDS;
@@ -308,6 +309,10 @@ srs_error_t SrsJanusServer::listen_api()
 
     if ((err = _sls_relation->initialize()) != srs_success) {
         return srs_error_wrap(err, "sls relation");
+    }
+
+    if ((err = _sls_data_statistic->initialize()) != srs_success) {
+        return srs_error_wrap(err, "sls data statistic");
     }
 
     // Handle the session timeout event.
@@ -1840,4 +1845,7 @@ srs_error_t SrsJanusCall::write_sub_relations(SrsRequest* req, SrsJanusCall* cal
             _sls_relation->write(pub_info, sub_info);
         }
     }
+
+    return err;
 }
+
