@@ -39,6 +39,8 @@ using namespace std;
 #include <srs_core_autofree.hpp>
 #include <srs_protocol_json.hpp>
 
+#include <srs_app_rtc_source.hpp>
+
 // the max size of a line of log.
 #define LOG_MAX_SIZE 8192
 
@@ -1176,7 +1178,7 @@ struct SrsJanusTrackDataStatistic
     }
 };
 
-void SrsLogWriteDataStatistic::write(SrsRtcParticipantID* paticipant, SrsRtcTrackRecvDataStatistic* recv_data_statistic, SrsRtcTrackSendDataStatistic* send_data_statistic)
+void SrsLogWriteDataStatistic::write(SrsRtcParticipantID* p, SrsRtcTrackRecvDataStatistic* r, SrsRtcTrackSendDataStatistic* s)
 {
     SrsJsonObject* obj = SrsJsonAny::object();
     SrsAutoFree(SrsJsonObject, obj);
@@ -1186,49 +1188,49 @@ void SrsLogWriteDataStatistic::write(SrsRtcParticipantID* paticipant, SrsRtcTrac
 
         data_statistic.time = srs_current_time(false);
 
-        data_statistic.appid    = paticipant->appid;
-        data_statistic.channel  = paticipant->channel;
-        data_statistic.user     = paticipant->user;
-        data_statistic.session  = paticipant->session;
-        data_statistic.call     = paticipant->call;
+        data_statistic.appid    = p->appid;
+        data_statistic.channel  = p->channel;
+        data_statistic.user     = p->user;
+        data_statistic.session  = p->session;
+        data_statistic.call     = p->call;
 
-        if (recv_data_statistic) {
-            data_statistic.type = recv_data_statistic->type;
-            data_statistic.track_id = recv_data_statistic->track_id;
-            data_statistic.direction = recv_data_statistic->direction;
-            data_statistic.turn = recv_data_statistic->turn;
+        if (r) {
+            data_statistic.type = r->type;
+            data_statistic.track_id = r->track_id;
+            data_statistic.direction = r->direction;
+            data_statistic.turn = r->turn;
 
-            data_statistic.ssrc = recv_data_statistic->ssrc;
-            data_statistic.in_replays = recv_data_statistic->in_replays;
-            data_statistic.in_replay_bytes = recv_data_statistic->in_replay_bytes;
-            data_statistic.in_paddings = recv_data_statistic->in_paddings;
-            data_statistic.in_padding_bytes = recv_data_statistic->in_padding_bytes;
-            data_statistic.in_packets = recv_data_statistic->in_packets;
-            data_statistic.in_bytes = recv_data_statistic->in_bytes;
-            data_statistic.nack_sent = recv_data_statistic->nack_sent;
-            data_statistic.lost = recv_data_statistic->lost;
-            data_statistic.lost_rate = recv_data_statistic->lost_rate;
-            data_statistic.valid_packet_rate = recv_data_statistic->valid_packet_rate;
-            data_statistic.twcc_loss_rate = recv_data_statistic->twcc_loss_rate;
-            data_statistic.twcc_max_loss_rate = recv_data_statistic->twcc_max_loss_rate;
+            data_statistic.ssrc = r->ssrc;
+            data_statistic.in_replays = r->in_replays;
+            data_statistic.in_replay_bytes = r->in_replay_bytes;
+            data_statistic.in_paddings = r->in_paddings;
+            data_statistic.in_padding_bytes = r->in_padding_bytes;
+            data_statistic.in_packets = r->in_packets;
+            data_statistic.in_bytes = r->in_bytes;
+            data_statistic.nack_sent = r->nack_sent;
+            data_statistic.lost = r->lost;
+            data_statistic.lost_rate = r->lost_rate;
+            data_statistic.valid_packet_rate = r->valid_packet_rate;
+            data_statistic.twcc_loss_rate = r->twcc_loss_rate;
+            data_statistic.twcc_max_loss_rate = r->twcc_max_loss_rate;
 
-        } else if (send_data_statistic) {
-            data_statistic.type = send_data_statistic->type;
-            data_statistic.track_id = send_data_statistic->track_id;
-            data_statistic.direction = send_data_statistic->direction;
-            data_statistic.turn = send_data_statistic->turn;
+        } else if (s) {
+            data_statistic.type = s->type;
+            data_statistic.track_id = s->track_id;
+            data_statistic.direction = s->direction;
+            data_statistic.turn = s->turn;
 
-            data_statistic.ssrc = send_data_statistic->ssrc;
-            data_statistic.out_replays = send_data_statistic->out_replays;
-            data_statistic.out_replay_bytes = send_data_statistic->out_replay_bytes;
-            data_statistic.out_paddings = send_data_statistic->out_paddings;
-            data_statistic.out_padding_bytes = send_data_statistic->out_padding_bytes;
-            data_statistic.out_packets = send_data_statistic->out_packets;
-            data_statistic.out_bytes = send_data_statistic->out_bytes;
-            data_statistic.nack_recv = send_data_statistic->nack_recv;
-            data_statistic.lost_remote = send_data_statistic->lost_remote;
-            data_statistic.lost_rate_remote = send_data_statistic->lost_rate_remote;
-            data_statistic.valid_packet_rate = send_data_statistic->valid_packet_rate;
+            data_statistic.ssrc = s->ssrc;
+            data_statistic.out_replays = s->out_replays;
+            data_statistic.out_replay_bytes = s->out_replay_bytes;
+            data_statistic.out_paddings = s->out_paddings;
+            data_statistic.out_padding_bytes = s->out_padding_bytes;
+            data_statistic.out_packets = s->out_packets;
+            data_statistic.out_bytes = s->out_bytes;
+            data_statistic.nack_recv = s->nack_recv;
+            data_statistic.lost_remote = s->lost_remote;
+            data_statistic.lost_rate_remote = s->lost_rate_remote;
+            data_statistic.valid_packet_rate = s->valid_packet_rate;
 
         }
 
