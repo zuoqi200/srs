@@ -1784,6 +1784,16 @@ srs_error_t SrsRtcSendTrack::on_rtcp(SrsRtpPacket2* pkt)
     return srs_success;
 }
 
+void SrsRtcSendTrack::on_recv_nack()
+{
+    SrsRtcTrackStatistic* statistic = statistic_;
+    if (switch_context_) {
+        statistic = switch_context_->statistic_;
+    }
+
+    statistic->nacks++;
+}
+
 void SrsRtcSendTrack::set_stream_switch_context(SrsStreamSwitchContext* v)
 {
     switch_context_ = v;
@@ -1867,6 +1877,9 @@ srs_error_t SrsRtcVideoSendTrack::on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamSta
     }
 
     SrsRtcTrackStatistic* statistic = statistic_;
+    if (switch_context_) {
+        statistic = switch_context_->statistic_;
+    }
 
     pkt->header.set_ssrc(track_desc_->ssrc_);
 
@@ -1994,10 +2007,13 @@ SrsStreamSwitchContext::SrsStreamSwitchContext()
 
     prepare_ = NULL;
     active_ = NULL;
+
+    statistic_ = new SrsRtcTrackStatistic();
 }
 
 SrsStreamSwitchContext::~SrsStreamSwitchContext()
 {
+    srs_freep(statistic_);
 }
 
 bool SrsStreamSwitchContext::active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg)
