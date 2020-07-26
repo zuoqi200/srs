@@ -520,6 +520,7 @@ public:
 public:
     virtual srs_error_t on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamStatistic& info);
     virtual srs_error_t on_rtcp(SrsRtpPacket2* pkt);
+    virtual void on_recv_nack();
 protected:
     // A group of stream for switching.
     SrsStreamSwitchContext* switch_context_;

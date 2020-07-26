@@ -1784,6 +1784,16 @@ srs_error_t SrsRtcSendTrack::on_rtcp(SrsRtpPacket2* pkt)
     return srs_success;
 }
 
+void SrsRtcSendTrack::on_recv_nack()
+{
+    SrsRtcTrackStatistic* statistic = statistic_;
+    if (switch_context_) {
+        statistic = switch_context_->statistic_;
+    }
+
+    statistic->nacks++;
+}
+
 void SrsRtcSendTrack::set_stream_switch_context(SrsStreamSwitchContext* v)
 {
     switch_context_ = v;
