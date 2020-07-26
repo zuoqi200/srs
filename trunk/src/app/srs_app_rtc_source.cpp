@@ -1604,8 +1604,10 @@ srs_error_t SrsRtcRecvTrack::on_nack(SrsRtpPacket2* pkt)
 
     // insert into video_queue and audio_queue
     rtp_queue_->set(seq, pkt->copy());
+
     // send_nack
-    session_->check_send_nacks(nack_receiver_, ssrc);
+    uint32_t sent_nacks = 0;
+    session_->check_send_nacks(nack_receiver_, ssrc, sent_nacks);
 
     return err;
 }
@@ -1628,6 +1630,9 @@ srs_error_t SrsRtcAudioRecvTrack::on_rtp(SrsRtcStream* source, SrsRtpPacket2* pk
 {
     srs_error_t err = srs_success;
 
+    // connection level statistic
+    session_->stat_->nn_in_audios++;
+
     if (source) {
         if ((err = source->on_rtp(pkt)) != srs_success) {
             return srs_error_wrap(err, "source on rtp");
@@ -1638,8 +1643,6 @@ srs_error_t SrsRtcAudioRecvTrack::on_rtp(SrsRtcStream* source, SrsRtpPacket2* pk
     if ((err = on_nack(pkt)) != srs_success) {
         return srs_error_wrap(err, "on nack");
     }
-
-    session_->stat_->nn_in_audios++;
 
     return err;
 }
@@ -1657,6 +1660,9 @@ SrsRtcVideoRecvTrack::~SrsRtcVideoRecvTrack()
 srs_error_t SrsRtcVideoRecvTrack::on_rtp(SrsRtcStream* source, SrsRtpPacket2* pkt)
 {
     srs_error_t err = srs_success;
+
+    // connection level statistic
+    session_->stat_->nn_in_videos++;
 
     pkt->frame_type = SrsFrameTypeVideo;
 
@@ -1678,8 +1684,6 @@ srs_error_t SrsRtcVideoRecvTrack::on_rtp(SrsRtcStream* source, SrsRtpPacket2* pk
     if ((err = on_nack(pkt)) != srs_success) {
         return srs_error_wrap(err, "on nack");
     }
-
-    session_->stat_->nn_in_videos++;
 
     return err;
 }
