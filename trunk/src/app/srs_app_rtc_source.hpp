@@ -600,6 +600,8 @@ private:
     uint16_t base_seq;
     uint16_t last_seq;
 public:
+    SrsRtcTrackStatistic* statistic_;
+public:
     SrsStreamSwitchContext();
     virtual ~SrsStreamSwitchContext();
 public:
