@@ -914,7 +914,7 @@ srs_error_t SrsRtcPublishStream::initialize(SrsRequest* r, SrsRtcStreamDescripti
     req = r->copy();
 
     audio_tracks_.push_back(new SrsRtcAudioRecvTrack(session_, stream_desc->audio_track_desc_));
-    for (int i = 0; i < stream_desc->video_track_descs_.size(); ++i) {
+    for (int i = 0; i < (int)stream_desc->video_track_descs_.size(); ++i) {
         SrsRtcTrackDescription* desc = stream_desc->video_track_descs_.at(i);
         video_tracks_.push_back(new SrsRtcVideoRecvTrack(session_, desc));
     }
@@ -924,7 +924,7 @@ srs_error_t SrsRtcPublishStream::initialize(SrsRequest* r, SrsRtcStreamDescripti
     int picture_id = 0;
     // because audio_track_desc have not twcc id, for example, h5demo
     // fetch twcc_id from video track description, 
-    for (int i = 0; i < stream_desc->video_track_descs_.size(); ++i) {
+    for (int i = 0; i < (int)stream_desc->video_track_descs_.size(); ++i) {
         SrsRtcTrackDescription* desc = stream_desc->video_track_descs_.at(i);
         twcc_id = desc->get_rtp_extension_id(kTWCCExt);
         media_ssrc = desc->ssrc_;
@@ -993,12 +993,12 @@ srs_error_t SrsRtcPublishStream::send_rtcp_rr()
 {
     srs_error_t err = srs_success;
 
-    for (int i = 0; i < video_tracks_.size(); ++i) {
+    for (int i = 0; i < (int)video_tracks_.size(); ++i) {
         SrsRtcVideoRecvTrack* track = video_tracks_.at(i);
         track->send_rtcp_rr();
     }
 
-    for (int i = 0; i < audio_tracks_.size(); ++i) {
+    for (int i = 0; i < (int)audio_tracks_.size(); ++i) {
         SrsRtcAudioRecvTrack* track = audio_tracks_.at(i);
         track->send_rtcp_rr();
     }
@@ -1012,12 +1012,12 @@ srs_error_t SrsRtcPublishStream::send_rtcp_xr_rrtr()
 {
     srs_error_t err = srs_success;
 
-    for (int i = 0; i < video_tracks_.size(); ++i) {
+    for (int i = 0; i < (int)video_tracks_.size(); ++i) {
         SrsRtcVideoRecvTrack* track = video_tracks_.at(i);
         track->send_rtcp_xr_rrtr();
     }
 
-    for (int i = 0; i < audio_tracks_.size(); ++i) {
+    for (int i = 0; i < (int)audio_tracks_.size(); ++i) {
         SrsRtcAudioRecvTrack* track = audio_tracks_.at(i);
         track->send_rtcp_xr_rrtr();
     }
@@ -1579,7 +1579,7 @@ void SrsRtcPublishStream::simulate_drop_packet(SrsRtpHeader* h, int nn_bytes)
 
 SrsRtcVideoRecvTrack* SrsRtcPublishStream::get_video_track(uint32_t ssrc)
 {
-    for (int i = 0; i < video_tracks_.size(); ++i) {
+    for (int i = 0; i < (int)video_tracks_.size(); ++i) {
         SrsRtcVideoRecvTrack* track = video_tracks_.at(i);
         if (track->has_ssrc(ssrc)) {
             return track;
@@ -1591,7 +1591,7 @@ SrsRtcVideoRecvTrack* SrsRtcPublishStream::get_video_track(uint32_t ssrc)
 
 SrsRtcAudioRecvTrack* SrsRtcPublishStream::get_audio_track(uint32_t ssrc)
 {
-    for (int i = 0; i < audio_tracks_.size(); ++i) {
+    for (int i = 0; i < (int)audio_tracks_.size(); ++i) {
         SrsRtcAudioRecvTrack* track = audio_tracks_.at(i);
         if (track->has_ssrc(ssrc)) {
             return track;
@@ -2613,7 +2613,7 @@ srs_error_t SrsRtcConnection::negotiate_publish_capability(SrsRequest* req, cons
         track_desc->create_auxiliary_payload(remote_media_desc.find_media_with_encoding_name("rsfec"));
 
         std::string track_id;
-        for (int i = 0; i < remote_media_desc.ssrc_infos_.size(); ++i) {
+        for (int i = 0; i < (int)remote_media_desc.ssrc_infos_.size(); ++i) {
             SrsSSRCInfo ssrc_info = remote_media_desc.ssrc_infos_.at(i);
             // ssrc have same track id, will be description in the same track description.
             if(track_id != ssrc_info.msid_tracker_) {
@@ -2632,7 +2632,7 @@ srs_error_t SrsRtcConnection::negotiate_publish_capability(SrsRequest* req, cons
         }
 
         // set track fec_ssrc and rtx_ssrc
-        for (int i = 0; i < remote_media_desc.ssrc_groups_.size(); ++i) {
+        for (int i = 0; i < (int)remote_media_desc.ssrc_groups_.size(); ++i) {
             SrsSSRCGroup ssrc_group = remote_media_desc.ssrc_groups_.at(i);
             SrsRtcTrackDescription* track_desc = stream_desc->find_track_description_by_ssrc(ssrc_group.ssrcs_[0]);
             if (!track_desc) {
@@ -2709,7 +2709,7 @@ srs_error_t SrsRtcConnection::generate_publish_local_sdp(SrsRequest* req, SrsSdp
         local_media_desc.payload_types_.push_back(payload->generate_media_payload_type());
     }
 
-    for (int i = 0;  i < stream_desc->video_track_descs_.size(); ++i) {
+    for (int i = 0;  i < (int)stream_desc->video_track_descs_.size(); ++i) {
         SrsRtcTrackDescription* video_track = stream_desc->video_track_descs_.at(i);
 
         local_sdp.media_descs_.push_back(SrsMediaDesc("video"));
@@ -2813,7 +2813,7 @@ srs_error_t SrsRtcConnection::negotiate_play_capability(SrsRequest* req, const S
             track_descs = source->get_track_desc("video", "H264");
         }
 
-        for (int i = 0; i < track_descs.size(); ++i) {
+        for (int i = 0; i < (int)track_descs.size(); ++i) {
             SrsRtcTrackDescription* track = track_descs[i]->copy();
             track->mid_ = remote_media_desc.mid_;
             uint32_t publish_ssrc = track->ssrc_;
@@ -2876,7 +2876,7 @@ srs_error_t SrsRtcConnection::fetch_source_capability(SrsRequest* req, std::map<
     std::vector<SrsRtcTrackDescription*> video_track_desc = source->get_track_desc("video", "H264");
     
     track_descs.insert(track_descs.end(), video_track_desc.begin(), video_track_desc.end());
-    for (int i = 0; i < track_descs.size(); ++i) {
+    for (int i = 0; i < (int)track_descs.size(); ++i) {
         SrsRtcTrackDescription* track = track_descs[i]->copy();
         uint32_t publish_ssrc = track->ssrc_;
 
@@ -3010,7 +3010,7 @@ srs_error_t SrsRtcConnection::generate_play_local_sdp(SrsRequest* req, SrsSdp& l
         }
     }
 
-    for (int i = 0;  i < stream_desc->video_track_descs_.size(); ++i) {
+    for (int i = 0;  i < (int)stream_desc->video_track_descs_.size(); ++i) {
         SrsRtcTrackDescription* track = stream_desc->video_track_descs_[i];
 
         // for plan b, we only add one m=
