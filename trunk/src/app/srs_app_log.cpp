@@ -40,6 +40,7 @@ using namespace std;
 #include <srs_protocol_json.hpp>
 
 #include <srs_app_rtc_source.hpp>
+#include <srs_app_rtc_conn.hpp>
 
 // the max size of a line of log.
 #define LOG_MAX_SIZE 8192
@@ -1178,7 +1179,7 @@ struct SrsJanusTrackDataStatistic
     }
 };
 
-void SrsLogWriteDataStatistic::write(SrsRtcParticipantID* p, SrsRtcTrackRecvDataStatistic* r, SrsRtcTrackSendDataStatistic* s)
+void SrsLogWriteDataStatistic::write(SrsRtcCallTraceId* id, SrsRtcTrackRecvDataStatistic* r, SrsRtcTrackSendDataStatistic* s)
 {
     SrsJsonObject* obj = SrsJsonAny::object();
     SrsAutoFree(SrsJsonObject, obj);
@@ -1188,11 +1189,11 @@ void SrsLogWriteDataStatistic::write(SrsRtcParticipantID* p, SrsRtcTrackRecvData
 
         data_statistic.time = srs_current_time(false);
 
-        data_statistic.appid    = p->appid;
-        data_statistic.channel  = p->channel;
-        data_statistic.user     = p->user;
-        data_statistic.session  = p->session;
-        data_statistic.call     = p->call;
+        data_statistic.appid    = id->appid;
+        data_statistic.channel  = id->channel;
+        data_statistic.user     = id->user;
+        data_statistic.session  = id->session;
+        data_statistic.call     = id->call;
 
         if (r) {
             data_statistic.type = r->type;

@@ -918,7 +918,7 @@ void SrsRtcPlayStream::write_track_statistic()
             SrsAutoFree(SrsRtcTrackSendDataStatistic, send_statistic);
 
             if (track->collect(send_statistic)) {
-                _sls_data_statistic->write(&participant_id_, NULL, send_statistic);
+                _sls_data_statistic->write(&ctid_, NULL, send_statistic);
             }
         }
     }
@@ -932,7 +932,7 @@ void SrsRtcPlayStream::write_track_statistic()
             SrsAutoFree(SrsRtcTrackSendDataStatistic, send_statistic);
 
             if (track->collect(send_statistic)) {
-                _sls_data_statistic->write(&participant_id_, NULL, send_statistic);
+                _sls_data_statistic->write(&ctid_, NULL, send_statistic);
             }
         }
     }
@@ -1710,7 +1710,7 @@ void SrsRtcPublishStream::write_track_statistic()
 
         track->collect(recv_statistic);
 
-        _sls_data_statistic->write(&participant_id_, recv_statistic, NULL);
+        _sls_data_statistic->write(&ctid_, recv_statistic, NULL);
     }
 
     for (int i = 0; i < audio_tracks_.size(); ++i) {
@@ -1721,7 +1721,7 @@ void SrsRtcPublishStream::write_track_statistic()
 
         track->collect(recv_statistic);
 
-        _sls_data_statistic->write(&participant_id_, recv_statistic, NULL);
+        _sls_data_statistic->write(&ctid_, recv_statistic, NULL);
     }
 }
 
@@ -3276,14 +3276,14 @@ srs_error_t SrsRtcConnection::create_twcc_handler()
 }
 #endif
 
-void SrsRtcConnection::set_rtc_callid(SrsRtcParticipantID participant_id)
+void SrsRtcConnection::set_rtc_callid(SrsRtcCallTraceId id)
 {
     if (player_) {
-        player_->participant_id_ = participant_id;
+        player_->ctid_ = id;
     }
 
     if (publisher_) {
-        publisher_->participant_id_ = participant_id;
+        publisher_->ctid_ = id;
     }
 }
 

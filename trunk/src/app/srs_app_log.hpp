@@ -155,22 +155,6 @@ public:
     void write(SrsJanusRelationPublishInfo* pub_info, SrsJanusRelationSubscribeInfo* sub_info);
 };
 
-// TODO: FIXME: Move to conn.
-class SrsRtcParticipantID
-{
-public:
-    // appid: app id.
-    std::string appid;
-    // channelID: channel id.
-    std::string channel;
-    // userID: user id.
-    std::string user;
-    // sessionID: session id.
-    std::string session;
-    // callID: call id.
-    std::string call;
-};
-
 class SrsRtcTrackDataStatistic
 {
 public:
@@ -259,7 +243,7 @@ public:
     };
 };
 
-class SrsRtcParticipantID;
+class SrsRtcCallTraceId;
 class SrsRtcTrackRecvDataStatistic;
 class SrsRtcTrackSendDataStatistic;
 class SrsLogWriteDataStatistic : public SrsLogWriter
@@ -268,7 +252,7 @@ public:
     SrsLogWriteDataStatistic();
     virtual ~SrsLogWriteDataStatistic();
 public:
-    virtual void write(SrsRtcParticipantID* p, SrsRtcTrackRecvDataStatistic* r, SrsRtcTrackSendDataStatistic* s);
+    virtual void write(SrsRtcCallTraceId* id, SrsRtcTrackRecvDataStatistic* r, SrsRtcTrackSendDataStatistic* s);
 };
 
 extern SrsLogWriteDataStatistic* _sls_data_statistic;

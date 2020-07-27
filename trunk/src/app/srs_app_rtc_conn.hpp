@@ -38,7 +38,6 @@
 #include <srs_app_rtc_queue.hpp>
 #include <srs_app_rtc_source.hpp>
 #include <srs_app_rtc_dtls.hpp>
-#include <srs_app_log.hpp>
 
 #ifdef SRS_CXX14
 #include <srs_api/srs_webrtc_api.hpp>
@@ -170,6 +169,22 @@ public:
     virtual ~SrsRtcPlayStreamStatistic();
 };
 
+// The trace IDs for RTC Call, a publisher or player id.
+class SrsRtcCallTraceId
+{
+public:
+    // appid: app id.
+    std::string appid;
+    // channelID: channel id.
+    std::string channel;
+    // userID: user id.
+    std::string user;
+    // sessionID: session id.
+    std::string session;
+    // callID: call id.
+    std::string call;
+};
+
 // A RTC play stream, client pull and play stream from SRS.
 class SrsRtcPlayStream : virtual public ISrsCoroutineHandler, virtual public ISrsReloadHandler, virtual public ISrsHourGlass
 {
@@ -231,7 +246,7 @@ private:
 public:
     void set_track_active(const std::vector<SrsTrackConfig>& cfg);
 public:
-    SrsRtcParticipantID participant_id_;
+    SrsRtcCallTraceId ctid_;
 private:
     void write_track_statistic();
 };
@@ -303,7 +318,7 @@ private:
     void update_rtt(uint32_t ssrc, int rtt);
     void update_send_report_time(uint32_t ssrc, const SrsNtp& ntp);
 public:
-    SrsRtcParticipantID participant_id_;
+    SrsRtcCallTraceId ctid_;
 private:
     void write_track_statistic();
 };
@@ -442,7 +457,7 @@ public:
     srs_error_t set_play_track_active(const std::vector<SrsTrackConfig>& cfgs);
     srs_error_t create_twcc_handler();
 public:
-    void set_rtc_callid(SrsRtcParticipantID participant_id);
+    void set_rtc_callid(SrsRtcCallTraceId id);
 };
 
 class ISrsRtcHijacker

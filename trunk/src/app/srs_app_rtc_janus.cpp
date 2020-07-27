@@ -1117,14 +1117,14 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
     }
     
     if (true) {
-        SrsRtcParticipantID participant_id;
-        participant_id.appid = session_->appid_;
-        participant_id.channel = session_->channel_;
-        participant_id.user = session_->userid_;
-        participant_id.session = session_->sessionid_;
-        participant_id.call = callid_;
+        SrsRtcCallTraceId id;
+        id.appid = session_->appid_;
+        id.channel = session_->channel_;
+        id.user = session_->userid_;
+        id.session = session_->sessionid_;
+        id.call = callid_;
 
-        rtc_session_->set_rtc_callid(participant_id);
+        rtc_session_->set_rtc_callid(id);
     }
 
     ostringstream os;
@@ -1493,14 +1493,14 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     }
 
     if (true) {
-        SrsRtcParticipantID participant_id;
-        participant_id.appid = session_->appid_;
-        participant_id.channel = session_->channel_;
-        participant_id.user = session_->userid_;
-        participant_id.session = session_->sessionid_;
-        participant_id.call = callid_;
+        SrsRtcCallTraceId id;
+        id.appid = session_->appid_;
+        id.channel = session_->channel_;
+        id.user = session_->userid_;
+        id.session = session_->sessionid_;
+        id.call = callid_;
         
-        rtc_session_->set_rtc_callid(participant_id);
+        rtc_session_->set_rtc_callid(id);
     }
 
     ostringstream os;
