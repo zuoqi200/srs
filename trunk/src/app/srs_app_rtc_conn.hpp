@@ -63,6 +63,7 @@ class SrsRtpRingBuffer;
 class SrsRtcConsumer;
 class SrsRtcAudioSendTrack;
 class SrsRtcVideoSendTrack;
+class SrsErrorPithyPrint;
 
 const uint8_t kSR   = 200;
 const uint8_t kRR   = 201;
@@ -359,6 +360,8 @@ private:
 #endif
     // Simulators.
     int nn_simulate_player_nack_drop;
+    // Pithy print for address change, use port as error code.
+    SrsErrorPithyPrint* pp_address_change;
 public:
     SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id);
     virtual ~SrsRtcConnection();

@@ -1694,6 +1694,7 @@ SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
 
     twcc_id_ = 0;
     nn_simulate_player_nack_drop = 0;
+    pp_address_change = new SrsErrorPithyPrint();
 }
 
 SrsRtcConnection::~SrsRtcConnection()
@@ -1711,6 +1712,8 @@ SrsRtcConnection::~SrsRtcConnection()
         SrsUdpMuxSocket* addr = it->second;
         srs_freep(addr);
     }
+
+    srs_freep(pp_address_change);
 }
 
 SrsSdp* SrsRtcConnection::get_local_sdp()
@@ -2069,14 +2072,6 @@ void SrsRtcConnection::update_sendonly_socket(SrsUdpMuxSocket* skt)
         return;
     }
 
-    // Detect address change.
-    if (prev_peer_id.empty()) {
-        srs_trace("RTC: session address init %s", peer_id.c_str());
-    } else {
-        srs_trace("RTC: session address changed, update %s -> %s, total %u", prev_peer_id.c_str(),
-            peer_id.c_str(), peer_addresses_.size());
-    }
-
     // Find object from cache.
     SrsUdpMuxSocket* addr_cache = NULL;
     if (true) {
@@ -2090,6 +2085,14 @@ void SrsRtcConnection::update_sendonly_socket(SrsUdpMuxSocket* skt)
     if (!addr_cache) {
         peer_addresses_[peer_id] = addr_cache = skt->copy_sendonly();
         server_->insert_into_id_sessions(peer_id, this);
+    }
+
+    // Detect address change.
+    if (prev_peer_id.empty()) {
+        srs_trace("RTC: session address init %s", peer_id.c_str());
+    } else if (pp_address_change->can_print(skt->get_peer_port())) {
+        srs_trace("RTC: session address change %s -> %s, cached=%d, nn_change=%u, nn_address=%u", prev_peer_id.c_str(),
+            peer_id.c_str(), (addr_cache? 1:0), pp_address_change->nn_count, peer_addresses_.size());
     }
 
     // Update the transport.
