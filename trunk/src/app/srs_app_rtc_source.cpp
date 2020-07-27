@@ -1513,7 +1513,6 @@ SrsRtcTrackDescription* SrsRtcStreamDescription::find_track_description_by_ssrc(
 
 SrsRtcTrackStatistic::SrsRtcTrackStatistic()
 {
-    last_written = 0;
     packets = 0;
     last_packets = 0;
     bytes = 0;
