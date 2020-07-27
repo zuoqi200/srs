@@ -37,6 +37,7 @@ using namespace std;
 #include <srs_app_rtc_conn.hpp>
 #include <srs_app_rtc_server.hpp>
 #include <srs_service_http_conn.hpp>
+#include <srs_app_rtc_source.hpp>
 
 // SLS log writers.
 SrsLogWriterCallstack* _sls_callstack = new SrsLogWriterCallstack();
@@ -1115,6 +1116,17 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         rtc_session_->set_play_track_active(track_cfgs);
     }
     
+    if (true) {
+        SrsRtcParticipantID participant_id;
+        participant_id.appid = session_->appid_;
+        participant_id.channel = session_->channel_;
+        participant_id.user = session_->userid_;
+        participant_id.session = session_->sessionid_;
+        participant_id.call = callid_;
+
+        rtc_session_->set_rtc_callid(participant_id);
+    }
+
     ostringstream os;
     if ((err = local_sdp.encode(os)) != srs_success) {
         return srs_error_wrap(err, "encode sdp");
@@ -1478,6 +1490,17 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     // TODO: FIXME: When server enabled, but vhost disabled, should report error.
     if ((err = session_->janus_->rtc_->create_session(&request, remote_sdp, local_sdp, eip, true, &rtc_session_)) != srs_success) {
         return srs_error_wrap(err, "create session");
+    }
+
+    if (true) {
+        SrsRtcParticipantID participant_id;
+        participant_id.appid = session_->appid_;
+        participant_id.channel = session_->channel_;
+        participant_id.user = session_->userid_;
+        participant_id.session = session_->sessionid_;
+        participant_id.call = callid_;
+        
+        rtc_session_->set_rtc_callid(participant_id);
     }
 
     ostringstream os;

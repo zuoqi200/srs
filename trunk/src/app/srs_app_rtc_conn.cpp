@@ -63,6 +63,8 @@ using namespace std;
 #endif
 
 #define SRS_TICKID_RTCP 0
+#define SRS_TICKID_SFUSTAT 1
+#define SRS_LOG_SFUSTAT_INTERVAL 5000 * SRS_UTIME_MILLISECONDS
 
 void srs_session_request_keyframe(SrsRtcStream* source, uint32_t ssrc)
 {
@@ -349,6 +351,10 @@ srs_error_t SrsRtcPlayStream::start()
         return srs_error_wrap(err, "rtc_sender");
     }
 
+    if ((err = timer_->tick(SRS_TICKID_SFUSTAT, SRS_LOG_SFUSTAT_INTERVAL)) != srs_success) {
+        return srs_error_wrap(err, "log tick id=%u, interval=%dms", SRS_TICKID_SFUSTAT, srsu2msi(SRS_LOG_SFUSTAT_INTERVAL));
+    }
+
     if ((err = timer_->start()) != srs_success) {
         return srs_error_wrap(err, "start timer");
     }
@@ -545,6 +551,7 @@ void SrsRtcPlayStream::nack_fetch(vector<SrsRtpPacket2*>& pkts, uint32_t ssrc, u
                 if (pkt != NULL) {
                     pkts.push_back(pkt);
                 }
+
                 return;
             }
         }
@@ -563,6 +570,7 @@ void SrsRtcPlayStream::nack_fetch(vector<SrsRtpPacket2*>& pkts, uint32_t ssrc, u
                 if (pkt != NULL) {
                     pkts.push_back(pkt);
                 }
+
                 return;
             }
         }
@@ -575,6 +583,10 @@ srs_error_t SrsRtcPlayStream::notify(int type, srs_utime_t interval, srs_utime_t
 
     if (!is_started) {
         return err;
+    }
+
+    if (type == SRS_TICKID_SFUSTAT) {
+        write_track_statistic();
     }
 
     return err;
@@ -895,6 +907,37 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
     }
 }
 
+void SrsRtcPlayStream::write_track_statistic()
+{
+    if (true) {
+        std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
+        for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
+            SrsRtcVideoSendTrack* track = it->second;
+
+            SrsRtcTrackSendDataStatistic* send_statistic = new SrsRtcTrackSendDataStatistic();
+            SrsAutoFree(SrsRtcTrackSendDataStatistic, send_statistic);
+
+            if (track->collect(send_statistic)) {
+                _sls_data_statistic->write(&participant_id_, NULL, send_statistic);
+            }
+        }
+    }
+
+    if (true) {
+        std::map<uint32_t, SrsRtcAudioSendTrack*>::iterator it;
+        for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
+            SrsRtcAudioSendTrack* track = it->second;
+
+            SrsRtcTrackSendDataStatistic* send_statistic = new SrsRtcTrackSendDataStatistic();
+            SrsAutoFree(SrsRtcTrackSendDataStatistic, send_statistic);
+
+            if (track->collect(send_statistic)) {
+                _sls_data_statistic->write(&participant_id_, NULL, send_statistic);
+            }
+        }
+    }
+}
+
 SrsRtcPublishStream::SrsRtcPublishStream(SrsRtcConnection* session)
 {
     timer_ = new SrsHourGlass(this, 200 * SRS_UTIME_MILLISECONDS);
@@ -980,6 +1023,10 @@ srs_error_t SrsRtcPublishStream::start()
 
     if ((err = timer_->tick(SRS_TICKID_RTCP, 200 * SRS_UTIME_MILLISECONDS)) != srs_success) {
         return srs_error_wrap(err, "rtcp tick");
+    }
+
+    if ((err = timer_->tick(SRS_TICKID_SFUSTAT, SRS_LOG_SFUSTAT_INTERVAL)) != srs_success) {
+        return srs_error_wrap(err, "log tick id=%u, interval=%dms", SRS_TICKID_SFUSTAT, srsu2msi(SRS_LOG_SFUSTAT_INTERVAL));
     }
 
     if ((err = timer_->start()) != srs_success) {
@@ -1582,6 +1629,8 @@ srs_error_t SrsRtcPublishStream::notify(int type, srs_utime_t interval, srs_utim
         // We should not depends on the received packet,
         // instead we should send feedback every Nms.
         send_periodic_twcc();
+    } else if (type == SRS_TICKID_SFUSTAT) {
+        write_track_statistic();
     }
 
     return err;
@@ -1648,6 +1697,31 @@ void SrsRtcPublishStream::update_send_report_time(uint32_t ssrc, const SrsNtp& n
     SrsRtcAudioRecvTrack* audio_track = get_audio_track(ssrc);
     if (audio_track) {
         return audio_track->update_send_report_time(ntp);
+    }
+}
+
+void SrsRtcPublishStream::write_track_statistic()
+{
+    for (int i = 0; i < video_tracks_.size(); ++i) {
+        SrsRtcVideoRecvTrack* track = video_tracks_.at(i);
+
+        SrsRtcTrackRecvDataStatistic* recv_statistic = new SrsRtcTrackRecvDataStatistic();
+        SrsAutoFree(SrsRtcTrackRecvDataStatistic, recv_statistic);
+
+        track->collect(recv_statistic);
+
+        _sls_data_statistic->write(&participant_id_, recv_statistic, NULL);
+    }
+
+    for (int i = 0; i < audio_tracks_.size(); ++i) {
+        SrsRtcAudioRecvTrack* track = audio_tracks_.at(i);
+
+        SrsRtcTrackRecvDataStatistic* recv_statistic = new SrsRtcTrackRecvDataStatistic();
+        SrsAutoFree(SrsRtcTrackRecvDataStatistic, recv_statistic);
+
+        track->collect(recv_statistic);
+
+        _sls_data_statistic->write(&participant_id_, recv_statistic, NULL);
     }
 }
 
@@ -3201,6 +3275,17 @@ srs_error_t SrsRtcConnection::create_twcc_handler()
     return err;
 }
 #endif
+
+void SrsRtcConnection::set_rtc_callid(SrsRtcParticipantID participant_id)
+{
+    if (player_) {
+        player_->participant_id_ = participant_id;
+    }
+
+    if (publisher_) {
+        publisher_->participant_id_ = participant_id;
+    }
+}
 
 ISrsRtcHijacker::ISrsRtcHijacker()
 {

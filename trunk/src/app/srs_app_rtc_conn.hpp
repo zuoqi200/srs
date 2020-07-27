@@ -38,6 +38,7 @@
 #include <srs_app_rtc_queue.hpp>
 #include <srs_app_rtc_source.hpp>
 #include <srs_app_rtc_dtls.hpp>
+#include <srs_app_log.hpp>
 
 #ifdef SRS_CXX14
 #include <srs_api/srs_webrtc_api.hpp>
@@ -229,6 +230,10 @@ private:
     uint32_t get_video_publish_ssrc(uint32_t play_ssrc);
 public:
     void set_track_active(const std::vector<SrsTrackConfig>& cfg);
+public:
+    SrsRtcParticipantID participant_id_;
+private:
+    void write_track_statistic();
 };
 
 // A RTC publish stream, client push and publish stream to SRS.
@@ -297,6 +302,10 @@ private:
     SrsRtcVideoRecvTrack* get_video_track(uint32_t ssrc);
     void update_rtt(uint32_t ssrc, int rtt);
     void update_send_report_time(uint32_t ssrc, const SrsNtp& ntp);
+public:
+    SrsRtcParticipantID participant_id_;
+private:
+    void write_track_statistic();
 };
 
 // The statistics for RTC connection.
@@ -432,6 +441,8 @@ public:
     // set play track whether active.
     srs_error_t set_play_track_active(const std::vector<SrsTrackConfig>& cfgs);
     srs_error_t create_twcc_handler();
+public:
+    void set_rtc_callid(SrsRtcParticipantID participant_id);
 };
 
 class ISrsRtcHijacker

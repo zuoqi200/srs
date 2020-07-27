@@ -1639,6 +1639,41 @@ srs_error_t SrsRtcRecvTrack::on_rtp(SrsRtcStream* source, SrsRtpPacket2* pkt)
     return srs_success;
 }
 
+void SrsRtcRecvTrack::collect(SrsRtcTrackRecvDataStatistic* recv_statistic)
+{
+    recv_statistic->type = track_desc_->type_;
+    recv_statistic->track_id = track_desc_->id_;
+    recv_statistic->ssrc = track_desc_->ssrc_;
+    recv_statistic->direction = "recv";
+
+    // TODO: FIXME: we only use first peer addr, actually we need current active peer addr
+    vector<SrsUdpMuxSocket*> addresses = session_->peer_addresses();
+    if (addresses.size() > 0) {
+        SrsUdpMuxSocket* socket_addr = addresses.at(0);
+
+        recv_statistic->turn = socket_addr->get_peer_ip();
+    }
+
+    recv_statistic->packets = statistic_->packets - statistic_->last_packets;
+    recv_statistic->bytes   = statistic_->bytes - statistic_->last_bytes;
+    recv_statistic->nack_sent  = statistic_->nacks - statistic_->last_nacks;
+
+    recv_statistic->replays = statistic_->replay_packets - statistic_->last_replay_packets;
+    recv_statistic->replay_bytes   = statistic_->replay_bytes - statistic_->last_replay_bytes;
+
+    recv_statistic->paddings = statistic_->padding_packets - statistic_->last_padding_packets;
+    recv_statistic->padding_bytes = statistic_->padding_bytes - statistic_->last_padding_bytes;
+
+    // update last statistic record.
+    statistic_->last_packets = statistic_->packets;
+    statistic_->last_bytes = statistic_->bytes;
+    statistic_->last_nacks = statistic_->nacks;
+    statistic_->last_replay_packets = statistic_->replay_packets;
+    statistic_->last_replay_bytes = statistic_->replay_bytes;
+    statistic_->last_padding_packets = statistic_->padding_bytes;
+    statistic_->last_padding_bytes = statistic_->padding_bytes;
+}
+
 SrsRtcAudioRecvTrack::SrsRtcAudioRecvTrack(SrsRtcConnection* session, SrsRtcTrackDescription* track_desc)
     : SrsRtcRecvTrack(session, track_desc, true)
 {
@@ -1723,7 +1758,6 @@ void SrsRtcVideoRecvTrack::request_keyframe()
     request_key_frame_ = true;
 }
 
-
 SrsRtcSendTrack::SrsRtcSendTrack(SrsRtcConnection* session, SrsRtcTrackDescription* track_desc, bool is_audio)
 {
     session_ = session;
@@ -1804,6 +1838,52 @@ void SrsRtcSendTrack::on_recv_nack()
 void SrsRtcSendTrack::set_stream_switch_context(SrsStreamSwitchContext* v)
 {
     switch_context_ = v;
+}
+
+bool SrsRtcSendTrack::collect(SrsRtcTrackSendDataStatistic* send_statistic)
+{
+    if (!track_desc_->is_active_) {
+        return false;
+    }
+
+    SrsRtcTrackStatistic* statistic = statistic_; 
+    if (switch_context_) {
+        statistic = switch_context_->statistic_;
+    }
+
+    send_statistic->type = track_desc_->type_;
+    send_statistic->track_id = _srs_track_id_group->get_merged_track_id(track_desc_->id_);
+    send_statistic->ssrc = track_desc_->ssrc_;
+    send_statistic->direction = "send";
+
+    // TODO: FIXME: we only use first peer addr, actually we need current active peer addr
+    vector<SrsUdpMuxSocket*> addresses = session_->peer_addresses();
+    if (addresses.size() > 0) {
+        SrsUdpMuxSocket* socket_addr = addresses.at(0);
+
+        send_statistic->turn = socket_addr->get_peer_ip();
+    }
+
+    send_statistic->packets = statistic->packets - statistic->last_packets;
+    send_statistic->bytes   = statistic->bytes - statistic->last_bytes;
+    send_statistic->nack_recv  = statistic->nacks - statistic->last_nacks;
+
+    send_statistic->replays = statistic->replay_packets - statistic->last_replay_packets;
+    send_statistic->replay_bytes = statistic->replay_bytes - statistic->last_replay_bytes;
+
+    send_statistic->paddings = statistic->padding_packets - statistic->last_padding_packets;
+    send_statistic->padding_bytes = statistic->padding_bytes - statistic->last_padding_bytes;
+
+    // update last statistic record.
+    statistic->last_packets = statistic->packets;
+    statistic->last_bytes = statistic->bytes;
+    statistic->last_nacks = statistic->nacks;
+    statistic->last_replay_packets = statistic->replay_packets;
+    statistic->last_replay_bytes = statistic->replay_bytes;
+    statistic->last_padding_packets = statistic->padding_bytes;
+    statistic->last_padding_bytes = statistic->padding_bytes;
+
+    return true;
 }
 
 SrsRtcAudioSendTrack::SrsRtcAudioSendTrack(SrsRtcConnection* session, SrsRtcTrackDescription* track_desc)
@@ -1913,7 +1993,7 @@ srs_error_t SrsRtcVideoSendTrack::on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamSta
             return srs_error_wrap(err, "raw send");
         }
     }
-    
+
     return err;
 }
 
