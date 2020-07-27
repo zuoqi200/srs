@@ -1640,30 +1640,30 @@ srs_error_t SrsRtcRecvTrack::on_rtp(SrsRtcStream* source, SrsRtpPacket2* pkt)
     return srs_success;
 }
 
-void SrsRtcRecvTrack::collect(SrsRtcTrackRecvDataStatistic* recv_statistic)
+void SrsRtcRecvTrack::collect(SrsRtcTrackStatisticLogRecv* to)
 {
-    recv_statistic->type = track_desc_->type_;
-    recv_statistic->track_id = track_desc_->id_;
-    recv_statistic->ssrc = track_desc_->ssrc_;
-    recv_statistic->direction = "recv";
+    to->type = track_desc_->type_;
+    to->track_id = track_desc_->id_;
+    to->ssrc = track_desc_->ssrc_;
+    to->direction = "recv";
 
     // TODO: FIXME: we only use first peer addr, actually we need current active peer addr
     vector<SrsUdpMuxSocket*> addresses = session_->peer_addresses();
     if (addresses.size() > 0) {
         SrsUdpMuxSocket* socket_addr = addresses.at(0);
 
-        recv_statistic->turn = socket_addr->get_peer_ip();
+        to->turn = socket_addr->get_peer_ip();
     }
 
-    recv_statistic->packets = statistic_->packets - statistic_->last_packets;
-    recv_statistic->bytes   = statistic_->bytes - statistic_->last_bytes;
-    recv_statistic->nack_sent  = statistic_->nacks - statistic_->last_nacks;
+    to->packets = statistic_->packets - statistic_->last_packets;
+    to->bytes   = statistic_->bytes - statistic_->last_bytes;
+    to->nack_sent  = statistic_->nacks - statistic_->last_nacks;
 
-    recv_statistic->replays = statistic_->replay_packets - statistic_->last_replay_packets;
-    recv_statistic->replay_bytes   = statistic_->replay_bytes - statistic_->last_replay_bytes;
+    to->replays = statistic_->replay_packets - statistic_->last_replay_packets;
+    to->replay_bytes   = statistic_->replay_bytes - statistic_->last_replay_bytes;
 
-    recv_statistic->paddings = statistic_->padding_packets - statistic_->last_padding_packets;
-    recv_statistic->padding_bytes = statistic_->padding_bytes - statistic_->last_padding_bytes;
+    to->paddings = statistic_->padding_packets - statistic_->last_padding_packets;
+    to->padding_bytes = statistic_->padding_bytes - statistic_->last_padding_bytes;
 
     // update last statistic record.
     statistic_->last_packets = statistic_->packets;
@@ -1841,7 +1841,7 @@ void SrsRtcSendTrack::set_stream_switch_context(SrsStreamSwitchContext* v)
     switch_context_ = v;
 }
 
-bool SrsRtcSendTrack::collect(SrsRtcTrackSendDataStatistic* send_statistic)
+bool SrsRtcSendTrack::collect(SrsRtcTrackStatisticLogSend* to)
 {
     if (!track_desc_->is_active_) {
         return false;
@@ -1852,28 +1852,28 @@ bool SrsRtcSendTrack::collect(SrsRtcTrackSendDataStatistic* send_statistic)
         statistic = switch_context_->statistic_;
     }
 
-    send_statistic->type = track_desc_->type_;
-    send_statistic->track_id = _srs_track_id_group->get_merged_track_id(track_desc_->id_);
-    send_statistic->ssrc = track_desc_->ssrc_;
-    send_statistic->direction = "send";
+    to->type = track_desc_->type_;
+    to->track_id = _srs_track_id_group->get_merged_track_id(track_desc_->id_);
+    to->ssrc = track_desc_->ssrc_;
+    to->direction = "send";
 
     // TODO: FIXME: we only use first peer addr, actually we need current active peer addr
     vector<SrsUdpMuxSocket*> addresses = session_->peer_addresses();
     if (addresses.size() > 0) {
         SrsUdpMuxSocket* socket_addr = addresses.at(0);
 
-        send_statistic->turn = socket_addr->get_peer_ip();
+        to->turn = socket_addr->get_peer_ip();
     }
 
-    send_statistic->packets = statistic->packets - statistic->last_packets;
-    send_statistic->bytes   = statistic->bytes - statistic->last_bytes;
-    send_statistic->nack_recv  = statistic->nacks - statistic->last_nacks;
+    to->packets = statistic->packets - statistic->last_packets;
+    to->bytes   = statistic->bytes - statistic->last_bytes;
+    to->nack_recv  = statistic->nacks - statistic->last_nacks;
 
-    send_statistic->replays = statistic->replay_packets - statistic->last_replay_packets;
-    send_statistic->replay_bytes = statistic->replay_bytes - statistic->last_replay_bytes;
+    to->replays = statistic->replay_packets - statistic->last_replay_packets;
+    to->replay_bytes = statistic->replay_bytes - statistic->last_replay_bytes;
 
-    send_statistic->paddings = statistic->padding_packets - statistic->last_padding_packets;
-    send_statistic->padding_bytes = statistic->padding_bytes - statistic->last_padding_bytes;
+    to->paddings = statistic->padding_packets - statistic->last_padding_packets;
+    to->padding_bytes = statistic->padding_bytes - statistic->last_padding_bytes;
 
     // update last statistic record.
     statistic->last_packets = statistic->packets;

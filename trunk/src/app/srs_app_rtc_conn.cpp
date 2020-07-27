@@ -914,11 +914,11 @@ void SrsRtcPlayStream::write_track_statistic()
         for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
             SrsRtcVideoSendTrack* track = it->second;
 
-            SrsRtcTrackSendDataStatistic* send_statistic = new SrsRtcTrackSendDataStatistic();
-            SrsAutoFree(SrsRtcTrackSendDataStatistic, send_statistic);
+            SrsRtcTrackStatisticLogSend* to = new SrsRtcTrackStatisticLogSend();
+            SrsAutoFree(SrsRtcTrackStatisticLogSend, to);
 
-            if (track->collect(send_statistic)) {
-                _sls_data_statistic->write(&ctid_, NULL, send_statistic);
+            if (track->collect(to)) {
+                _sls_data_statistic->write(&ctid_, NULL, to);
             }
         }
     }
@@ -928,11 +928,11 @@ void SrsRtcPlayStream::write_track_statistic()
         for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
             SrsRtcAudioSendTrack* track = it->second;
 
-            SrsRtcTrackSendDataStatistic* send_statistic = new SrsRtcTrackSendDataStatistic();
-            SrsAutoFree(SrsRtcTrackSendDataStatistic, send_statistic);
+            SrsRtcTrackStatisticLogSend* to = new SrsRtcTrackStatisticLogSend();
+            SrsAutoFree(SrsRtcTrackStatisticLogSend, to);
 
-            if (track->collect(send_statistic)) {
-                _sls_data_statistic->write(&ctid_, NULL, send_statistic);
+            if (track->collect(to)) {
+                _sls_data_statistic->write(&ctid_, NULL, to);
             }
         }
     }
@@ -1705,23 +1705,23 @@ void SrsRtcPublishStream::write_track_statistic()
     for (int i = 0; i < video_tracks_.size(); ++i) {
         SrsRtcVideoRecvTrack* track = video_tracks_.at(i);
 
-        SrsRtcTrackRecvDataStatistic* recv_statistic = new SrsRtcTrackRecvDataStatistic();
-        SrsAutoFree(SrsRtcTrackRecvDataStatistic, recv_statistic);
+        SrsRtcTrackStatisticLogRecv* to = new SrsRtcTrackStatisticLogRecv();
+        SrsAutoFree(SrsRtcTrackStatisticLogRecv, to);
 
-        track->collect(recv_statistic);
+        track->collect(to);
 
-        _sls_data_statistic->write(&ctid_, recv_statistic, NULL);
+        _sls_data_statistic->write(&ctid_, to, NULL);
     }
 
     for (int i = 0; i < audio_tracks_.size(); ++i) {
         SrsRtcAudioRecvTrack* track = audio_tracks_.at(i);
 
-        SrsRtcTrackRecvDataStatistic* recv_statistic = new SrsRtcTrackRecvDataStatistic();
-        SrsAutoFree(SrsRtcTrackRecvDataStatistic, recv_statistic);
+        SrsRtcTrackStatisticLogRecv* to = new SrsRtcTrackStatisticLogRecv();
+        SrsAutoFree(SrsRtcTrackStatisticLogRecv, to);
 
-        track->collect(recv_statistic);
+        track->collect(to);
 
-        _sls_data_statistic->write(&ctid_, recv_statistic, NULL);
+        _sls_data_statistic->write(&ctid_, to, NULL);
     }
 }
 

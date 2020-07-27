@@ -155,7 +155,7 @@ public:
     void write(SrsJanusRelationPublishInfo* pub_info, SrsJanusRelationSubscribeInfo* sub_info);
 };
 
-class SrsRtcTrackDataStatistic
+class SrsRtcTrackStatisticLog
 {
 public:
     // type: audio or video.
@@ -182,7 +182,7 @@ public:
     // inBytes: in bytes.
     uint32_t bytes;
 
-    SrsRtcTrackDataStatistic()
+    SrsRtcTrackStatisticLog()
     {
         ssrc = 0;
 
@@ -195,7 +195,7 @@ public:
     }
 };
 
-class SrsRtcTrackRecvDataStatistic : public SrsRtcTrackDataStatistic
+class SrsRtcTrackStatisticLogRecv : public SrsRtcTrackStatisticLog
 {
 public:
     // nackSent: the number of send nack.
@@ -211,7 +211,7 @@ public:
     // twccMaxLossRate: twcc max loss Rate;
     uint32_t twcc_max_loss_rate;
 
-    SrsRtcTrackRecvDataStatistic()
+    SrsRtcTrackStatisticLogRecv()
     {
         nack_sent = 0;
         lost = 0;
@@ -222,7 +222,7 @@ public:
     };
 };
 
-class SrsRtcTrackSendDataStatistic : public SrsRtcTrackDataStatistic
+class SrsRtcTrackStatisticLogSend : public SrsRtcTrackStatisticLog
 {
 public:
     // nackRecv: the number of send nack.
@@ -234,7 +234,7 @@ public:
     // validPacketRate: valid packet rate;
     double valid_packet_rate;
 
-    SrsRtcTrackSendDataStatistic()
+    SrsRtcTrackStatisticLogSend()
     {
         nack_recv = 0;
         lost_remote = 0;
@@ -244,15 +244,15 @@ public:
 };
 
 class SrsRtcCallTraceId;
-class SrsRtcTrackRecvDataStatistic;
-class SrsRtcTrackSendDataStatistic;
+class SrsRtcTrackStatisticLogRecv;
+class SrsRtcTrackStatisticLogSend;
 class SrsLogWriteDataStatistic : public SrsLogWriter
 {
 public:
     SrsLogWriteDataStatistic();
     virtual ~SrsLogWriteDataStatistic();
 public:
-    virtual void write(SrsRtcCallTraceId* id, SrsRtcTrackRecvDataStatistic* r, SrsRtcTrackSendDataStatistic* s);
+    virtual void write(SrsRtcCallTraceId* id, SrsRtcTrackStatisticLogRecv* r, SrsRtcTrackStatisticLogSend* s);
 };
 
 extern SrsLogWriteDataStatistic* _sls_data_statistic;

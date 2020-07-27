@@ -57,8 +57,8 @@ class SrsJsonObject;
 class SrsRtcPlayStreamStatistic;
 
 class SrsStreamSwitchContext;
-class SrsRtcTrackRecvDataStatistic;
-class SrsRtcTrackSendDataStatistic;
+class SrsRtcTrackStatisticLogRecv;
+class SrsRtcTrackStatisticLogSend;
 
 class SrsNtp
 {
@@ -475,7 +475,7 @@ protected:
 public:
     virtual srs_error_t on_rtp(SrsRtcStream* source, SrsRtpPacket2* pkt);
 public:
-    void collect(SrsRtcTrackRecvDataStatistic* recv_statistic);
+    void collect(SrsRtcTrackStatisticLogRecv* to);
 };
 
 class SrsRtcAudioRecvTrack : public SrsRtcRecvTrack
@@ -529,7 +529,7 @@ protected:
 public:
     void set_stream_switch_context(SrsStreamSwitchContext* v);
 public:
-    bool collect(SrsRtcTrackSendDataStatistic* send_statistic);
+    bool collect(SrsRtcTrackStatisticLogSend* to);
 };
 
 class SrsRtcAudioSendTrack : public SrsRtcSendTrack
