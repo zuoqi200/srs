@@ -1179,8 +1179,12 @@ struct SrsJanusTrackDataStatistic
     }
 };
 
-void SrsLogWriteDataStatistic::write(SrsRtcCallTraceId* id, SrsRtcTrackStatisticLogRecv* r, SrsRtcTrackStatisticLogSend* s)
+void SrsLogWriteDataStatistic::write(SrsRtcCallTraceId* id, SrsRtcTrackStatisticLog* log)
 {
+    SrsRtcTrackStatisticLogRecv* r = dynamic_cast<SrsRtcTrackStatisticLogRecv*>(log);
+    SrsRtcTrackStatisticLogSend* s = dynamic_cast<SrsRtcTrackStatisticLogSend*>(log);
+    srs_assert (r || s);
+
     SrsJsonObject* obj = SrsJsonAny::object();
     SrsAutoFree(SrsJsonObject, obj);
 

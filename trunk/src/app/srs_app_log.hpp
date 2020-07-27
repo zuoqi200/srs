@@ -252,7 +252,7 @@ public:
     SrsLogWriteDataStatistic();
     virtual ~SrsLogWriteDataStatistic();
 public:
-    virtual void write(SrsRtcCallTraceId* id, SrsRtcTrackStatisticLogRecv* r, SrsRtcTrackStatisticLogSend* s);
+    virtual void write(SrsRtcCallTraceId* id, SrsRtcTrackStatisticLog* log);
 };
 
 extern SrsLogWriteDataStatistic* _sls_data_statistic;

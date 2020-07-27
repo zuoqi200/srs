@@ -918,7 +918,7 @@ void SrsRtcPlayStream::write_track_statistic()
             SrsAutoFree(SrsRtcTrackStatisticLogSend, to);
 
             if (track->collect(to)) {
-                _sls_data_statistic->write(&ctid_, NULL, to);
+                _sls_data_statistic->write(&ctid_, to);
             }
         }
     }
@@ -932,7 +932,7 @@ void SrsRtcPlayStream::write_track_statistic()
             SrsAutoFree(SrsRtcTrackStatisticLogSend, to);
 
             if (track->collect(to)) {
-                _sls_data_statistic->write(&ctid_, NULL, to);
+                _sls_data_statistic->write(&ctid_, to);
             }
         }
     }
@@ -1710,7 +1710,7 @@ void SrsRtcPublishStream::write_track_statistic()
 
         track->collect(to);
 
-        _sls_data_statistic->write(&ctid_, to, NULL);
+        _sls_data_statistic->write(&ctid_, to);
     }
 
     for (int i = 0; i < audio_tracks_.size(); ++i) {
@@ -1721,7 +1721,7 @@ void SrsRtcPublishStream::write_track_statistic()
 
         track->collect(to);
 
-        _sls_data_statistic->write(&ctid_, to, NULL);
+        _sls_data_statistic->write(&ctid_, to);
     }
 }
 
