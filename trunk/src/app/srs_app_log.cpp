@@ -1032,12 +1032,38 @@ void SrsLogWriterRelation::write(SrsJanusRelationPublishInfo* pub_info, SrsJanus
     write_log(data.data(), data.length());
 }
 
-SrsLogWriteDataStatistic::SrsLogWriteDataStatistic() : SrsLogWriter("data_statistic")
+SrsRtcTrackStatisticLog::SrsRtcTrackStatisticLog()
+{
+    ssrc = 0;
+
+    replays = 0;
+    replay_bytes = 0;
+    paddings = 0;
+    padding_bytes = 0;
+    packets = 0;
+    bytes = 0;
+}
+
+SrsRtcTrackStatisticLog::~SrsRtcTrackStatisticLog()
 {
 }
 
-SrsLogWriteDataStatistic::~SrsLogWriteDataStatistic()
+SrsRtcTrackStatisticLogRecv::SrsRtcTrackStatisticLogRecv()
 {
+    nack_sent = 0;
+    lost = 0;
+    lost_rate = 0;
+    twcc_loss_rate = 0;
+    twcc_max_loss_rate = 0;
+    valid_packet_rate = 0;
+}
+
+SrsRtcTrackStatisticLogSend::SrsRtcTrackStatisticLogSend()
+{
+    nack_recv = 0;
+    lost_remote = 0;
+    lost_rate_remote = 0;
+    valid_packet_rate = 0;
 }
 
 struct SrsJanusTrackDataStatistic
@@ -1179,6 +1205,14 @@ struct SrsJanusTrackDataStatistic
     }
 };
 
+SrsLogWriteDataStatistic::SrsLogWriteDataStatistic() : SrsLogWriter("data_statistic")
+{
+}
+
+SrsLogWriteDataStatistic::~SrsLogWriteDataStatistic()
+{
+}
+
 void SrsLogWriteDataStatistic::write(SrsRtcCallTraceId* id, SrsRtcTrackStatisticLog* log)
 {
     SrsRtcTrackStatisticLogRecv* r = dynamic_cast<SrsRtcTrackStatisticLogRecv*>(log);
@@ -1189,57 +1223,57 @@ void SrsLogWriteDataStatistic::write(SrsRtcCallTraceId* id, SrsRtcTrackStatistic
     SrsAutoFree(SrsJsonObject, obj);
 
     if (true) {
-        SrsJanusTrackDataStatistic data_statistic;
+        SrsJanusTrackDataStatistic stat;
 
-        data_statistic.time = srs_current_time(false);
+        stat.time = srs_current_time(false);
 
-        data_statistic.appid    = id->appid;
-        data_statistic.channel  = id->channel;
-        data_statistic.user     = id->user;
-        data_statistic.session  = id->session;
-        data_statistic.call     = id->call;
+        stat.appid    = id->appid;
+        stat.channel  = id->channel;
+        stat.user     = id->user;
+        stat.session  = id->session;
+        stat.call     = id->call;
 
         if (r) {
-            data_statistic.type = r->type;
-            data_statistic.track_id = r->track_id;
-            data_statistic.direction = r->direction;
-            data_statistic.turn = r->turn;
+            stat.type = r->type;
+            stat.track_id = r->track_id;
+            stat.direction = r->direction;
+            stat.turn = r->turn;
 
-            data_statistic.ssrc = r->ssrc;
-            data_statistic.in_replays = r->replays;
-            data_statistic.in_replay_bytes = r->replay_bytes;
-            data_statistic.in_paddings = r->paddings;
-            data_statistic.in_padding_bytes = r->padding_bytes;
-            data_statistic.in_packets = r->packets;
-            data_statistic.in_bytes = r->bytes;
-            data_statistic.nack_sent = r->nack_sent;
-            data_statistic.lost = r->lost;
-            data_statistic.lost_rate = r->lost_rate;
-            data_statistic.valid_packet_rate = r->valid_packet_rate;
-            data_statistic.twcc_loss_rate = r->twcc_loss_rate;
-            data_statistic.twcc_max_loss_rate = r->twcc_max_loss_rate;
+            stat.ssrc = r->ssrc;
+            stat.in_replays = r->replays;
+            stat.in_replay_bytes = r->replay_bytes;
+            stat.in_paddings = r->paddings;
+            stat.in_padding_bytes = r->padding_bytes;
+            stat.in_packets = r->packets;
+            stat.in_bytes = r->bytes;
+            stat.nack_sent = r->nack_sent;
+            stat.lost = r->lost;
+            stat.lost_rate = r->lost_rate;
+            stat.valid_packet_rate = r->valid_packet_rate;
+            stat.twcc_loss_rate = r->twcc_loss_rate;
+            stat.twcc_max_loss_rate = r->twcc_max_loss_rate;
 
         } else if (s) {
-            data_statistic.type = s->type;
-            data_statistic.track_id = s->track_id;
-            data_statistic.direction = s->direction;
-            data_statistic.turn = s->turn;
+            stat.type = s->type;
+            stat.track_id = s->track_id;
+            stat.direction = s->direction;
+            stat.turn = s->turn;
 
-            data_statistic.ssrc = s->ssrc;
-            data_statistic.out_replays = s->replays;
-            data_statistic.out_replay_bytes = s->replay_bytes;
-            data_statistic.out_paddings = s->paddings;
-            data_statistic.out_padding_bytes = s->padding_bytes;
-            data_statistic.out_packets = s->packets;
-            data_statistic.out_bytes = s->bytes;
-            data_statistic.nack_recv = s->nack_recv;
-            data_statistic.lost_remote = s->lost_remote;
-            data_statistic.lost_rate_remote = s->lost_rate_remote;
-            data_statistic.valid_packet_rate = s->valid_packet_rate;
+            stat.ssrc = s->ssrc;
+            stat.out_replays = s->replays;
+            stat.out_replay_bytes = s->replay_bytes;
+            stat.out_paddings = s->paddings;
+            stat.out_padding_bytes = s->padding_bytes;
+            stat.out_packets = s->packets;
+            stat.out_bytes = s->bytes;
+            stat.nack_recv = s->nack_recv;
+            stat.lost_remote = s->lost_remote;
+            stat.lost_rate_remote = s->lost_rate_remote;
+            stat.valid_packet_rate = s->valid_packet_rate;
 
         }
 
-        data_statistic.marshal(obj);
+        stat.marshal(obj);
     }
 
     string data = obj->dumps();

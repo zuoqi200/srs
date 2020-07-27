@@ -182,17 +182,9 @@ public:
     // inBytes: in bytes.
     uint32_t bytes;
 
-    SrsRtcTrackStatisticLog()
-    {
-        ssrc = 0;
+    SrsRtcTrackStatisticLog();
 
-        replays = 0;
-        replay_bytes = 0;
-        paddings = 0;
-        padding_bytes = 0;
-        packets = 0;
-        bytes = 0;
-    }
+    virtual ~SrsRtcTrackStatisticLog();
 };
 
 class SrsRtcTrackStatisticLogRecv : public SrsRtcTrackStatisticLog
@@ -211,15 +203,7 @@ public:
     // twccMaxLossRate: twcc max loss Rate;
     uint32_t twcc_max_loss_rate;
 
-    SrsRtcTrackStatisticLogRecv()
-    {
-        nack_sent = 0;
-        lost = 0;
-        lost_rate = 0;
-        twcc_loss_rate = 0;
-        twcc_max_loss_rate = 0;
-        valid_packet_rate = 0;
-    };
+    SrsRtcTrackStatisticLogRecv();
 };
 
 class SrsRtcTrackStatisticLogSend : public SrsRtcTrackStatisticLog
@@ -234,18 +218,10 @@ public:
     // validPacketRate: valid packet rate;
     double valid_packet_rate;
 
-    SrsRtcTrackStatisticLogSend()
-    {
-        nack_recv = 0;
-        lost_remote = 0;
-        lost_rate_remote = 0;
-        valid_packet_rate = 0;
-    };
+    SrsRtcTrackStatisticLogSend();
 };
 
 class SrsRtcCallTraceId;
-class SrsRtcTrackStatisticLogRecv;
-class SrsRtcTrackStatisticLogSend;
 class SrsLogWriteDataStatistic : public SrsLogWriter
 {
 public:
