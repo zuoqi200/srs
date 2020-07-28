@@ -458,6 +458,7 @@ public:
     srs_error_t create_twcc_handler();
 public:
     void set_rtc_callid(SrsRtcCallTraceId id);
+    SrsRtcCallTraceId* get_rtc_callid();
 };
 
 class ISrsRtcHijacker

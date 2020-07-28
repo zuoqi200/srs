@@ -2114,6 +2114,8 @@ srs_error_t SrsRtcConnection::on_connection_established()
 {
     srs_error_t err = srs_success;
 
+    SrsRtcDtlsMessage(get_rtc_callid(), this).write_callstack("leave", 0);
+
     srs_trace("RTC: session %s, to=%dms connection established", (is_publisher_? "Publisher":"Subscriber"),
         srsu2msi(session_timeout));
 
@@ -2541,6 +2543,9 @@ srs_error_t SrsRtcConnection::on_binding_request(SrsStunPacket* r)
 
     if (state_ == WAITING_STUN) {
         state_ = DOING_DTLS_HANDSHAKE;
+
+        SrsRtcICEMessageSrsRtcICEMessage(get_rtc_callid(), this).write_callstack("leave", 0);
+
         // TODO: FIXME: Add cost.
         srs_trace("RTC: session STUN done, waiting DTLS handshake.");
 
@@ -3285,6 +3290,16 @@ void SrsRtcConnection::set_rtc_callid(SrsRtcCallTraceId id)
     if (publisher_) {
         publisher_->ctid_ = id;
     }
+}
+
+SrsRtcCallTraceId* SrsRtcConnection::get_rtc_callid()
+{
+    if (player_) {
+        return &player_->ctid_;
+    } else if (publisher_) {
+        return &publisher_->ctid_;
+    }
+    return NULL;
 }
 
 ISrsRtcHijacker::ISrsRtcHijacker()

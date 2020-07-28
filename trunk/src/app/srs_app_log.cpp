@@ -790,6 +790,125 @@ void SrsLogWriter::open_log_file()
 
 #include <srs_app_rtc_janus.hpp>
 
+SrsRtcICEMessage::SrsRtcICEMessage(SrsRtcCallTraceId* id, SrsRtcConnection* c)
+{
+    appid_     = id->appid;
+    sessionid_ = id->session;
+    channel_   = id->channel;
+    userid_    = id->user;
+    callid_    = id->call;
+    sfu_ = srs_get_public_internet_address(true);
+
+    command_ = "iceDone";
+    result_ = "success";
+
+    local_candidate_ = srs_get_public_internet_address(true);
+
+    // TODO: FIXME: we only use first peer addr, actually we need current active peer addr
+    vector<SrsUdpMuxSocket*> addrs= c->peer_addresses();
+    if (addrs.size() > 0) {
+        SrsUdpMuxSocket* addr = addrs.at(0);
+
+        remote_candidate_ = addr->get_peer_ip();
+    }
+
+    event_ = new SrsRtcCallstackEvent("Media", "iceDone");
+
+    SrsContextId cid = c->context_id();
+    event_->cid_  = cid.k_ + string("-") + cid.v_;
+
+    event_->appid_   = id->appid;
+    event_->channel_ = id->channel;
+    event_->user_    = id->user;
+    event_->session_ = id->session;
+    event_->call_    = id->call;
+}
+
+SrsRtcICEMessage::~SrsRtcICEMessage()
+{
+    srs_freep(event_);
+}
+
+void SrsRtcICEMessage::write_callstack(std::string status, int ecode)
+{
+    event_->status_ = status;
+    event_->error_code_ = ecode;
+
+    _sls_callstack->write(event_, marshal());
+}
+
+std::string SrsRtcICEMessage::marshal()
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    obj->set("callID",      SrsJsonAny::str(callid_.c_str()));
+    obj->set("appID",       SrsJsonAny::str(appid_.c_str()));
+    obj->set("sessionID",   SrsJsonAny::str(sessionid_.c_str()));
+    obj->set("channelID",   SrsJsonAny::str(channel_.c_str()));
+    obj->set("userID",      SrsJsonAny::str(userid_.c_str()));
+    obj->set("sfu",         SrsJsonAny::str(sfu_.c_str()));
+    obj->set("command",     SrsJsonAny::str(command_.c_str()));
+    obj->set("result",      SrsJsonAny::str(result_.c_str()));
+    obj->set("localCandidate", SrsJsonAny::str(local_candidate_.c_str()));
+    obj->set("remoteCandidate", SrsJsonAny::str(remote_candidate_.c_str()));
+
+    return obj->dumps();
+}
+
+SrsRtcDtlsMessage::SrsRtcDtlsMessage(SrsRtcCallTraceId* id, SrsRtcConnection* c)
+{
+    appid_     = id->appid;
+    sessionid_ = id->session;
+    channel_   = id->channel;
+    userid_    = id->user;
+    callid_    = id->call;
+    sfu_ = srs_get_public_internet_address(true);
+
+    command_ = "DTLS";
+    result_ = "success";
+
+    event_ = new SrsRtcCallstackEvent("Media", "dtlsDone");
+
+    SrsContextId cid = c->context_id();
+    event_->cid_  = cid.k_ + string("-") + cid.v_;
+
+    event_->appid_   = id->appid;
+    event_->channel_ = id->channel;
+    event_->user_    = id->user;
+    event_->session_ = id->session;
+    event_->call_    = id->call;
+}
+SrsRtcDtlsMessage::~SrsRtcDtlsMessage()
+{
+    srs_freep(event_);
+}
+
+void SrsRtcDtlsMessage::write_callstack(std::string status, int ecode)
+{
+    event_->status_ = status;
+    event_->error_code_ = ecode;
+
+    _sls_callstack->write(event_, marshal());
+}
+
+std::string SrsRtcDtlsMessage::marshal()
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    obj->set("callID",      SrsJsonAny::str(callid_.c_str()));
+    obj->set("appID",       SrsJsonAny::str(appid_.c_str()));
+    obj->set("sessionID",   SrsJsonAny::str(sessionid_.c_str()));
+    obj->set("channelID",   SrsJsonAny::str(channel_.c_str()));
+    obj->set("userID",      SrsJsonAny::str(userid_.c_str()));
+    obj->set("sfu",         SrsJsonAny::str(sfu_.c_str()));
+    obj->set("command",     SrsJsonAny::str(command_.c_str()));
+    obj->set("result",      SrsJsonAny::str(result_.c_str()));
+
+    return obj->dumps();
+}
+
 SrsLogWriterCallstack::SrsLogWriterCallstack() : SrsLogWriter("callstack")
 {
 }
@@ -890,7 +1009,7 @@ string srs_current_time(bool utc)
     return string(log_time);
 }
 
-void SrsLogWriterCallstack::write(SrsJanusSession* s, SrsJanusUserConf* c, SrsJanusMessage* m)
+void SrsLogWriterCallstack::write(SrsRtcCallstackEvent* e, std::string m)
 {
     SrsJsonObject* obj = SrsJsonAny::object();
     SrsAutoFree(SrsJsonObject, obj);
@@ -903,39 +1022,20 @@ void SrsLogWriterCallstack::write(SrsJanusSession* s, SrsJanusUserConf* c, SrsJa
         callstack.peer = SrsModuleSignaling;
         callstack.module = SrsModuleName;
         callstack.focus = SrsModuleName;
-        callstack.stage = "create";
-        callstack.status = "enter";
-        callstack.action = "createJanusSession";
-        callstack.error_code = 0;
-        callstack.cid = s->cid_.k_ + string("-") + s->cid_.v_;
-        callstack.appid = s->appid_;
-        callstack.channel = s->channel_;
-        callstack.user = s->userid_;
-        callstack.session = s->sessionid_;
-        callstack.tid = m->transaction;
 
-        if (true) {
-            SrsJsonObject* message = SrsJsonAny::object();
-            SrsAutoFree(SrsJsonObject, message);
-
-            message->set("appID", SrsJsonAny::str(s->appid_.c_str()));
-            message->set("sessionID", SrsJsonAny::str(s->sessionid_.c_str()));
-            message->set("channelID", SrsJsonAny::str(s->channel_.c_str()));
-            message->set("userID", SrsJsonAny::str(s->userid_.c_str()));
-            message->set("command", SrsJsonAny::str("createJanusSession"));
-            message->set("transaction", SrsJsonAny::str(m->transaction.c_str()));
-            message->set("DownlinkStreamMerge", SrsJsonArray::boolean(c->stream_merge));
-            message->set("1v1TccForwardEnable", SrsJsonArray::boolean(c->enable_forward_twcc));
-            message->set("NeedSDPUnified", SrsJsonArray::boolean(c->need_unified_plan));
-            message->set("WebSDK", SrsJsonArray::str(c->web_sdk.c_str()));
-            message->set("EnableBWEStatusReport", SrsJsonArray::boolean(c->enable_bwe_status_report));
-            message->set("NoExtraConfig", SrsJsonArray::boolean(c->no_extra_config_when_join));
-            message->set("IsMPU", SrsJsonArray::boolean(c->is_mpu_client));
-            message->set("sfu", SrsJsonArray::str(callstack.source.c_str()));
-            message->set("signaling", SrsJsonArray::str(m->client_ip.c_str()));
-
-            callstack.message = message->dumps();
-        }
+        callstack.stage = e->stage_;
+        callstack.status = e->status_;
+        callstack.action = e->action_;
+        callstack.error_code = e->error_code_;
+        callstack.cid = e->cid_;
+        callstack.appid = e->appid_;
+        callstack.channel = e->channel_;
+        callstack.user = e->user_;
+        callstack.session = e->session_;
+        callstack.tid = e->tid_;
+        callstack.call = e->call_;
+        
+        callstack.message = m;
 
         callstack.marshal(obj);
     }

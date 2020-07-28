@@ -302,5 +302,101 @@ private:
     srs_error_t write_sub_relations(SrsRequest* req, SrsJanusCall* callee, SrsSdp* sub_offer_sdp);
 };
 
+struct SrsRtcCallstackEvent;
+class SrsJanusCallstackMessage
+{
+protected:
+    std::string appid_;
+    std::string sessionid_;
+    std::string channel_;
+    std::string userid_;
+    std::string transaction_;
+    std::string sfu_;
+    std::string signaling_;
+    std::string command_;
+public:
+    SrsJanusCallstackMessage(SrsJanusSession* s, SrsJanusMessage* m, std::string command);
+    virtual ~SrsJanusCallstackMessage();
+};
+
+class SrsJanusCreateSessionMessage : public SrsJanusCallstackMessage
+{
+private:
+    SrsJanusUserConf* uc_;
+
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsJanusCreateSessionMessage(SrsJanusSession* s, SrsJanusMessage* m, SrsJanusUserConf* uc);
+    virtual ~SrsJanusCreateSessionMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+class SrsJanusAttachMessage : public SrsJanusCallstackMessage
+{
+private:
+    std::string callid_;
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsJanusAttachMessage(SrsJanusCall* c, SrsJanusMessage* m);
+    ~SrsJanusAttachMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+class SrsJanusTrickleMessage : public SrsJanusCallstackMessage
+{
+private:
+    std::string callid_;
+    std::string candidate_;
+    bool completed_;
+
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsJanusTrickleMessage(SrsJanusCall* c, SrsJanusMessage* m, std::string candidate, bool completed);
+    virtual ~SrsJanusTrickleMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+class SrsJanusJoinMessage : public SrsJanusCallstackMessage
+{
+private:
+    std::string callid_;
+    std::string participant_type_;
+    std::string result_;
+    uint64_t feedid_;
+
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsJanusJoinMessage(SrsJanusCall* c, SrsJanusMessage* m, std::string ptype, std::string result);
+    virtual ~SrsJanusJoinMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+struct SrsJanusProcessOfferMessage : public SrsJanusCallstackMessage
+{
+public:
+    std::string callid_;
+
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsJanusProcessOfferMessage(SrsJanusCall* c, SrsJanusMessage* m);
+    ~SrsJanusProcessOfferMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
 #endif
 

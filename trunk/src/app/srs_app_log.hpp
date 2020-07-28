@@ -132,17 +132,118 @@ private:
     virtual void open_log_file();
 };
 
-class SrsJanusSession;
-class SrsJanusUserConf;
-struct SrsJanusMessage;
+class SrsRtcCallTraceId;
+class SrsRtcConnection;
+struct SrsRtcCallstackEvent;
+class SrsRtcICEMessage
+{
+public:
+    // appID: app id.
+    std::string appid_;
+    // sessionID: session id.
+    std::string sessionid_;
+    // channelID: channel id.
+    std::string channel_;
+    // userID: user id.
+    std::string userid_;
+    // callID: callid for single pc.
+    std::string callid_;
+
+    // sfu: sfu ip.
+    std::string sfu_;
+    // command: iceDone
+    std::string command_;
+    // result: dtls result.
+    std::string result_;
+
+    // localCandidate: local candidate
+    std::string local_candidate_;
+    // remoteCandidate: remote candidate
+    std::string remote_candidate_;
+private:
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsRtcICEMessage(SrsRtcCallTraceId* id, SrsRtcConnection* c);
+    ~SrsRtcICEMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+class SrsRtcDtlsMessage
+{
+public:
+    // appID: app id.
+    std::string appid_;
+    // sessionID: session id.
+    std::string sessionid_;
+    // channelID: channel id.
+    std::string channel_;
+    // userID: user id.
+    std::string userid_;
+    // callID: call id.
+    std::string callid_;
+    // sfu: sfu ip.
+    std::string sfu_;
+    // command: DTLS
+    std::string command_;
+    // result: dtls result.
+    std::string result_;
+private:
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsRtcDtlsMessage(SrsRtcCallTraceId* id, SrsRtcConnection* c);
+    ~SrsRtcDtlsMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+struct SrsRtcCallstackEvent
+{
+    // stage: Create/Media/Destroy
+    std::string stage_;
+    // status: enter/leave/flying/notify
+    std::string status_;
+    // createJanusSession/attachJanusHandle/...
+    std::string action_;
+    // code: the error code for callstack.
+    int error_code_;
+
+    // cid: context_id.
+    std::string cid_;
+    // appid: app id.
+    std::string appid_;
+    // channel: channel id.
+    std::string channel_;
+    // user: user id.
+    std::string user_;
+    // session: session id.
+    std::string session_;
+    // call: call id, if have.
+    std::string call_;
+    // tid: transaction id, if have
+    std::string tid_;
+
+    SrsRtcCallstackEvent(std::string stage, std::string action)
+    {
+        stage_ = stage;
+        action_ = action;
+    }
+};
+
 class SrsLogWriterCallstack : public SrsLogWriter
 {
 public:
     SrsLogWriterCallstack();
     virtual ~SrsLogWriterCallstack();
 public:
-    virtual void write(SrsJanusSession* s, SrsJanusUserConf* c, SrsJanusMessage* m);
+    virtual void write(SrsRtcCallstackEvent* e, std::string m);
 };
+
+extern SrsLogWriterCallstack* _sls_callstack;
 
 struct SrsJanusRelationPublishInfo;
 struct SrsJanusRelationSubscribeInfo;

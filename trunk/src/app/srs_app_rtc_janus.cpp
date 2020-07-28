@@ -38,6 +38,7 @@ using namespace std;
 #include <srs_app_rtc_server.hpp>
 #include <srs_service_http_conn.hpp>
 #include <srs_app_rtc_source.hpp>
+#include <srs_service_utility.hpp>
 
 // SLS log writers.
 SrsLogWriterCallstack* _sls_callstack = new SrsLogWriterCallstack();
@@ -366,8 +367,11 @@ srs_error_t SrsJanusServer::create(SrsJsonObject* req, SrsJanusMessage* msg, Srs
     session->sessionid_ = session_id;
     session->user_conf_ = user_conf;
 
-    // For SIBI callstack SLS log.
-    _sls_callstack->write(session, user_conf, msg);
+    SrsJanusCreateSessionMessage* cs_msg = new SrsJanusCreateSessionMessage(session, msg, user_conf);
+    SrsAutoFree(SrsJanusCreateSessionMessage, cs_msg);
+    
+    // For SIBI callstack SLS log. for enter
+    cs_msg->write_callstack("enter", 0);
 
     do {
         srs_random_generate((char*)&session->id_, 8);
@@ -387,6 +391,9 @@ srs_error_t SrsJanusServer::create(SrsJsonObject* req, SrsJanusMessage* msg, Srs
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         appid.c_str(), channel.c_str(), userid.c_str(), session_id.c_str(), user_conf->need_unified_plan, user_conf->web_sdk.c_str(),
         user_conf->channel_profile.c_str(), session->id_);
+
+    // write leave callstack log
+    cs_msg->write_callstack("leave", 0);
 
     return err;
 }
@@ -635,9 +642,7 @@ SrsJanusSession::~SrsJanusSession()
         }
     }
 
-    if (user_conf_) {
-        srs_freep(user_conf_);
-    }
+    srs_freep(user_conf_);
 }
 
 srs_error_t SrsJanusSession::polling(SrsJsonObject* req, SrsJsonObject* res)
@@ -756,6 +761,12 @@ srs_error_t SrsJanusSession::attach(SrsJsonObject* req, SrsJanusMessage* msg, Sr
     SrsJanusCall* call = new SrsJanusCall(this, cid);
     call->callid_ = callid;
 
+    SrsJanusAttachMessage* attach_msg = new SrsJanusAttachMessage(call, msg);
+    SrsAutoFree(SrsJanusAttachMessage, attach_msg);
+    
+    // Write enter callstack log.
+    attach_msg->write_callstack("enter", 0);
+
     do {
         srs_random_generate((char*)&call->id_, 8);
         call->id_ &= 0x7fffffffffffffffLL;
@@ -773,6 +784,9 @@ srs_error_t SrsJanusSession::attach(SrsJsonObject* req, SrsJanusMessage* msg, Sr
     srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, plugin=%s, opaque_id=%s, force_bundle=%d, force_rtcp_mux=%d, callid=%s, call=%" PRId64,
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         plugin.c_str(), opaque_id.c_str(), force_bundle, force_rtcp_mux, callid.c_str(), call->id_);
+
+    // Write leave callstack log
+    attach_msg->write_callstack("leave", 0);
 
     return err;
 }
@@ -946,9 +960,18 @@ srs_error_t SrsJanusCall::trickle(SrsJsonObject* req, SrsJanusMessage* msg)
         candidate = prop->to_str();
     }
 
+    SrsJanusTrickleMessage* trikle_msg = new SrsJanusTrickleMessage(this, msg, candidate, completed);
+    SrsAutoFree(SrsJanusTrickleMessage, trikle_msg);
+
+    // Write enter callstack log.
+    trikle_msg->write_callstack("enter", 0);
+
     srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, completed=%d, candidate=%s",
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         completed, candidate.c_str());
+
+    // Write leave callstack log
+    trikle_msg->write_callstack("leave", 0);
 
     return err;
 }
@@ -999,9 +1022,18 @@ srs_error_t SrsJanusCall::on_join_message(SrsJsonObject* req, SrsJanusMessage* m
         feed_id_ = feed_id;
         session_->janus_->set_callee(this);
 
+        SrsJanusJoinMessage* join_msg = new SrsJanusJoinMessage(this, msg, ptype, "success");
+        SrsAutoFree(SrsJanusJoinMessage, join_msg);
+
+        // Write enter callstack log.
+        join_msg->write_callstack("enter", 0);
+
         srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, request=%s, ptype=%s, feed_id=%" PRId64 ", display=%s, sender=%" PRId64 ", private=%u, publisher=%d",
             msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
             "join", ptype.c_str(), feed_id, display.c_str(), res_msg->sender, res_msg->private_id, publisher_);
+        
+        // Write enter callstack log.
+        join_msg->write_callstack("leave", 0);
     } else {
         return on_join_as_subscriber(req, msg);
     }
@@ -1521,6 +1553,12 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     srs_random_generate((char*)&res_msg->private_id, 4);
     session_->enqueue(res_msg);
 
+    SrsJanusProcessOfferMessage* offer_msg = new SrsJanusProcessOfferMessage(this, msg);
+    SrsAutoFree(SrsJanusProcessOfferMessage, offer_msg);
+
+    // Write enter callstack log.
+    offer_msg->write_callstack("enter", 0);
+
     srs_trace("RTC janus %s transaction=%s, tid=%s, rpc=%s, module=%s, request=%s, audio=%d, video=%d, streams=%d, jsep=%s/%dB, answer=%dB, cid=[%u][%s]",
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         "configure", has_audio, has_video, streams->count(), type.c_str(), remote_sdp_str.length(), local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
@@ -1872,3 +1910,264 @@ srs_error_t SrsJanusCall::write_sub_relations(SrsRequest* req, SrsJanusCall* cal
     return err;
 }
 
+SrsJanusCallstackMessage::SrsJanusCallstackMessage(SrsJanusSession* s, SrsJanusMessage* m, std::string command)
+{
+    appid_     = s->appid_;
+    sessionid_ = s->sessionid_;
+    channel_   = s->channel_;
+    userid_    = s->userid_;
+
+    transaction_ = m->transaction;
+    sfu_ = srs_get_public_internet_address(true);
+    signaling_ = m->client_ip;
+
+    command_ = command;
+}
+
+SrsJanusCallstackMessage::~SrsJanusCallstackMessage()
+{
+}
+
+SrsJanusCreateSessionMessage::SrsJanusCreateSessionMessage(SrsJanusSession* s, SrsJanusMessage* m, SrsJanusUserConf* uc)
+    : SrsJanusCallstackMessage(s, m, "createJanusSession")
+{
+    uc_ = uc;
+
+    event_ = new SrsRtcCallstackEvent("create", "createJanusSession");
+    event_->cid_  = s->cid_.k_ + string("-") + s->cid_.v_;
+    event_->appid_   = appid_;
+    event_->channel_ = channel_;
+    event_->user_    = userid_;
+    event_->session_ = sessionid_;
+    event_->tid_     = transaction_;
+}
+
+SrsJanusCreateSessionMessage::~SrsJanusCreateSessionMessage()
+{
+    srs_freep(event_);
+}
+
+void SrsJanusCreateSessionMessage::write_callstack(std::string status, int ecode)
+{
+    event_->status_ = status;
+    event_->error_code_ = ecode;
+    _sls_callstack->write(event_, marshal());
+}
+
+std::string SrsJanusCreateSessionMessage::marshal() 
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    obj->set("appID", SrsJsonAny::str(appid_.c_str()));
+    obj->set("sessionID", SrsJsonAny::str(sessionid_.c_str()));
+    obj->set("channelID", SrsJsonAny::str(channel_.c_str()));
+    obj->set("userID", SrsJsonAny::str(userid_.c_str()));
+    obj->set("command", SrsJsonAny::str(command_.c_str()));
+    obj->set("transaction", SrsJsonAny::str(transaction_.c_str()));
+    obj->set("sfu", SrsJsonArray::str(sfu_.c_str()));
+    obj->set("signaling", SrsJsonArray::str(signaling_.c_str()));
+
+    obj->set("DownlinkStreamMerge", SrsJsonArray::boolean(uc_->stream_merge));
+    obj->set("1v1TccForwardEnable", SrsJsonArray::boolean(uc_->enable_forward_twcc));
+    obj->set("NeedSDPUnified", SrsJsonArray::boolean(uc_->need_unified_plan));
+    obj->set("WebSDK", SrsJsonArray::str(uc_->web_sdk.c_str()));
+    obj->set("EnableBWEStatusReport", SrsJsonArray::boolean(uc_->enable_bwe_status_report));
+    obj->set("NoExtraConfig", SrsJsonArray::boolean(uc_->no_extra_config_when_join));
+    obj->set("IsMPU", SrsJsonArray::boolean(uc_->is_mpu_client));
+    
+    return obj->dumps();
+}
+
+SrsJanusAttachMessage::SrsJanusAttachMessage(SrsJanusCall* c, SrsJanusMessage* m)
+    : SrsJanusCallstackMessage(c->session_, m, "attach")
+{
+    callid_ = c->callid_;
+
+    event_ = new SrsRtcCallstackEvent("create", "attachJanusHandle");
+    event_->cid_  = c->cid_.k_ + string("-") + c->cid_.v_;
+    event_->appid_   = appid_;
+    event_->channel_ = channel_;
+    event_->user_    = userid_;
+    event_->session_ = sessionid_;
+    event_->tid_     = transaction_;
+    event_->call_    = callid_;
+}
+
+SrsJanusAttachMessage::~SrsJanusAttachMessage()
+{
+    srs_freep(event_);
+}
+
+void SrsJanusAttachMessage::write_callstack(std::string status, int ecode)
+{
+    event_->status_ = status;
+    event_->error_code_ = ecode;
+    _sls_callstack->write(event_, marshal());
+}
+
+std::string SrsJanusAttachMessage::marshal()
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    obj->set("callID", SrsJsonAny::str(callid_.c_str()));
+    obj->set("appID",  SrsJsonAny::str(appid_.c_str()));
+    obj->set("sessionID",   SrsJsonAny::str(sessionid_.c_str()));
+    obj->set("channelID",  SrsJsonAny::str(channel_.c_str()));
+    obj->set("userID",   SrsJsonAny::str(userid_.c_str()));
+    obj->set("transaction",  SrsJsonAny::str(transaction_.c_str()));
+    obj->set("sfu",  SrsJsonAny::str(sfu_.c_str()));
+    obj->set("signaling",    SrsJsonAny::str(signaling_.c_str()));
+
+    obj->set("command",  SrsJsonAny::str(command_.c_str()));
+    
+    return obj->dumps();
+}
+
+SrsJanusTrickleMessage::SrsJanusTrickleMessage(SrsJanusCall* c, SrsJanusMessage* m, std::string candidate, bool completed)
+    : SrsJanusCallstackMessage(c->session_, m, "trickle")
+{
+    callid_ = c->callid_;
+    candidate_  = candidate;
+    completed_  = completed;
+
+    event_ = new SrsRtcCallstackEvent("create", "attachJanusHandle");
+    event_->cid_  = c->cid_.k_ + string("-") + c->cid_.v_;
+    event_->appid_   = appid_;
+    event_->channel_ = channel_;
+    event_->user_    = userid_;
+    event_->session_ = sessionid_;
+    event_->tid_     = transaction_;
+    event_->call_    = callid_;
+}
+
+SrsJanusTrickleMessage::~SrsJanusTrickleMessage()
+{
+    srs_freep(event_);
+}
+
+void SrsJanusTrickleMessage::write_callstack(std::string status, int ecode)
+{
+    event_->status_ = status;
+    event_->error_code_ = ecode;
+    _sls_callstack->write(event_, marshal());
+}
+
+std::string SrsJanusTrickleMessage::marshal()
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    obj->set("callID",      SrsJsonAny::str(callid_.c_str()));
+    obj->set("appID",       SrsJsonAny::str(appid_.c_str()));
+    obj->set("sessionID",   SrsJsonAny::str(sessionid_.c_str()));
+    obj->set("channelID",   SrsJsonAny::str(channel_.c_str()));
+    obj->set("userID",      SrsJsonAny::str(userid_.c_str()));
+    obj->set("transaction", SrsJsonAny::str(transaction_.c_str()));
+    obj->set("sfu",         SrsJsonAny::str(sfu_.c_str()));
+    obj->set("signaling",   SrsJsonAny::str(signaling_.c_str()));
+
+    obj->set("command",     SrsJsonAny::str(command_.c_str()));
+    obj->set("candidate",   SrsJsonAny::str(candidate_.c_str()));
+    obj->set("completed",   SrsJsonAny::boolean(completed_));
+
+    return obj->dumps();
+}
+
+SrsJanusJoinMessage::SrsJanusJoinMessage(SrsJanusCall* c, SrsJanusMessage* m, std::string ptype, std::string result)
+    : SrsJanusCallstackMessage(c->session_, m, "join") 
+{
+    callid_ = c->callid_;
+    participant_type_ = ptype;
+    result_ = result;
+    feedid_ = c->feed_id_;
+
+    event_ = new SrsRtcCallstackEvent("MediaSignaling", "join");
+    event_->cid_  = c->cid_.k_ + string("-") + c->cid_.v_;
+    event_->appid_   = appid_;
+    event_->channel_ = channel_;
+    event_->user_    = userid_;
+    event_->session_ = sessionid_;
+    event_->tid_     = transaction_;
+    event_->call_    = callid_;
+}
+
+SrsJanusJoinMessage::~SrsJanusJoinMessage()
+{
+    srs_freep(event_);
+}
+
+void SrsJanusJoinMessage::write_callstack(std::string status, int err_code)
+{
+    event_->status_ = status;
+    _sls_callstack->write(event_, marshal());
+}
+
+std::string SrsJanusJoinMessage::marshal()
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    obj->set("callID",      SrsJsonAny::str(callid_.c_str()));
+    obj->set("appID",       SrsJsonAny::str(appid_.c_str()));
+    obj->set("sessionID",   SrsJsonAny::str(sessionid_.c_str()));
+    obj->set("channelID",   SrsJsonAny::str(channel_.c_str()));
+    obj->set("userID",      SrsJsonAny::str(userid_.c_str()));
+    obj->set("transaction", SrsJsonAny::str(transaction_.c_str()));
+    obj->set("sfu",         SrsJsonAny::str(sfu_.c_str()));
+    obj->set("signaling",   SrsJsonAny::str(signaling_.c_str()));
+
+    obj->set("command",     SrsJsonAny::str(command_.c_str()));
+    obj->set("participantType", SrsJsonAny::str(participant_type_.c_str()));
+    obj->set("result", SrsJsonAny::str(result_.c_str()));
+    obj->set("feedID", SrsJsonAny::integer(feedid_));
+
+    return obj->dumps();
+}
+
+SrsJanusProcessOfferMessage::SrsJanusProcessOfferMessage(SrsJanusCall* c, SrsJanusMessage* m)
+    : SrsJanusCallstackMessage(c->session_, m, "processOffer") 
+{
+    callid_ = c->callid_;
+
+    event_ = new SrsRtcCallstackEvent("MediaSignaling", "processOffer");
+    event_->cid_  = c->cid_.k_ + string("-") + c->cid_.v_;
+    event_->appid_   = appid_;
+    event_->channel_ = channel_;
+    event_->user_    = userid_;
+    event_->session_ = sessionid_;
+    event_->tid_     = transaction_;
+    event_->call_    = callid_;
+}
+
+SrsJanusProcessOfferMessage::~SrsJanusProcessOfferMessage()
+{
+    srs_freep(event_);
+}
+
+void SrsJanusProcessOfferMessage::write_callstack(std::string status, int ecode)
+{
+    event_->status_ = status;
+    event_->error_code_ = ecode;
+    _sls_callstack->write(event_, marshal());
+}
+
+std::string SrsJanusProcessOfferMessage::marshal()
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    obj->set("callID",      SrsJsonAny::str(callid_.c_str()));
+    obj->set("appID",       SrsJsonAny::str(appid_.c_str()));
+    obj->set("sessionID",   SrsJsonAny::str(sessionid_.c_str()));
+    obj->set("channelID",   SrsJsonAny::str(channel_.c_str()));
+    obj->set("userID",      SrsJsonAny::str(userid_.c_str()));
+    obj->set("transaction", SrsJsonAny::str(transaction_.c_str()));
+    obj->set("sfu",         SrsJsonAny::str(sfu_.c_str()));
+    obj->set("signaling",   SrsJsonAny::str(signaling_.c_str()));
+
+    obj->set("command",     SrsJsonAny::str(command_.c_str()));
+
+    return obj->dumps();
+}
