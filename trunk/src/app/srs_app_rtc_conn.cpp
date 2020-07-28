@@ -872,7 +872,7 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
         }
     }
 
-    for (int i = 0; i < cfgs.size(); ++i) {
+    for (int i = 0; i < (int)cfgs.size(); ++i) {
         const SrsTrackConfig& cfg = cfgs.at(i);
 
         if (cfg.type_ == "audio") {
@@ -1702,7 +1702,7 @@ void SrsRtcPublishStream::update_send_report_time(uint32_t ssrc, const SrsNtp& n
 
 void SrsRtcPublishStream::write_track_statistic()
 {
-    for (int i = 0; i < video_tracks_.size(); ++i) {
+    for (int i = 0; i < (int)video_tracks_.size(); ++i) {
         SrsRtcVideoRecvTrack* track = video_tracks_.at(i);
 
         SrsRtcTrackStatisticLogRecv* to = new SrsRtcTrackStatisticLogRecv();
@@ -1713,7 +1713,7 @@ void SrsRtcPublishStream::write_track_statistic()
         _sls_data_statistic->write(&ctid_, to);
     }
 
-    for (int i = 0; i < audio_tracks_.size(); ++i) {
+    for (int i = 0; i < (int)audio_tracks_.size(); ++i) {
         SrsRtcAudioRecvTrack* track = audio_tracks_.at(i);
 
         SrsRtcTrackStatisticLogRecv* to = new SrsRtcTrackStatisticLogRecv();
@@ -2544,7 +2544,7 @@ srs_error_t SrsRtcConnection::on_binding_request(SrsStunPacket* r)
     if (state_ == WAITING_STUN) {
         state_ = DOING_DTLS_HANDSHAKE;
 
-        SrsRtcICEMessageSrsRtcICEMessage(get_rtc_callid(), this).write_callstack("leave", 0);
+        SrsRtcICEMessage(get_rtc_callid(), this).write_callstack("leave", 0);
 
         // TODO: FIXME: Add cost.
         srs_trace("RTC: session STUN done, waiting DTLS handshake.");
