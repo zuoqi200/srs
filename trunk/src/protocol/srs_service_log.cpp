@@ -128,7 +128,7 @@ void SrsThreadContext::bind(const SrsContextId& target, const char* fmt, ...)
         size = vsnprintf(buffer, sizeof(buffer), fmt, ap);
         va_end(ap);
 
-        if (size < 0 || size >= sizeof(buffer)) {
+        if (size < 0 || size >= (int)sizeof(buffer)) {
             size = 0;
         }
     }
