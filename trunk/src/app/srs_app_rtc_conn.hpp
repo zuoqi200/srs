@@ -65,6 +65,9 @@ class SrsRtcAudioSendTrack;
 class SrsRtcVideoSendTrack;
 class SrsErrorPithyPrint;
 
+class SrsRtcConnectionDownlinkBweStatistic;
+class SrsRtcConnectionDownlinkBweEvent;
+
 const uint8_t kSR   = 200;
 const uint8_t kRR   = 201;
 const uint8_t kSDES = 202;
@@ -463,6 +466,10 @@ public:
 public:
     void set_rtc_callid(SrsRtcCallTraceId id);
     SrsRtcCallTraceId* get_rtc_callid();
+    void write_downlink_bwe();
+private:
+    SrsRtcConnectionDownlinkBweStatistic* bwe_stats_;
+    SrsRtcConnectionDownlinkBweEvent* bwe_event_;
 };
 
 class ISrsRtcHijacker

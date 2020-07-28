@@ -331,5 +331,87 @@ public:
 
 extern SrsLogWriteDataStatistic* _sls_data_statistic;
 
+class SrsRtcConnectionDownlinkBweStatistic
+{
+public:
+    // used during caculate average.
+	int count;
+
+	int max_bitrate;
+	int min_bitrate;
+	int avg_bitrate;
+
+	int max_rtt;
+	int min_rtt;
+	int avg_rtt;
+
+	float max_loss_rate;
+	float min_loss_rate;
+	float avg_loss_rate;
+public:
+    SrsRtcConnectionDownlinkBweStatistic();
+    virtual ~SrsRtcConnectionDownlinkBweStatistic();
+public:
+    void reset();
+    void update(int bitrate, int rtt, float loss_rate);
+};
+
+class SrsRtcConnectionDownlinkBweEvent
+{
+public:
+    // The total count for bwe event in every interval.
+	uint64_t total_cnt;
+	// The gcc result is congestion's result.
+	uint64_t congestion_cnt;
+	// Weakness. If our bitrate can't offer the T0 + FEC0 or T0.
+	uint64_t weakness_cnt;
+	// Queue delay overuse count.
+	uint64_t qdelay_overuse_cnt;
+
+	// Region counts.
+	uint64_t loss_zero_percent_cnt;
+	// (0, 5%]
+	uint64_t loss_less_5_percent_cnt;
+	// (5%, 10%]
+	uint64_t loss_less_10_percent_cnt;
+	// (10%, 20%]
+	uint64_t loss_less_20_percent_cnt;
+	// (20%, 30%]
+	uint64_t loss_lenss_30_percent_cnt;
+	// higher
+	uint64_t loss_higher_30_percent_cnt;
+
+	// (0, 300kb]
+	uint64_t bitrate_less_300k;
+	// (300k, 500k]
+	uint64_t bitrate_less_500k;
+	// (500k, 800k]
+	uint64_t bitrate_less_800k;
+	// (800k, 1200k]
+	uint64_t bitrate_less_1200k;
+	// higher
+	uint64_t bitrate_higher_1200k;
+public:
+    SrsRtcConnectionDownlinkBweEvent();
+    virtual ~SrsRtcConnectionDownlinkBweEvent();
+public:
+    void reset();
+    void update_bwe(int bitrate, int rtt, float loss_rate);
+    void update_weakness();
+};
+
+class SrsRtcConnectionDownlinkBweStatistic;
+class SrsRtcConnectionDownlinkBweEvent;
+class SrsLogWriteDownlinkBwe : public SrsLogWriter
+{
+public:
+    SrsLogWriteDownlinkBwe();
+    virtual ~SrsLogWriteDownlinkBwe();
+public:
+    virtual void write(SrsRtcCallTraceId* id, SrsRtcConnectionDownlinkBweStatistic* s, SrsRtcConnectionDownlinkBweEvent* e);
+};
+
+extern SrsLogWriteDownlinkBwe* _sls_downlink_bwe;
+
 #endif
 

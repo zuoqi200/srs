@@ -1387,3 +1387,332 @@ void SrsLogWriteDataStatistic::write(SrsRtcCallTraceId* id, SrsRtcTrackStatistic
     write_log(data.data(), data.length());
 }
 
+SrsRtcConnectionDownlinkBweStatistic::SrsRtcConnectionDownlinkBweStatistic()
+{
+    reset();
+}
+
+SrsRtcConnectionDownlinkBweStatistic::~SrsRtcConnectionDownlinkBweStatistic()
+{
+}
+
+void SrsRtcConnectionDownlinkBweStatistic::reset()
+{
+    count = 0;
+    max_rtt = 0;
+    min_rtt = 0;
+    avg_rtt = 0;
+    max_bitrate = 0;
+    min_bitrate = 0;
+    avg_bitrate = 0;
+
+    max_loss_rate = 0.0;
+    min_loss_rate = 0.0;
+    avg_loss_rate = 0.0;
+}
+
+void SrsRtcConnectionDownlinkBweStatistic::update(int bitrate, int rtt, float loss_rate)
+{
+    count++;
+	if(count == 1) {
+		max_bitrate = bitrate;
+		min_bitrate = bitrate;
+		avg_bitrate = bitrate;
+
+		max_rtt = rtt;
+		min_rtt = rtt;
+		avg_rtt = rtt;
+
+		max_loss_rate = loss_rate;
+		min_loss_rate = loss_rate;
+		avg_loss_rate = loss_rate;
+	} else {
+		avg_bitrate = ((avg_bitrate * (count - 1)) + bitrate) / count;
+		if(bitrate > max_bitrate) {
+			max_bitrate = bitrate;
+		}
+		if(bitrate < min_bitrate) {
+			min_bitrate = bitrate;
+		}
+
+		avg_rtt = ((avg_rtt * (count - 1) + rtt)) / count;
+		if(rtt > max_rtt) {
+			max_rtt = rtt;
+		}
+		if(rtt < min_rtt) {
+			min_rtt = rtt;
+		}
+
+		avg_loss_rate = ((avg_loss_rate * (count - 1)) + loss_rate) / count;
+		if(loss_rate > max_loss_rate) {
+			max_loss_rate = loss_rate;
+		}
+		if(loss_rate < min_loss_rate) {
+			min_loss_rate = loss_rate;
+		}
+	}
+}
+
+SrsRtcConnectionDownlinkBweEvent::SrsRtcConnectionDownlinkBweEvent()
+{
+    reset();
+}
+
+SrsRtcConnectionDownlinkBweEvent::~SrsRtcConnectionDownlinkBweEvent()
+{
+}
+
+void SrsRtcConnectionDownlinkBweEvent::reset()
+{
+    total_cnt = 0;
+	congestion_cnt = 0;
+	qdelay_overuse_cnt = 0;
+	weakness_cnt = 0;
+	loss_zero_percent_cnt = 0;
+	loss_less_5_percent_cnt = 0;
+	loss_less_10_percent_cnt = 0;
+	loss_less_20_percent_cnt = 0;
+	loss_lenss_30_percent_cnt = 0;
+	loss_higher_30_percent_cnt = 0;
+	bitrate_less_300k = 0;
+	bitrate_less_500k = 0;
+	bitrate_less_800k = 0;
+	bitrate_less_1200k = 0;
+	bitrate_higher_1200k = 0;
+}
+
+void SrsRtcConnectionDownlinkBweEvent::update_bwe(int bitrate, int rtt, float loss_rate)
+{
+	total_cnt++;
+
+    // TODO: FIXME: add congestion and qdelay_overuse count.
+	if(bitrate <= 300 * 1000) {
+		bitrate_less_300k++;
+	} else if(bitrate <= 500 * 1000) {
+		bitrate_less_500k++;
+	} else if(bitrate <= 800 * 1000) {
+		bitrate_less_800k++;
+	} else if(bitrate <= 1200 * 1000) {
+		bitrate_less_1200k++;
+	} else {
+		bitrate_higher_1200k++;
+	}
+
+	if(loss_rate == 0.0f) {
+		loss_zero_percent_cnt++;
+	} else if(loss_rate <= 0.05f) {
+		loss_less_5_percent_cnt++;
+	} else if(loss_rate <= 0.10f) {
+		loss_less_10_percent_cnt++;
+	} else if(loss_rate <= 0.20f) {
+		loss_less_20_percent_cnt++;
+	} else if(loss_rate <= 0.30f) {
+		loss_lenss_30_percent_cnt++;
+	} else {
+		loss_higher_30_percent_cnt++;
+	}
+}
+
+void SrsRtcConnectionDownlinkBweEvent::update_weakness()
+{
+    weakness_cnt++;
+}
+
+SrsLogWriteDownlinkBwe::SrsLogWriteDownlinkBwe() : SrsLogWriter("downlink_bwe")
+{
+}
+
+SrsLogWriteDownlinkBwe::~SrsLogWriteDownlinkBwe()
+{
+}
+
+struct SrsJanusDownlinkBwe
+{
+    // time: write log time
+    std::string time;
+    // appid: app id.
+    std::string appid;
+    // channelID: channel id.
+    std::string channel;
+    // userID: user id.
+    std::string user;
+    // sessionID: session id.
+    std::string session;
+    // callID: call id.
+    std::string call;
+
+    // maxRTT: max rtt.
+    int max_rtt;
+    // minRTT: min rtt.
+	int min_rtt;
+    // avgRTT: average rtt.
+	int avg_rtt;
+    
+    // maxBitrate: max bitrate.
+    int max_bitrate;
+    // minBitrate: min bitrate.
+	int min_bitrate;
+    // avgBitrate: average bitrate.
+	int avg_bitrate;
+
+    // maxLossRate: max loss rate.
+	float max_loss_rate;
+    // minLossRate: min loss rate.
+	float min_loss_rate;
+    // avgLossRate: average loss rate.
+	float avg_loss_rate;
+
+    // totalBWECount: The total count for bwe event in every interval.
+	uint64_t total_cnt;
+	// totalBWECongestion: The gcc result is congestion's result.
+	uint64_t congestion_cnt;
+	// totalBWEWeakness: Weakness. If our bitrate can't offer the T0 + FEC0 or T0.
+	uint64_t weakness_cnt;
+	// totalQueueDelayOverusing: Queue delay overuse count.
+	uint64_t qdelay_overuse_cnt;
+
+	// lossZero:  zero loss.
+	uint64_t loss_zero_percent_cnt;
+	// lossLess5p: (0, 5%]
+	uint64_t loss_less_5_percent_cnt;
+	// lossLess10p: (5%, 10%]
+	uint64_t loss_less_10_percent_cnt;
+	// lossLess20p: (10%, 20%]
+	uint64_t loss_less_20_percent_cnt;
+	// lossLess30p: (20%, 30%]
+	uint64_t loss_lenss_30_percent_cnt;
+	// lossHigher: higher
+	uint64_t loss_higher_30_percent_cnt;
+
+	// bitrateLess300k: (0, 300kb]
+	uint64_t bitrate_less_300k;
+	// bitrateLess500k: (300k, 500k]
+	uint64_t bitrate_less_500k;
+	// bitrateLess800k: (500k, 800k]
+	uint64_t bitrate_less_800k;
+	// bitrateLess1200k: (800k, 1200k]
+	uint64_t bitrate_less_1200k;
+	// bitrateHigher: higher
+	uint64_t bitrate_higher_1200k;
+
+    SrsJanusDownlinkBwe()
+    {
+        max_rtt = 0;
+        min_rtt = 0;
+        avg_rtt = 0;
+        max_bitrate = 0;
+        min_bitrate = 0;
+        avg_bitrate = 0;
+
+        max_loss_rate = 0.0;
+        min_loss_rate = 0.0;
+        avg_loss_rate = 0.0;
+
+        total_cnt = 0;
+        congestion_cnt = 0;
+        weakness_cnt = 0;
+        qdelay_overuse_cnt = 0;
+
+        loss_zero_percent_cnt = 0;
+        loss_less_5_percent_cnt = 0;
+        loss_less_10_percent_cnt = 0;
+        loss_less_20_percent_cnt = 0;
+        loss_lenss_30_percent_cnt = 0;
+        loss_higher_30_percent_cnt = 0;
+
+        bitrate_less_300k = 0;
+        bitrate_less_500k = 0;
+        bitrate_less_800k = 0;
+        bitrate_less_1200k = 0;
+        bitrate_higher_1200k = 0;
+    };
+
+    void marshal(SrsJsonObject* obj) {
+        obj->set("time",        SrsJsonAny::str(time.c_str()));
+        obj->set("appid",       SrsJsonAny::str(appid.c_str()));
+        obj->set("channelID",   SrsJsonAny::str(channel.c_str()));
+        obj->set("userID",      SrsJsonAny::str(user.c_str()));
+        obj->set("sessionID",   SrsJsonAny::str(session.c_str()));
+        obj->set("callID",      SrsJsonAny::str(call.c_str()));
+
+        obj->set("maxRTT", SrsJsonAny::integer(max_rtt));
+        obj->set("minRTT", SrsJsonAny::integer(min_rtt));
+        obj->set("avgRTT", SrsJsonAny::integer(avg_rtt));
+
+        obj->set("maxBitrate", SrsJsonAny::integer(max_bitrate));
+        obj->set("minBitrate", SrsJsonAny::integer(min_bitrate));
+        obj->set("avgBitrate", SrsJsonAny::integer(avg_bitrate));
+
+        obj->set("maxLossRate", SrsJsonAny::number(max_loss_rate));
+        obj->set("minLossRate", SrsJsonAny::number(min_loss_rate));
+        obj->set("avgLossRate", SrsJsonAny::number(avg_loss_rate));
+
+        obj->set("totalBWECount", SrsJsonAny::integer(total_cnt));
+        obj->set("totalBWECongestion", SrsJsonAny::integer(congestion_cnt));
+        obj->set("totalBWEWeakness", SrsJsonAny::integer(weakness_cnt));
+        obj->set("totalQueueDelayOverusing", SrsJsonAny::integer(qdelay_overuse_cnt));
+
+        obj->set("lossZero", SrsJsonAny::integer(loss_zero_percent_cnt));
+        obj->set("lossLess5p", SrsJsonAny::integer(loss_less_5_percent_cnt));
+        obj->set("lossLess10p", SrsJsonAny::integer(loss_less_10_percent_cnt));
+        obj->set("lossLess20p", SrsJsonAny::integer(loss_less_20_percent_cnt));
+        obj->set("lossLess30p", SrsJsonAny::integer(loss_lenss_30_percent_cnt));
+        obj->set("lossHigher", SrsJsonAny::integer(loss_higher_30_percent_cnt));
+
+        obj->set("bitrateLess300k", SrsJsonAny::integer(bitrate_less_300k));
+        obj->set("bitrateLess500k", SrsJsonAny::integer(bitrate_less_500k));
+        obj->set("bitrateLess800k", SrsJsonAny::integer(bitrate_less_800k));
+        obj->set("bitrateLess1200k", SrsJsonAny::integer(bitrate_less_1200k));
+        obj->set("bitrateHigher", SrsJsonAny::integer(bitrate_higher_1200k));
+    }
+};
+
+void SrsLogWriteDownlinkBwe::write(SrsRtcCallTraceId* id, SrsRtcConnectionDownlinkBweStatistic* s, SrsRtcConnectionDownlinkBweEvent* e)
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    if (true) {
+        SrsJanusDownlinkBwe bwe;
+
+        bwe.time = srs_current_time(false);
+
+        bwe.appid    = id->appid;
+        bwe.channel  = id->channel;
+        bwe.user     = id->user;
+        bwe.session  = id->session;
+        bwe.call     = id->call;
+
+        bwe.max_rtt = s->max_rtt;
+        bwe.min_rtt = s->min_rtt;
+        bwe.avg_rtt = s->avg_rtt;
+        bwe.max_bitrate = s->max_bitrate;
+        bwe.min_bitrate = s->min_bitrate;
+        bwe.avg_bitrate = s->avg_bitrate;
+        bwe.max_loss_rate = s->max_loss_rate;
+        bwe.min_loss_rate = s->min_loss_rate;
+        bwe.avg_loss_rate = s->avg_loss_rate;
+
+        bwe.total_cnt = e->total_cnt;
+        bwe.congestion_cnt = e->congestion_cnt;
+        bwe.weakness_cnt = e->weakness_cnt;
+        bwe.qdelay_overuse_cnt = e->qdelay_overuse_cnt;
+        bwe.loss_zero_percent_cnt = e->loss_zero_percent_cnt;
+        bwe.loss_less_5_percent_cnt = e->loss_less_5_percent_cnt;
+        bwe.loss_less_10_percent_cnt = e->loss_less_10_percent_cnt;
+        bwe.loss_less_20_percent_cnt = e->loss_less_20_percent_cnt;
+        bwe.loss_lenss_30_percent_cnt = e->loss_lenss_30_percent_cnt;
+        bwe.loss_higher_30_percent_cnt = e->loss_higher_30_percent_cnt;
+        bwe.bitrate_less_300k = e->bitrate_less_300k;
+        bwe.bitrate_less_500k = e->bitrate_less_500k;
+        bwe.bitrate_less_800k = e->bitrate_less_800k;
+        bwe.bitrate_less_1200k = e->bitrate_less_1200k;
+        bwe.bitrate_higher_1200k = e->bitrate_higher_1200k;
+
+        bwe.marshal(obj);
+    }
+
+    string data = obj->dumps();
+    data += LOG_TAIL;
+    write_log(data.data(), data.length());
+}

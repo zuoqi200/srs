@@ -1776,6 +1776,7 @@ SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
     is_publisher_ = false;
     encrypt = true;
     cid = context_id;
+    timer_ = new SrsHourGlass(this, 1000 * SRS_UTIME_MILLISECONDS);
     stat_ = new SrsRtcConnectionStatistic();
     timer_ = new SrsHourGlass(this, 1000 * SRS_UTIME_MILLISECONDS);
 
@@ -1794,6 +1795,9 @@ SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
     twcc_id_ = 0;
     nn_simulate_player_nack_drop = 0;
     pp_address_change = new SrsErrorPithyPrint();
+
+    bwe_stats_ = new SrsRtcConnectionDownlinkBweStatistic();
+    bwe_event_ = new SrsRtcConnectionDownlinkBweEvent();
 }
 
 SrsRtcConnection::~SrsRtcConnection()
@@ -1814,6 +1818,9 @@ SrsRtcConnection::~SrsRtcConnection()
     }
 
     srs_freep(pp_address_change);
+
+    srs_freep(bwe_stats_);
+    srs_freep(bwe_event_);
 }
 
 SrsSdp* SrsRtcConnection::get_local_sdp()
@@ -2002,6 +2009,10 @@ srs_error_t SrsRtcConnection::initialize(SrsRtcStream* source, SrsRequest* r, bo
         return srs_error_wrap(err, "init");
     }
 
+    if ((err = timer_->tick(SRS_TICKID_SFUSTAT, SRS_LOG_SFUSTAT_INTERVAL)) != srs_success) {
+        return srs_error_wrap(err, "log tick id=%u, interval=%dms", SRS_TICKID_SFUSTAT, srsu2msi(SRS_LOG_SFUSTAT_INTERVAL));
+    }
+
     if ((err = timer_->start()) != srs_success) {
         return srs_error_wrap(err, "start timer");
     }
@@ -2096,6 +2107,13 @@ srs_error_t SrsRtcConnection::on_rtcp_feedback(char* data, int nb_data)
     if(srs_success != (err = twcc_controller.get_network_status(lossrate, bitrate_bps, delay_bitrate_bps, rtt))) {
         return srs_error_wrap(err, "get twcc network status");
     }
+
+    bwe_stats_->update(bitrate_bps, rtt, lossrate);
+    // TODO: FIXME: 
+    // 1. add congestion, qdelay status event. 
+    // 2. update udpate_weakness.
+    bwe_event_->update_bwe(bitrate_bps, rtt, lossrate);
+
     srs_verbose("twcc - lossrate:%f, bitrate:%d, delay_bitrate:%d, rtt:%d", lossrate, bitrate_bps, delay_bitrate_bps, rtt);
 #endif
 
@@ -2208,6 +2226,15 @@ void SrsRtcConnection::update_sendonly_socket(SrsUdpMuxSocket* skt)
 srs_error_t SrsRtcConnection::notify(int type, srs_utime_t interval, srs_utime_t tick)
 {
     srs_error_t err = srs_success;
+
+    if (!player_) {
+        return err;
+    }
+
+    if (type == SRS_TICKID_SFUSTAT) {
+        write_downlink_bwe();
+    }
+
     return err;
 }
 
@@ -3312,6 +3339,18 @@ SrsRtcCallTraceId* SrsRtcConnection::get_rtc_callid()
         return &publisher_->ctid_;
     }
     return NULL;
+}
+
+void SrsRtcConnection::write_downlink_bwe()
+{
+    if (!player_) {
+        return;
+    }
+
+    _sls_downlink_bwe->write(&player_->ctid_, bwe_stats_, bwe_event_);
+    
+    bwe_stats_->reset();
+    bwe_event_->reset();
 }
 
 ISrsRtcHijacker::ISrsRtcHijacker()
