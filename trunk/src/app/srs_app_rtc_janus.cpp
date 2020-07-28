@@ -55,6 +55,12 @@ srs_utime_t API_POLLING_LIMIT = 1 * SRS_UTIME_SECONDS;
 extern srs_error_t srs_api_response(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, std::string json);
 extern srs_error_t srs_api_response_code(ISrsHttpResponseWriter* w, ISrsHttpMessage* r, int code);
 
+SrsJanusMessage::SrsJanusMessage()
+{
+    session_id = sender = feed_id = 0;
+    private_id = 0;
+}
+
 SrsGoApiRtcJanus::SrsGoApiRtcJanus(SrsJanusServer* j)
 {
     janus_ = j;

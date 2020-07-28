@@ -909,6 +909,12 @@ std::string SrsRtcDtlsMessage::marshal()
     return obj->dumps();
 }
 
+SrsRtcCallstackEvent::SrsRtcCallstackEvent(std::string stage, std::string action)
+{
+    stage_ = stage;
+    action_ = action;
+}
+
 SrsLogWriterCallstack::SrsLogWriterCallstack() : SrsLogWriter("callstack")
 {
 }

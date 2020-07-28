@@ -43,8 +43,9 @@ class SrsRequest;
 class SrsSdp;
 class SrsRtcConnection;
 
-struct SrsJanusMessage
+class SrsJanusMessage
 {
+public:
     // The janus action field.
     std::string janus;
 
@@ -76,10 +77,7 @@ struct SrsJanusMessage
     // For reconfig-publisher and reconfig-subscriber, the result of reconfig;
     std::string reconfigured;
 
-    SrsJanusMessage() {
-        session_id = sender = feed_id = 0;
-        private_id = 0;
-    }
+    SrsJanusMessage();
 };
 
 class SrsGoApiRtcJanus : public ISrsHttpHandler
@@ -199,8 +197,9 @@ public:
     void destroy_calls(SrsRtcConnection* session);
 };
 
-struct SrsJanusForwardMap
+class SrsJanusForwardMap
 {
+public:
     uint32_t publish_ssrc;
     uint32_t subscribe_ssrc;
     uint32_t brother_ssrc;
@@ -221,8 +220,9 @@ struct SrsJanusForwardMap
     bool enable_stream;
 };
 
-struct SrsJuanusVideoGroupPolicy
+class SrsJuanusVideoGroupPolicy
 {
+public:
     std::vector<uint32_t> stream_ssrcs;
 
     uint32_t last_active_ssrc;
@@ -230,8 +230,9 @@ struct SrsJuanusVideoGroupPolicy
     uint32_t target_active_ssrc;
 };
 
-struct SrsJanusRelationPublishInfo
+class SrsJanusRelationPublishInfo
 {
+public:
     // appid: app id.
     std::string appid;
     // channelid: channel id.
@@ -248,8 +249,9 @@ struct SrsJanusRelationPublishInfo
     uint32_t publisher_ssrc;
 };
 
-struct SrsJanusRelationSubscribeInfo
+class SrsJanusRelationSubscribeInfo
 {
+public:
     // subscriber_session_id: subscriber session id.
     std::string subscriber_session_id;
     // subscriber_call_id: subscriber call id.
@@ -302,7 +304,7 @@ private:
     srs_error_t write_sub_relations(SrsRequest* req, SrsJanusCall* callee, SrsSdp* sub_offer_sdp);
 };
 
-struct SrsRtcCallstackEvent;
+class SrsRtcCallstackEvent;
 class SrsJanusCallstackMessage
 {
 protected:
@@ -383,7 +385,7 @@ private:
     std::string marshal();
 };
 
-struct SrsJanusProcessOfferMessage : public SrsJanusCallstackMessage
+class SrsJanusProcessOfferMessage : public SrsJanusCallstackMessage
 {
 public:
     std::string callid_;

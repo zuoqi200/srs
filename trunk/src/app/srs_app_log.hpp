@@ -134,7 +134,7 @@ private:
 
 class SrsRtcCallTraceId;
 class SrsRtcConnection;
-struct SrsRtcCallstackEvent;
+class SrsRtcCallstackEvent;
 class SrsRtcICEMessage
 {
 public:
@@ -201,8 +201,9 @@ private:
     std::string marshal();
 };
 
-struct SrsRtcCallstackEvent
+class SrsRtcCallstackEvent
 {
+public:
     // stage: Create/Media/Destroy
     std::string stage_;
     // status: enter/leave/flying/notify
@@ -227,11 +228,7 @@ struct SrsRtcCallstackEvent
     // tid: transaction id, if have
     std::string tid_;
 
-    SrsRtcCallstackEvent(std::string stage, std::string action)
-    {
-        stage_ = stage;
-        action_ = action;
-    }
+    SrsRtcCallstackEvent(std::string stage, std::string action);
 };
 
 class SrsLogWriterCallstack : public SrsLogWriter
@@ -245,8 +242,8 @@ public:
 
 extern SrsLogWriterCallstack* _sls_callstack;
 
-struct SrsJanusRelationPublishInfo;
-struct SrsJanusRelationSubscribeInfo;
+class SrsJanusRelationPublishInfo;
+class SrsJanusRelationSubscribeInfo;
 class SrsLogWriterRelation : public SrsLogWriter
 {
 public:
