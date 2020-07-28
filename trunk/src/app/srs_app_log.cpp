@@ -736,6 +736,10 @@ srs_error_t SrsLogWriter::initialize()
 
 void SrsLogWriter::write_log(const char* str_log, int size)
 {
+    if (!enabled) {
+        return;
+    }
+
     // if not to file, to console and return.
     if (!log_to_file_tank) {
         if (size > 0) {
@@ -770,10 +774,6 @@ void SrsLogWriter::reopen()
 
 void SrsLogWriter::open_log_file()
 {
-    if (!enabled) {
-        return;
-    }
-
     std::string filename = _srs_config->get_rtc_sls_log_file(category_);
     if (filename.empty()) {
         return;
