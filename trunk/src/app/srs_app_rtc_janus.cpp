@@ -1875,7 +1875,7 @@ srs_error_t SrsJanusCall::write_sub_relations(SrsRequest* req, SrsJanusCall* cal
         pub_info->publisher_ssrc = track_desc->ssrc_;
 
         const SrsMediaDesc* media_desc = sub_offer_sdp->find_media_desc("audio");
-        for (int j = 0; j < media_desc->ssrc_infos_.size(); ++j) {
+        for (int j = 0; j < (int)media_desc->ssrc_infos_.size(); ++j) {
             SrsSSRCInfo ssrc_info = media_desc->ssrc_infos_.at(j);
             if (ssrc_info.msid_tracker_ != track_id) {
                 continue;
@@ -1896,7 +1896,7 @@ srs_error_t SrsJanusCall::write_sub_relations(SrsRequest* req, SrsJanusCall* cal
         pub_info->publisher_ssrc = track_desc->ssrc_;
 
         const SrsMediaDesc* media_desc = sub_offer_sdp->find_media_desc("video");
-        for (int j = 0; j < media_desc->ssrc_infos_.size(); ++j) {
+        for (int j = 0; j < (int)media_desc->ssrc_infos_.size(); ++j) {
             SrsSSRCInfo ssrc_info = media_desc->ssrc_infos_.at(j);
             if (ssrc_info.msid_tracker_ != merged_track_id) {
                 continue;
