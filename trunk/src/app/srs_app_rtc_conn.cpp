@@ -1777,6 +1777,7 @@ SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
     encrypt = true;
     cid = context_id;
     stat_ = new SrsRtcConnectionStatistic();
+    timer_ = new SrsHourGlass(this, 1000 * SRS_UTIME_MILLISECONDS);
 
     source_ = NULL;
     publisher_ = NULL;
@@ -1797,6 +1798,7 @@ SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
 
 SrsRtcConnection::~SrsRtcConnection()
 {
+    srs_freep(timer_);
     srs_freep(player_);
     srs_freep(publisher_);
     srs_freep(transport_);
@@ -2000,6 +2002,10 @@ srs_error_t SrsRtcConnection::initialize(SrsRtcStream* source, SrsRequest* r, bo
         return srs_error_wrap(err, "init");
     }
 
+    if ((err = timer_->start()) != srs_success) {
+        return srs_error_wrap(err, "start timer");
+    }
+
     // TODO: FIXME: Support reload.
     session_timeout = _srs_config->get_rtc_stun_timeout(req->vhost);
     last_stun_time = srs_get_system_time();
@@ -2197,6 +2203,12 @@ void SrsRtcConnection::update_sendonly_socket(SrsUdpMuxSocket* skt)
 
     // Update the transport.
     sendonly_skt = addr_cache;
+}
+
+srs_error_t SrsRtcConnection::notify(int type, srs_utime_t interval, srs_utime_t tick)
+{
+    srs_error_t err = srs_success;
+    return err;
 }
 
 void SrsRtcConnection::check_send_nacks(SrsRtpNackForReceiver* nack, uint32_t ssrc, uint32_t& sent_nacks)
