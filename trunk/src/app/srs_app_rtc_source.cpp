@@ -1777,6 +1777,11 @@ bool SrsRtcSendTrack::set_track_status(bool active)
     return previous_status;
 }
 
+bool SrsRtcSendTrack::get_track_status()
+{
+    return track_desc_->is_active_;
+}
+
 std::string SrsRtcSendTrack::get_track_id()
 {
     return track_desc_->id_;

@@ -515,6 +515,7 @@ public:
     SrsRtpPacket2* fetch_rtp_packet(uint16_t seq);
     // Return the previous status of track.
     bool set_track_status(bool active);
+    bool get_track_status();
     std::string get_track_id();
 public:
     virtual srs_error_t on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamStatistic& info);
