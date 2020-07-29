@@ -867,7 +867,7 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
             }
 
             // Find the config for track.
-            SrsTrackConfig cfg = srs_find_track_config_active(cfgs, false, track->get_track_id());
+            SrsTrackConfig cfg = srs_find_track_config_active(cfgs, "video", track->get_track_id());
 
             // If stream will be merged, we will active it in future.
             if (switch_context_->active_it_in_future(track, cfg)) {
@@ -887,7 +887,7 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
             SrsRtcAudioSendTrack* track = it->second;
 
             // Find the config for track.
-            SrsTrackConfig cfg = srs_find_track_config_active(cfgs, true, track->get_track_id());
+            SrsTrackConfig cfg = srs_find_track_config_active(cfgs, "audio", track->get_track_id());
 
             bool previous = track->set_track_status(cfg.active);
             merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";

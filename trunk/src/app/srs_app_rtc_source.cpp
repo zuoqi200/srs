@@ -2053,12 +2053,12 @@ void SrsStreamSwitchContext::try_switch_stream(SrsRtcVideoSendTrack* track, SrsR
     
     // Active the track, which is preparing to switch to.
     bool previous = track->set_track_status(true);
-    merged_log << "{ track: " << track->get_track_id() << ", is_active: " << previous << "=>" << true << " }";
+    merged_log << "{track: " << track->get_track_id() << ", is_active: " << previous << "=>" << true << "}";
 
     // Disable previous track.
     if (active_ && active_ != track) {
         bool previous = active_->set_track_status(false);
-        merged_log << ", { track: " << active_->get_track_id() <<", is_active: " << previous << "=>" << false << " },";
+        merged_log << ", {track: " << active_->get_track_id() << ", is_active: " << previous << "=>" << false << "},";
     }
 
     srs_trace("set status, %s", merged_log.str().c_str());
