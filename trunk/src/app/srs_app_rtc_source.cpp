@@ -1799,16 +1799,17 @@ SrsRtpPacket2* SrsRtcSendTrack::fetch_rtp_packet(uint16_t seq)
     return NULL;
 }
 
-// TODO: FIXME: Should refine logs, set tracks in a time.
-void SrsRtcSendTrack::set_track_status(bool active)
+bool SrsRtcSendTrack::set_track_status(bool active)
 {
     // If track status changed, we reset the context to let the stream keep sequence continous.
     if (switch_context_ && track_desc_->is_active_ != active) {
         switch_context_->switch_sequence_base();
     }
 
-    srs_trace("set status, track: %s, is_active: %u=>%u", track_desc_->id_.c_str(), track_desc_->is_active_, active);
+    bool previous_status = track_desc_->is_active_;
     track_desc_->is_active_ = active;
+    
+    return previous_status;
 }
 
 std::string SrsRtcSendTrack::get_track_id()
@@ -2134,13 +2135,19 @@ void SrsStreamSwitchContext::try_switch_stream(SrsRtcVideoSendTrack* track, SrsR
         return;
     }
 
+    std::ostringstream merged_log;
+    
     // Active the track, which is preparing to switch to.
-    track->set_track_status(true);
+    bool previous = track->set_track_status(true);
+    merged_log << "{ track: " << track->get_track_id() << ", is_active: " << previous << "=>" << true << " }";
 
     // Disable previous track.
     if (active_ && active_ != track) {
-        active_->set_track_status(false);
+        bool previous = active_->set_track_status(false);
+        merged_log << ", { track: " << active_->get_track_id() <<", is_active: " << previous << "=>" << false << " },";
     }
+
+    srs_trace("set status, %s", merged_log.str().c_str());
 
     active_ = track;
     prepare_ = NULL;
