@@ -28,9 +28,11 @@
 
 #include <string.h>
 #include <string>
+#include <vector>
 
 #include <srs_app_reload.hpp>
 #include <srs_service_log.hpp>
+#include <srs_app_rtc_source.hpp>
 
 // Use memory/disk cache and donot flush when write log.
 // it's ok to use it without config, which will log to console, and default trace level.
@@ -197,6 +199,92 @@ public:
     ~SrsRtcDtlsMessage();
 public:
     void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+class SrsRtcSubstreamRelation
+{
+public:
+    // type: audio or video
+    std::string type_;
+    // trackID: track id.
+    std::string trackid_;
+    // ssrcSource: publish ssrc.
+    uint32_t ssrc_source_;
+    // ssrc: subscribe ssrc.
+    uint32_t ssrc_;
+    // temporalLayer: temporal layer
+    int temporal_layer_;
+    // status: enable or disable.
+    std::string status_;
+
+    SrsRtcSubstreamRelation();
+};
+
+class SrsRtcAudioSendTrack;
+class SrsRtcVideoSendTrack;
+class SrsRtcSubRelationMessage
+{
+public:
+    // appID: app id.
+    std::string appid_;
+    // sessionID: session id.
+    std::string sessionid_;
+    // channelID: channel id.
+    std::string channel_;
+    // userID: user id.
+    std::string userid_;
+    // callID: call id.
+    std::string callid_;
+    // sfu: sfu ip.
+    std::string sfu_;
+    // command: SubstreamRelation
+    std::string command_;
+    // result: relations.
+    std::string result_;
+private:
+    SrsRtcCallstackEvent* event_;
+    std::vector<SrsRtcSubstreamRelation> sub_streams_;
+public:
+    SrsRtcSubRelationMessage(SrsRtcCallTraceId* id, SrsRtcConnection* c, const std::vector<SrsTrackConfig>& cfgs,
+        const std::map<uint32_t, SrsRtcAudioSendTrack*>& ats, const std::map<uint32_t, SrsRtcVideoSendTrack*>& vts
+    );
+    ~SrsRtcSubRelationMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+class SrsRtcMediaUpMessage
+{
+public:
+    // appID: app id.
+    std::string appid_;
+    // sessionID: session id.
+    std::string sessionid_;
+    // channelID: channel id.
+    std::string channel_;
+    // userID: user id.
+    std::string userid_;
+    // callID: call id.
+    std::string callid_;
+    // sfu: sfu ip.
+    std::string sfu_;
+    // command: SubstreamRelation
+    std::string command_;
+    // result: relations.
+    std::string result_;
+    // mediaType: media type
+    std::string media_type_;
+private:
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsRtcMediaUpMessage(SrsRtcCallTraceId* id, SrsRtcConnection* c);
+    ~SrsRtcMediaUpMessage();
+public:
+    void write_callstack(std::string media_type);
 private:
     std::string marshal();
 };

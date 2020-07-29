@@ -254,6 +254,8 @@ SrsRtcPlayStream::SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid)
     timer_ = new SrsHourGlass(this, 1000 * SRS_UTIME_MILLISECONDS);
 
     switch_context_ = new SrsStreamSwitchContext();
+    sent_first_audio = false;
+    sent_first_video = false;
 }
 
 SrsRtcPlayStream::~SrsRtcPlayStream()
@@ -531,6 +533,18 @@ srs_error_t SrsRtcPlayStream::send_packets(SrsRtcStream* source, const vector<Sr
         // Detail log, should disable it in release version.
         srs_info("RTC: Update PT=%u, SSRC=%#x, Time=%u, %u bytes", pkt->header.get_payload_type(), pkt->header.get_ssrc(),
             pkt->header.get_timestamp(), pkt->nb_bytes());
+
+        if (pkt->is_audio()) {
+            if (!sent_first_audio) {
+                SrsRtcMediaUpMessage(&ctid_, session_).write_callstack("audio");
+                sent_first_audio = true;
+            }
+        } else {
+            if (!sent_first_video) {
+                SrsRtcMediaUpMessage(&ctid_, session_).write_callstack("video");
+                sent_first_video = true;
+            }
+        }
     }
 
     return err;
@@ -905,6 +919,8 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
             }
         }
     }
+
+    SrsRtcSubRelationMessage(&ctid_, session_, cfgs, audio_tracks_, video_tracks_).write_callstack("notify", 0);
 }
 
 void SrsRtcPlayStream::write_track_statistic()
@@ -955,6 +971,9 @@ SrsRtcPublishStream::SrsRtcPublishStream(SrsRtcConnection* session)
     last_twcc_feedback_time_ = 0;
     twcc_fb_count_ = 0;
     is_started = false;
+
+    got_first_audio = false;
+    got_first_video = false;
 }
 
 SrsRtcPublishStream::~SrsRtcPublishStream()
@@ -1203,6 +1222,18 @@ srs_error_t SrsRtcPublishStream::on_rtp(char* data, int nb_data)
     if (_srs_rtc_hijacker) {
         if ((err = _srs_rtc_hijacker->on_rtp_packet(session_, this, req, pkt->copy())) != srs_success) {
             return srs_error_wrap(err, "on rtp packet");
+        }
+    }
+
+    if (audio_track) {
+        if (!got_first_audio) {
+            SrsRtcMediaUpMessage(&ctid_, session_).write_callstack("audio");
+            got_first_audio = true;
+        }
+    } else if (video_track) {
+        if (!got_first_video) {
+            SrsRtcMediaUpMessage(&ctid_, session_).write_callstack("video");
+            got_first_video = true;
         }
     }
 

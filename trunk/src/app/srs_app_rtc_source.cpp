@@ -1816,6 +1816,11 @@ std::string SrsRtcSendTrack::get_track_id()
     return track_desc_->id_;
 }
 
+uint32_t SrsRtcSendTrack::get_ssrc()
+{
+    return track_desc_->ssrc_;
+}
+
 srs_error_t SrsRtcSendTrack::on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamStatistic& info)
 {
     return srs_success;

@@ -519,6 +519,7 @@ public:
     SrsRtpPacket2* fetch_rtp_packet(uint16_t seq);
     void set_track_status(bool active);
     std::string get_track_id();
+    uint32_t get_ssrc();
 public:
     virtual srs_error_t on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamStatistic& info);
     virtual srs_error_t on_rtcp(SrsRtpPacket2* pkt);

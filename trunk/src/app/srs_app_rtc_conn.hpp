@@ -251,6 +251,8 @@ public:
 public:
     SrsRtcCallTraceId ctid_;
 private:
+    bool sent_first_audio;
+    bool sent_first_video;
     void write_track_statistic();
 };
 
@@ -323,6 +325,8 @@ private:
 public:
     SrsRtcCallTraceId ctid_;
 private:
+    bool got_first_audio;
+    bool got_first_video;
     void write_track_statistic();
 };
 

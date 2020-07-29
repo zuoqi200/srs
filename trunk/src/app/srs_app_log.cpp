@@ -909,10 +909,195 @@ std::string SrsRtcDtlsMessage::marshal()
     return obj->dumps();
 }
 
+
+SrsRtcSubstreamRelation::SrsRtcSubstreamRelation()
+{
+    ssrc_source_ = 0;
+    ssrc_ = 0;
+    temporal_layer_ = 0;
+}
+
+SrsRtcSubRelationMessage::SrsRtcSubRelationMessage(
+    SrsRtcCallTraceId* id, SrsRtcConnection* c, const std::vector<SrsTrackConfig>& cfgs,
+    const std::map<uint32_t, SrsRtcAudioSendTrack*>& ats, const std::map<uint32_t, SrsRtcVideoSendTrack*>& vts
+) {
+    std::vector<SrsRtcSubstreamRelation> relations;
+    for (int i = 0; i < (int)cfgs.size(); ++i) {
+        const SrsTrackConfig& cfg = cfgs.at(i);
+        if (cfg.type_ == "audio") {
+            std::map<uint32_t, SrsRtcAudioSendTrack*>::const_iterator it;
+            for (it = ats.cbegin(); it != ats.cend(); ++it) {
+                SrsRtcAudioSendTrack* track = it->second;
+
+                bool should_active_track = (track->get_track_id() == cfg.label_);
+                if (!should_active_track) {
+                    continue;
+                }
+
+                SrsRtcSubstreamRelation r;
+                r.type_ = cfg.type_;
+                r.trackid_ = cfg.label_;
+                r.ssrc_source_ = it->first;
+                r.ssrc_ = track->get_ssrc();
+                r.temporal_layer_ = cfg.temporal_layers_;
+                r.status_ = "enable";
+
+                relations.push_back(r);
+            }
+        }
+
+        if (cfg.type_ == "video") {
+            std::map<uint32_t, SrsRtcVideoSendTrack*>::const_iterator it;
+            for (it = vts.cbegin(); it != vts.cend(); ++it) {
+                SrsRtcVideoSendTrack* track = it->second;
+
+                bool should_active_track = (track->get_track_id() == cfg.label_);
+                if (!should_active_track) {
+                    continue;
+                }
+
+                SrsRtcSubstreamRelation r;
+                r.type_ = cfg.type_;
+                r.trackid_ = cfg.label_;
+                r.ssrc_source_ = it->first;
+                r.ssrc_ = track->get_ssrc();
+                r.temporal_layer_ = cfg.temporal_layers_;
+                r.status_ = "enable";
+
+                relations.push_back(r);
+            }
+        }
+    }
+
+    appid_     = id->appid;
+    sessionid_ = id->session;
+    channel_   = id->channel;
+    userid_    = id->user;
+    callid_    = id->call;
+    sfu_ = srs_get_public_internet_address(true);
+
+    command_ = "SubstreamRelation";
+    result_ = "relations";
+    sub_streams_ = relations;
+
+    event_ = new SrsRtcCallstackEvent("Media", "SubstreamRelation");
+
+    SrsContextId cid = c->context_id();
+    event_->cid_  = cid.k_ + string("-") + cid.v_;
+
+    event_->appid_   = id->appid;
+    event_->channel_ = id->channel;
+    event_->user_    = id->user;
+    event_->session_ = id->session;
+    event_->call_    = id->call;
+}
+
+SrsRtcSubRelationMessage::~SrsRtcSubRelationMessage()
+{
+    srs_freep(event_);
+}
+
+void SrsRtcSubRelationMessage::write_callstack(std::string status, int ecode)
+{
+    event_->status_ = status;
+    event_->error_code_ = ecode;
+
+    _sls_callstack->write(event_, marshal());
+}
+
+std::string SrsRtcSubRelationMessage::marshal()
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    obj->set("callID",      SrsJsonAny::str(callid_.c_str()));
+    obj->set("appID",       SrsJsonAny::str(appid_.c_str()));
+    obj->set("sessionID",   SrsJsonAny::str(sessionid_.c_str()));
+    obj->set("channelID",   SrsJsonAny::str(channel_.c_str()));
+    obj->set("userID",      SrsJsonAny::str(userid_.c_str()));
+    obj->set("sfu",         SrsJsonAny::str(sfu_.c_str()));
+    obj->set("command",     SrsJsonAny::str(command_.c_str()));
+    obj->set("result",      SrsJsonAny::str(result_.c_str()));
+    
+    SrsJsonArray* rs = SrsJsonAny::array();
+    obj->set("relations", rs);
+    
+    for (size_t i = 0; i < sub_streams_.size(); ++i) {
+        SrsRtcSubstreamRelation sr = sub_streams_.at(i);
+
+        SrsJsonObject* r = SrsJsonAny::object();
+        r->set("type",        SrsJsonAny::str(sr.type_.c_str()));
+        r->set("trackID",     SrsJsonAny::str(sr.trackid_.c_str()));
+        r->set("ssrcSource",  SrsJsonAny::integer(sr.ssrc_source_));
+        r->set("ssrc",        SrsJsonAny::integer(sr.ssrc_));
+        r->set("temporalLayer", SrsJsonAny::integer(sr.temporal_layer_));
+        r->set("status", SrsJsonAny::str(sr.status_.c_str()));
+
+        rs->append(r);
+    }
+
+    return obj->dumps();
+}
+
+SrsRtcMediaUpMessage::SrsRtcMediaUpMessage(SrsRtcCallTraceId* id, SrsRtcConnection* c)
+{
+    appid_     = id->appid;
+    sessionid_ = id->session;
+    channel_   = id->channel;
+    userid_    = id->user;
+    callid_    = id->call;
+    sfu_ = srs_get_public_internet_address(true);
+
+    command_ = "MediaNotify";
+    result_ = "MediaUp";
+
+    event_ = new SrsRtcCallstackEvent("Media", "MediaUp");
+
+    SrsContextId cid = c->context_id();
+    event_->cid_  = cid.k_ + string("-") + cid.v_;
+
+    event_->appid_   = id->appid;
+    event_->channel_ = id->channel;
+    event_->user_    = id->user;
+    event_->session_ = id->session;
+    event_->call_    = id->call;
+    event_->status_ = "notify";
+}
+
+SrsRtcMediaUpMessage::~SrsRtcMediaUpMessage()
+{
+    srs_freep(event_);
+}
+
+void SrsRtcMediaUpMessage::write_callstack(std::string media_type)
+{
+    media_type_  = media_type;
+    _sls_callstack->write(event_, marshal());
+}
+
+std::string SrsRtcMediaUpMessage::marshal()
+{
+    SrsJsonObject* obj = SrsJsonAny::object();
+    SrsAutoFree(SrsJsonObject, obj);
+
+    obj->set("callID",      SrsJsonAny::str(callid_.c_str()));
+    obj->set("appID",       SrsJsonAny::str(appid_.c_str()));
+    obj->set("sessionID",   SrsJsonAny::str(sessionid_.c_str()));
+    obj->set("channelID",   SrsJsonAny::str(channel_.c_str()));
+    obj->set("userID",      SrsJsonAny::str(userid_.c_str()));
+    obj->set("sfu",         SrsJsonAny::str(sfu_.c_str()));
+    obj->set("command",     SrsJsonAny::str(command_.c_str()));
+    obj->set("result",      SrsJsonAny::str(result_.c_str()));
+    obj->set("mediaType",   SrsJsonAny::str(media_type_.c_str()));
+
+    return obj->dumps();
+}
+
 SrsRtcCallstackEvent::SrsRtcCallstackEvent(std::string stage, std::string action)
 {
     stage_ = stage;
     action_ = action;
+    error_code_ = 0;
 }
 
 SrsLogWriterCallstack::SrsLogWriterCallstack() : SrsLogWriter("callstack")

@@ -400,5 +400,68 @@ private:
     std::string marshal();
 };
 
+class SrsJanusUnpublishMessage : public SrsJanusCallstackMessage
+{
+public:
+    std::string callid_;
+
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsJanusUnpublishMessage(SrsJanusCall* c, SrsJanusMessage* m);
+    ~SrsJanusUnpublishMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+class SrsJanusDestroyMessage : public SrsJanusCallstackMessage
+{
+public:
+    std::string result_;
+
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsJanusDestroyMessage(SrsJanusSession* s, SrsJanusMessage* m);
+    ~SrsJanusDestroyMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+class SrsJanusProcessAnswerMessage : public SrsJanusCallstackMessage
+{
+public:
+    std::string callid_;
+    std::string result_;
+
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsJanusProcessAnswerMessage(SrsJanusCall* c, SrsJanusMessage* m);
+    ~SrsJanusProcessAnswerMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
+class SrsJanusDetachMessage : public SrsJanusCallstackMessage
+{
+public:
+    std::string callid_;
+    uint64_t handle_id_;
+    std::string result_;
+
+    SrsRtcCallstackEvent* event_;
+public:
+    SrsJanusDetachMessage(SrsJanusCall* c, SrsJanusMessage* m, uint_fast64_t handle_id);
+    ~SrsJanusDetachMessage();
+public:
+    void write_callstack(std::string status, int ecode);
+private:
+    std::string marshal();
+};
+
 #endif
 
