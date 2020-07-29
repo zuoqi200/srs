@@ -849,34 +849,67 @@ SrsTrackConfig srs_find_track_config_active(const std::vector<SrsTrackConfig>& c
     return miss;
 }
 
+int srs_count_merge_stream(const std::vector<SrsTrackConfig>& cfgs)
+{
+    int nn = 0;
+
+    for (int i = 0; i < (int)cfgs.size(); ++i) {
+        const SrsTrackConfig& cfg = cfgs.at(i);
+        if (_srs_track_id_group->is_merge_stream(cfg.label_)) {
+            nn++;
+        }
+    }
+
+    return nn;
+}
+
 void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
 {
     std::ostringstream merged_log;
 
     // set video track inactive
     if (true) {
+        // The number of merge stream to active.
+        int nn_active_merge_stream = srs_count_merge_stream(cfgs);
+
         std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
         for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
+            // For example, track is small stream, that is track_id is sophon_video_camera_small.
             SrsRtcVideoSendTrack* track = it->second;
 
-            // For example, track is small stream, that is track_id is sophon_video_camera_small,
-            // so the merge_track_id is parsed as sophon_video_camera which is the merged stream,
-            // if video_group_active_track_ is current track, we should not disable it.
-            if (switch_context_->is_track_immutable(track)) {
-                continue;
-            }
-
-            // Find the config for track.
+            // Find the config to apply for track.
             SrsTrackConfig cfg = srs_find_track_config_active(cfgs, "video", track->get_track_id());
 
-            // If stream will be merged, we will active it in future.
-            if (switch_context_->active_it_in_future(track, cfg)) {
-                srs_session_request_keyframe(session_->source_, it->first);
+            // Ignore when state not changed.
+            if (track->get_track_status() == cfg.active) {
                 continue;
             }
 
-            bool previous = track->set_track_status(cfg.active);
-            merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";
+            // Not stream to merge, such as screen share stream, directly disable or enable it.
+            if (!_srs_track_id_group->is_merge_stream(track->get_track_id())) {
+                bool previous = track->set_track_status(cfg.active);
+                merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";
+                continue;
+            }
+
+            // If config, user wants to disable stream.
+            // Note that the track is active.
+            if (!cfg.active) {
+                // If another track will be active, which will disable this track, so we ignore it.
+                if (nn_active_merge_stream > 0) {
+                    continue;
+                }
+
+                // If no merge stream to active, disable it.
+                bool previous = track->set_track_status(cfg.active);
+                merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";
+                continue;
+            }
+
+            // User wants to active stream.
+            // Note that the track is disabled.
+            switch_context_->active_it_in_future(track, cfg);
+            srs_session_request_keyframe(session_->source_, it->first);
         }
     }
 

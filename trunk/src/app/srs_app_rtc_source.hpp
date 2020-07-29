@@ -606,13 +606,10 @@ public:
     SrsStreamSwitchContext();
     virtual ~SrsStreamSwitchContext();
 public:
-    // Return whether stream is merging, we should active it in future(get keyframe).
-    bool active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg);
+    // We should active it in future(when got keyframe).
+    void active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg);
     // When send keyframe, we switch to preparing stream and disable previous one.
     void try_switch_stream(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt);
-    // If track is merging stream, such as large or small stream,
-    // and if track is active, it's immutable, we should never inactive it.
-    bool is_track_immutable(SrsRtcVideoSendTrack* track);
     // Whether track is preparing to switch to.
     bool is_track_preparing(SrsRtcVideoSendTrack* track);
 public:
@@ -638,6 +635,11 @@ public:
     // For example, track_id is sophon_video_screen_share, return sophon_video_screen_share.
     // TODO: FIXME: Rename get to transform or parse.
     std::string get_merged_track_id(std::string track_id);
+    // Whether stream is "merge" stream, for example:
+    //      sophon_video_camera_small, return true, merge to sophon_video_camera.
+    //      sophon_video_camera_large, return true, merge to sophon_video_camera.
+    //      sophon_video_screen_share, return false, nerver merge.
+    bool is_merge_stream(std::string track_id);
 };
 
 extern SrsTrackGroupDescription* _srs_track_id_group;
