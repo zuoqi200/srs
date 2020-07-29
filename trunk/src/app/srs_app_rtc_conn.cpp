@@ -832,8 +832,27 @@ uint32_t SrsRtcPlayStream::get_video_publish_ssrc(uint32_t play_ssrc)
     return 0;
 }
 
+SrsTrackConfig srs_find_track_config_active(const std::vector<SrsTrackConfig>& cfgs, const string& type, const string& track_id)
+{
+    for (int i = 0; i < (int)cfgs.size(); ++i) {
+        const SrsTrackConfig& cfg = cfgs.at(i);
+        if (cfg.type_ == type && track_id == cfg.label_) {
+            return cfg;
+        }
+    }
+
+    SrsTrackConfig miss;
+    miss.active = false;
+    miss.label_ = track_id;
+    miss.type_ = type;
+
+    return miss;
+}
+
 void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
 {
+    std::ostringstream merged_log;
+
     // set video track inactive
     if (true) {
         std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
@@ -847,7 +866,17 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
                 continue;
             }
 
-            track->set_track_status(false);
+            // Find the config for track.
+            SrsTrackConfig cfg = srs_find_track_config_active(cfgs, false, track->get_track_id());
+
+            // If stream will be merged, we will active it in future.
+            if (switch_context_->active_it_in_future(track, cfg)) {
+                srs_session_request_keyframe(session_->source_, it->first);
+                continue;
+            }
+
+            bool previous = track->set_track_status(cfg.active);
+            merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";
         }
     }
 
@@ -856,44 +885,12 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
         std::map<uint32_t, SrsRtcAudioSendTrack*>::iterator it;
         for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
             SrsRtcAudioSendTrack* track = it->second;
-            track->set_track_status(false);
-        }
-    }
 
-    std::ostringstream merged_log;
-    for (int i = 0; i < (int)cfgs.size(); ++i) {
-        const SrsTrackConfig& cfg = cfgs.at(i);
+            // Find the config for track.
+            SrsTrackConfig cfg = srs_find_track_config_active(cfgs, true, track->get_track_id());
 
-        if (cfg.type_ == "audio") {
-            std::map<uint32_t, SrsRtcAudioSendTrack*>::iterator it;
-            for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
-                SrsRtcAudioSendTrack* track = it->second;
-                if (track->get_track_id() == cfg.label_) {
-                    bool previous = track->set_track_status(cfg.active);
-                    merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";
-                }
-            }
-        }
-
-        if (cfg.type_ == "video") {
-            std::map<uint32_t, SrsRtcVideoSendTrack*>::iterator it;
-            for (it = video_tracks_.begin(); it != video_tracks_.end(); ++it) {
-                SrsRtcVideoSendTrack* track = it->second;
-
-                bool should_active_track = (track->get_track_id() == cfg.label_);
-                if (!should_active_track) {
-                    continue;
-                }
-
-                // If stream will be merged, we will active it in future.
-                if (switch_context_->active_it_in_future(track, cfg)) {
-                    srs_session_request_keyframe(session_->source_, it->first);
-                    continue;
-                }
-                
-                bool previous = track->set_track_status(cfg.active);
-                merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";
-            }
+            bool previous = track->set_track_status(cfg.active);
+            merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";
         }
     }
 
