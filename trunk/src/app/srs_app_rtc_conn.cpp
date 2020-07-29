@@ -860,7 +860,8 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
         }
     }
 
-    for (int i = 0; i < cfgs.size(); ++i) {
+    std::ostringstream merged_log;
+    for (int i = 0; i < (int)cfgs.size(); ++i) {
         const SrsTrackConfig& cfg = cfgs.at(i);
 
         if (cfg.type_ == "audio") {
@@ -868,7 +869,8 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
             for (it = audio_tracks_.begin(); it != audio_tracks_.end(); ++it) {
                 SrsRtcAudioSendTrack* track = it->second;
                 if (track->get_track_id() == cfg.label_) {
-                    track->set_track_status(cfg.active);
+                    bool previous = track->set_track_status(cfg.active);
+                    merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";
                 }
             }
         }
@@ -888,11 +890,14 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
                     srs_session_request_keyframe(session_->source_, it->first);
                     continue;
                 }
-
-                track->set_track_status(cfg.active);
+                
+                bool previous = track->set_track_status(cfg.active);
+                merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";
             }
         }
     }
+
+    srs_trace("set status, %s", merged_log.str().c_str());
 }
 
 SrsRtcPublishStream::SrsRtcPublishStream(SrsRtcConnection* session)

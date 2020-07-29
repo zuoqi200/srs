@@ -513,7 +513,8 @@ public:
 public:
     bool has_ssrc(uint32_t ssrc);
     SrsRtpPacket2* fetch_rtp_packet(uint16_t seq);
-    void set_track_status(bool active);
+    // Return the previous status of track.
+    bool set_track_status(bool active);
     std::string get_track_id();
 public:
     virtual srs_error_t on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamStatistic& info);
