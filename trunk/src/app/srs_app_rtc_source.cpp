@@ -1812,6 +1812,11 @@ bool SrsRtcSendTrack::set_track_status(bool active)
     return previous_status;
 }
 
+bool SrsRtcSendTrack::get_track_status()
+{
+    return track_desc_->is_active_;
+}
+
 std::string SrsRtcSendTrack::get_track_id()
 {
     return track_desc_->id_;
@@ -2110,19 +2115,10 @@ SrsStreamSwitchContext::~SrsStreamSwitchContext()
     srs_freep(statistic_);
 }
 
-bool SrsStreamSwitchContext::active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg)
+void SrsStreamSwitchContext::active_it_in_future(SrsRtcVideoSendTrack* track, const SrsTrackConfig& cfg)
 {
-    std::string merge_track_id = _srs_track_id_group->get_merged_track_id(cfg.label_);
-
-    // If not merging stream, ignore it.
-    if (merge_track_id == cfg.label_) {
-        return false;
-    }
-
     prepare_ = track;
     track->set_stream_switch_context(this);
-
-    return true;
 }
 
 void SrsStreamSwitchContext::try_switch_stream(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt)
@@ -2139,36 +2135,18 @@ void SrsStreamSwitchContext::try_switch_stream(SrsRtcVideoSendTrack* track, SrsR
     
     // Active the track, which is preparing to switch to.
     bool previous = track->set_track_status(true);
-    merged_log << "{ track: " << track->get_track_id() << ", is_active: " << previous << "=>" << true << " }";
+    merged_log << "{track: " << track->get_track_id() << ", is_active: " << previous << "=>" << true << "}";
 
-    // Disable previous track.
+    // Disable active track, switch to current track.
     if (active_ && active_ != track) {
         bool previous = active_->set_track_status(false);
-        merged_log << ", { track: " << active_->get_track_id() <<", is_active: " << previous << "=>" << false << " },";
+        merged_log << ", {track: " << active_->get_track_id() << ", is_active: " << previous << "=>" << false << "},";
     }
 
     srs_trace("set status, %s", merged_log.str().c_str());
 
     active_ = track;
     prepare_ = NULL;
-}
-
-bool SrsStreamSwitchContext::is_track_immutable(SrsRtcVideoSendTrack* track)
-{
-    std::string track_id = track->get_track_id();
-    std::string merge_track_id = _srs_track_id_group->get_merged_track_id(track_id);
-
-    // If not merging stream, it's not immutable.
-    if (merge_track_id == track_id) {
-        return false;
-    }
-
-    // If stream is not active, it's not immutable.
-    if (active_ != track) {
-        return false;
-    }
-
-    return true;
 }
 
 bool SrsStreamSwitchContext::is_track_preparing(SrsRtcVideoSendTrack* track)
@@ -2222,6 +2200,11 @@ std::string SrsTrackGroupDescription::get_merged_track_id(std::string track_id)
     }
     
     return track_id;
+}
+
+bool SrsTrackGroupDescription::is_merge_stream(std::string track_id)
+{
+    return get_merged_track_id(track_id) != track_id;
 }
 
 SrsTrackGroupDescription* _srs_track_id_group = new SrsTrackGroupDescription();
