@@ -207,7 +207,7 @@ VOID TEST(KernelRTCTest, PlayerStreamConfig)
     }
 }
 
-VOID TEST(KernelRTCTest, PlayerStreamSwitchTypical)
+VOID TEST(KernelRTCTest, PlayerStreamSwitchNoMergeStream)
 {
     // Typical and normal stream switch scenario.
     // User is playing bellow orignal streams:
@@ -224,7 +224,7 @@ VOID TEST(KernelRTCTest, PlayerStreamSwitchTypical)
     //      sophon_audio
     //      sophon_video_camera
     //      sophon_video_screen_share
-    // In this scenario, user maybe switch between original streams.
+    // In this scenario, user maybe switch between no-merging streams.
     SrsRtcConnection s(NULL, SrsContextId()); SrsRtcPlayStream play(&s, SrsContextId());
     SrsRtcAudioSendTrack* audio; SrsRtcVideoSendTrack *small, *large, *super, *screen;
     SrsStreamSwitchContext* ctx = play.switch_context_;
@@ -292,7 +292,5 @@ VOID TEST(KernelRTCTest, PlayerStreamSwitchTypical)
         EXPECT_TRUE(!ctx->prepare_);
         EXPECT_TRUE(!ctx->active_);
     }
-
-    // TODO: FIMXE: More scenarios.
 }
 
