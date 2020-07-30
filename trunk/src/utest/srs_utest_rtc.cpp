@@ -26,6 +26,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <srs_core_autofree.hpp>
 #include <srs_app_rtc_queue.hpp>
 #include <srs_kernel_rtc_rtp.hpp>
+#include <srs_app_rtc_source.hpp>
+#include <srs_app_rtc_conn.hpp>
 
 VOID TEST(KernelRTCTest, SequenceCompare)
 {
@@ -120,6 +122,92 @@ VOID TEST(KernelRTCTest, SequenceCompare)
 
         EXPECT_FALSE(srs_seq_is_rollback(32768, 0));
         EXPECT_FALSE(srs_seq_is_rollback(0, 32768));
+    }
+}
+
+extern int srs_count_merge_stream(const std::vector<SrsTrackConfig>& cfgs);
+extern SrsTrackConfig srs_find_track_config_active(const std::vector<SrsTrackConfig>& cfgs, const string& type, const string& track_id);
+
+VOID TEST(KernelRTCTest, PlayerStreamConfig)
+{
+    // Stream is merging.
+    if (true) {
+        vector<SrsTrackConfig> cfgs;
+
+        SrsTrackConfig cfg;
+        cfg.label_ = "sophon_video_camera_small";
+        cfgs.push_back(cfg);
+        EXPECT_EQ(1, srs_count_merge_stream(cfgs));
+
+        cfg.label_ = "sophon_video_camera_large";
+        cfgs.push_back(cfg);
+        EXPECT_EQ(2, srs_count_merge_stream(cfgs));
+
+        cfg.label_ = "sophon_video_camera_super";
+        cfgs.push_back(cfg);
+        EXPECT_EQ(3, srs_count_merge_stream(cfgs));
+    }
+
+    // Stream is normal or not merging.
+    if (true) {
+        vector<SrsTrackConfig> cfgs;
+        EXPECT_EQ(0, srs_count_merge_stream(cfgs));
+
+        SrsTrackConfig cfg;
+        cfg.label_ = "sophon_audio";
+        cfgs.push_back(cfg);
+        EXPECT_EQ(0, srs_count_merge_stream(cfgs));
+
+        cfg.label_ = "h5-random";
+        cfgs.push_back(cfg);
+        EXPECT_EQ(0, srs_count_merge_stream(cfgs));
+
+        cfg.label_ = "sophon_video_camera";
+        cfgs.push_back(cfg);
+        EXPECT_EQ(0, srs_count_merge_stream(cfgs));
+    }
+
+    // Config to active stream.
+    if (true) {
+        vector<SrsTrackConfig> cfgs;
+
+        SrsTrackConfig cfg;
+        cfg.type_ = "audio";
+        cfg.label_ = "sophon_audio";
+        cfg.active = true;
+        cfgs.push_back(cfg);
+
+        EXPECT_TRUE(srs_find_track_config_active(cfgs, "audio", "sophon_audio").active);
+    }
+
+    // Config to disable stream.
+    if (true) {
+        vector<SrsTrackConfig> cfgs;
+        EXPECT_FALSE(srs_find_track_config_active(cfgs, "audio", "sophon_audio").active);
+
+        SrsTrackConfig cfg;
+        cfg.label_ = "sophon_audio";
+        cfgs.push_back(cfg);
+        EXPECT_FALSE(srs_find_track_config_active(cfgs, "audio", "sophon_audio").active);
+
+        cfg.label_ = "h5";
+        cfg.type_ = "audio";
+        cfgs.push_back(cfg);
+        EXPECT_FALSE(srs_find_track_config_active(cfgs, "audio", "sophon_audio").active);
+
+        cfg.label_ = "sophon_audio";
+        cfg.type_ = "audio";
+        cfg.active = false;
+        cfgs.push_back(cfg);
+        EXPECT_FALSE(srs_find_track_config_active(cfgs, "audio", "sophon_audio").active);
+    }
+}
+
+VOID TEST(KernelRTCTest, PlayerStreamSwitch)
+{
+    if (true) {
+        SrsRtcConnection s(NULL, SrsContextId());
+        SrsRtcPlayStream play(&s, SrsContextId());
     }
 }
 
