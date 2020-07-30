@@ -44,7 +44,7 @@ ISrsLog* _srs_log = new MockEmptyLog(SrsLogLevelDisabled);
 ISrsContext* _srs_context = new SrsThreadContext();
 _SrsContextId _srs_context_root;
 // app module.
-SrsConfig* _srs_config = NULL;
+SrsConfig* _srs_config = new SrsConfig();
 SrsServer* _srs_server = NULL;
 bool _srs_in_docker = false;
 
