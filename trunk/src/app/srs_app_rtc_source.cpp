@@ -1371,13 +1371,10 @@ SrsRtcTrackDescription::~SrsRtcTrackDescription()
 
 bool SrsRtcTrackDescription::has_ssrc(uint32_t ssrc)
 {
-    if (!is_active_) {
-        return false;
-    }
-
     if (ssrc == ssrc_ || ssrc == rtx_ssrc_ || ssrc == fec_ssrc_) {
         return true;
     }
+
     return false;
 }
 
