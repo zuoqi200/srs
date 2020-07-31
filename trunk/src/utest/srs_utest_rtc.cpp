@@ -29,6 +29,17 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <srs_app_rtc_source.hpp>
 #include <srs_app_rtc_conn.hpp>
 
+SrsRtpPacket2* srs_set_packet_to_keyframe(SrsRtpPacket2* pkt)
+{
+    SrsRtpExtensionPictureID* pid = pkt->header.get_picture_id();
+
+    pid->has_picture_id_ = true;
+    pid->ref_id_ = 0;
+    pid->tid_ = 0;
+
+    return pkt;
+}
+
 VOID TEST(KernelRTCTest, SequenceCompare)
 {
     if (true) {
@@ -127,6 +138,14 @@ VOID TEST(KernelRTCTest, SequenceCompare)
 
 extern int srs_count_merge_stream(const std::vector<SrsTrackConfig>& cfgs);
 extern SrsTrackConfig srs_find_track_config_active(const std::vector<SrsTrackConfig>& cfgs, const string& type, const string& track_id);
+
+VOID TEST(KernelRTCTest, TrackDescription)
+{
+    SrsRtcTrackDescription td;
+
+    // The track must default to disable, that is, the active is false.
+    EXPECT_FALSE(td.is_active_);
+}
 
 VOID TEST(KernelRTCTest, PlayerStreamConfig)
 {
@@ -232,65 +251,225 @@ VOID TEST(KernelRTCTest, PlayerStreamSwitchNoMergeStream)
     // Setup the begin state, play all streams.
     if (true) {
         if (true) {
-            SrsRtcTrackDescription ds; ds.type_ = "audio"; ds.id_ = "sophon_audio"; ds.ssrc_ = 100; ds.is_active_ = true;
+            SrsRtcTrackDescription ds; ds.type_ = "audio"; ds.id_ = "sophon_audio"; ds.ssrc_ = 100;
             play.audio_tracks_[ds.ssrc_] = audio = new SrsRtcAudioSendTrack(&s, &ds);
         }
         if (true) {
-            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_small"; ds.ssrc_ = 200; ds.is_active_ = true;
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_small"; ds.ssrc_ = 200;
             play.video_tracks_[ds.ssrc_] = small = new SrsRtcVideoSendTrack(&s, &ds);
         }
         if (true) {
-            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_large"; ds.ssrc_ = 201; ds.is_active_ = true;
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_large"; ds.ssrc_ = 201;
             play.video_tracks_[ds.ssrc_] = large = new SrsRtcVideoSendTrack(&s, &ds);
         }
         if (true) {
-            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_super"; ds.ssrc_ = 202; ds.is_active_ = true;
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_super"; ds.ssrc_ = 202;
             play.video_tracks_[ds.ssrc_] = super = new SrsRtcVideoSendTrack(&s, &ds);
         }
         if (true) {
-            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_screen_share"; ds.ssrc_ = 203; ds.is_active_ = true;
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_screen_share"; ds.ssrc_ = 203;
             play.video_tracks_[ds.ssrc_] = screen = new SrsRtcVideoSendTrack(&s, &ds);
         }
-        EXPECT_TRUE(audio->get_track_status());
-        EXPECT_TRUE(small->get_track_status());
-        EXPECT_TRUE(large->get_track_status());
-        EXPECT_TRUE(super->get_track_status());
-        EXPECT_TRUE(screen->get_track_status());
+        EXPECT_FALSE(audio->get_track_status());
+        EXPECT_FALSE(small->get_track_status());
+        EXPECT_FALSE(large->get_track_status());
+        EXPECT_FALSE(super->get_track_status());
+        EXPECT_FALSE(screen->get_track_status());
     }
 
-    // User disable audio.
+    // User enable audio.
     if (true) {
         vector<SrsTrackConfig> cfgs; SrsTrackConfig cfg; cfg.active = true;
-        cfg.type_ = "video"; cfg.label_ = "sophon_video_camera_small"; cfgs.push_back(cfg);
-        cfg.type_ = "video"; cfg.label_ = "sophon_video_camera_large"; cfgs.push_back(cfg);
-        cfg.type_ = "video"; cfg.label_ = "sophon_video_camera_super"; cfgs.push_back(cfg);
+        cfg.type_ = "audio"; cfg.label_ = "sophon_audio"; cfgs.push_back(cfg);
+        play.set_track_active(cfgs);
+
+        EXPECT_TRUE(audio->get_track_status());
+    }
+
+    // User enable screen share.
+    if (true) {
+        vector<SrsTrackConfig> cfgs; SrsTrackConfig cfg; cfg.active = true;
         cfg.type_ = "video"; cfg.label_ = "sophon_video_screen_share"; cfgs.push_back(cfg);
         play.set_track_active(cfgs);
 
-        EXPECT_FALSE(audio->get_track_status());
-        EXPECT_TRUE(small->get_track_status());
-        EXPECT_TRUE(large->get_track_status());
-        EXPECT_TRUE(super->get_track_status());
         EXPECT_TRUE(screen->get_track_status());
-    }
-
-    // User disable screen share.
-    if (true) {
-        vector<SrsTrackConfig> cfgs; SrsTrackConfig cfg; cfg.active = true;
-        cfg.type_ = "video"; cfg.label_ = "sophon_video_camera_small"; cfgs.push_back(cfg);
-        cfg.type_ = "video"; cfg.label_ = "sophon_video_camera_large"; cfgs.push_back(cfg);
-        cfg.type_ = "video"; cfg.label_ = "sophon_video_camera_super"; cfgs.push_back(cfg);
-        play.set_track_active(cfgs);
-
-        EXPECT_FALSE(audio->get_track_status());
-        EXPECT_TRUE(small->get_track_status());
-        EXPECT_TRUE(large->get_track_status());
-        EXPECT_TRUE(super->get_track_status());
-        EXPECT_FALSE(screen->get_track_status());
 
         // Should not switch stream.
         EXPECT_TRUE(!ctx->prepare_);
         EXPECT_TRUE(!ctx->active_);
+    }
+}
+
+VOID TEST(KernelRTCTest, PlayerStreamSwitchOnlyMergeStream)
+{
+    // Typical and normal stream switch scenario.
+    // User is playing bellow orignal streams:
+    //      sophon_audio
+    //      sophon_video_camera_small
+    //      sophon_video_camera_large
+    //      sophon_video_screen_share
+    // Of course, we merge the bellow streams as sophon_video_camera:
+    //      sophon_video_camera_small
+    //      sophon_video_camera_large
+    // So user is literally playing:
+    //      sophon_audio
+    //      sophon_video_camera
+    //      sophon_video_screen_share
+    // In this scenario, user maybe switch between only merging streams.
+    SrsRtcConnection s(NULL, SrsContextId()); SrsRtcPlayStream play(&s, SrsContextId());
+    SrsRtcAudioSendTrack* audio; SrsRtcVideoSendTrack *small, *large, *screen;
+    SrsStreamSwitchContext* ctx = play.switch_context_;
+
+    // Setup the begin state, play all streams.
+    if (true) {
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "audio"; ds.id_ = "sophon_audio"; ds.ssrc_ = 100;
+            play.audio_tracks_[ds.ssrc_] = audio = new SrsRtcAudioSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_small"; ds.ssrc_ = 200;
+            play.video_tracks_[ds.ssrc_] = small = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_large"; ds.ssrc_ = 201;
+            play.video_tracks_[ds.ssrc_] = large = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_screen_share"; ds.ssrc_ = 203;
+            play.video_tracks_[ds.ssrc_] = screen = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        EXPECT_FALSE(audio->get_track_status());
+        EXPECT_FALSE(small->get_track_status());
+        EXPECT_FALSE(large->get_track_status());
+        EXPECT_FALSE(screen->get_track_status());
+    }
+
+    // User switch to small stream.
+    if (true) {
+        vector<SrsTrackConfig> cfgs; SrsTrackConfig cfg; cfg.active = true;
+        cfg.type_ = "audio"; cfg.label_ = "sophon_audio"; cfgs.push_back(cfg);
+        cfg.type_ = "video"; cfg.label_ = "sophon_video_camera_small"; cfgs.push_back(cfg);
+        play.set_track_active(cfgs);
+
+        // The audio should be enabled now.
+        EXPECT_TRUE(audio->get_track_status());
+        // The small should be enabled in future.
+        EXPECT_FALSE(small->get_track_status());
+        // In context, we prepare to switch to small stream.
+        EXPECT_TRUE(ctx->prepare_ == small); EXPECT_TRUE(!ctx->active_);
+
+        // When got keyframe, we switch to small stream.
+        SrsRtpPacket2 pkt; srs_set_packet_to_keyframe(&pkt);
+        ctx->try_switch_stream(small, &pkt);
+
+        // Now, small should be active.
+        EXPECT_TRUE(!ctx->prepare_); EXPECT_TRUE(ctx->active_ == small);
+        EXPECT_TRUE(small->get_track_status());
+    }
+
+    // User switch to large stream.
+    if (true) {
+        vector<SrsTrackConfig> cfgs; SrsTrackConfig cfg; cfg.active = true;
+        cfg.type_ = "audio"; cfg.label_ = "sophon_audio"; cfgs.push_back(cfg);
+        cfg.type_ = "video"; cfg.label_ = "sophon_video_camera_large"; cfgs.push_back(cfg);
+        play.set_track_active(cfgs);
+
+        // The audio should be enabled now.
+        EXPECT_TRUE(audio->get_track_status());
+        // The large should be enabled in future.
+        EXPECT_FALSE(large->get_track_status());
+        // In context, we prepare to switch to large stream.
+        // And now, it should still be large stream.
+        EXPECT_TRUE(ctx->prepare_ == large); EXPECT_TRUE(ctx->active_ == small);
+
+        // When got keyframe, we switch to large stream.
+        SrsRtpPacket2 pkt; srs_set_packet_to_keyframe(&pkt);
+        ctx->try_switch_stream(large, &pkt);
+
+        // Now, large should be active.
+        EXPECT_TRUE(!ctx->prepare_); EXPECT_TRUE(ctx->active_ == large);
+        EXPECT_TRUE(large->get_track_status());
+        // And, small stream should be inactive.
+        EXPECT_FALSE(small->get_track_status());
+    }
+}
+
+VOID TEST(KernelRTCTest, PlayerStreamSwitchBadcase)
+{
+    // In this scenario, we test the badcase for stream switching.
+    SrsRtcConnection s(NULL, SrsContextId()); SrsRtcPlayStream play(&s, SrsContextId());
+    SrsRtcAudioSendTrack* audio; SrsRtcVideoSendTrack *small, *large, *screen;
+    SrsStreamSwitchContext* ctx = play.switch_context_;
+
+    // Setup the begin state, play all streams.
+    if (true) {
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "audio"; ds.id_ = "sophon_audio"; ds.ssrc_ = 100;
+            play.audio_tracks_[ds.ssrc_] = audio = new SrsRtcAudioSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_small"; ds.ssrc_ = 200;
+            play.video_tracks_[ds.ssrc_] = small = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_large"; ds.ssrc_ = 201;
+            play.video_tracks_[ds.ssrc_] = large = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_screen_share"; ds.ssrc_ = 203;
+            play.video_tracks_[ds.ssrc_] = screen = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        EXPECT_FALSE(audio->get_track_status());
+        EXPECT_FALSE(small->get_track_status());
+        EXPECT_FALSE(large->get_track_status());
+        EXPECT_FALSE(screen->get_track_status());
+    }
+
+    // User switch to empty config, nothing changed.
+    if (true) {
+        vector<SrsTrackConfig> cfgs;
+        play.set_track_active(cfgs);
+
+        EXPECT_FALSE(audio->get_track_status());
+        EXPECT_FALSE(small->get_track_status());
+        EXPECT_FALSE(large->get_track_status());
+        EXPECT_FALSE(screen->get_track_status());
+    }
+
+    // User enable audio and large.
+    if (true) {
+        vector<SrsTrackConfig> cfgs; SrsTrackConfig cfg; cfg.active = true;
+        cfg.type_ = "audio"; cfg.label_ = "sophon_audio"; cfgs.push_back(cfg);
+        cfg.type_ = "video"; cfg.label_ = "sophon_video_camera_large"; cfgs.push_back(cfg);
+        play.set_track_active(cfgs);
+
+        // The audio should be enabled now.
+        EXPECT_TRUE(audio->get_track_status());
+        // The large should be enabled in future.
+        EXPECT_FALSE(large->get_track_status());
+        // In context, we prepare to switch to large stream.
+        EXPECT_TRUE(ctx->prepare_ == large); EXPECT_TRUE(!ctx->active_);
+
+        // When got keyframe, we switch to large stream.
+        SrsRtpPacket2 pkt; srs_set_packet_to_keyframe(&pkt);
+        ctx->try_switch_stream(large, &pkt);
+
+        // Now, large should be active.
+        EXPECT_TRUE(!ctx->prepare_); EXPECT_TRUE(ctx->active_ == large);
+        EXPECT_TRUE(large->get_track_status());
+    }
+    // Then, user disable large, change to audio only.
+    if (true) {
+        vector<SrsTrackConfig> cfgs; SrsTrackConfig cfg; cfg.active = true;
+        cfg.type_ = "audio"; cfg.label_ = "sophon_audio"; cfgs.push_back(cfg);
+        play.set_track_active(cfgs);
+
+        // The audio should be enabled now.
+        EXPECT_TRUE(audio->get_track_status());
+        // The large should be inactive now.
+        EXPECT_FALSE(large->get_track_status());
+        // In context, no stream will be switch to.
+        EXPECT_TRUE(!ctx->prepare_); EXPECT_TRUE(!ctx->active_);
     }
 }
 

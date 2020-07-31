@@ -619,6 +619,8 @@ public:
     void try_switch_stream(SrsRtcVideoSendTrack* track, SrsRtpPacket2* pkt);
     // Whether track is preparing to switch to.
     bool is_track_preparing(SrsRtcVideoSendTrack* track);
+    // Disable track if it's active.
+    void disable_track(SrsRtcVideoSendTrack* track);
 public:
     // Start stream switch, use different sequence base.
     void switch_sequence_base();

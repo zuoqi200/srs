@@ -927,6 +927,8 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
                 }
 
                 // If no merge stream to active, disable it.
+                switch_context_->disable_track(track);
+
                 bool previous = track->set_track_status(cfg.active);
                 merged_log << "{track: " << cfg.label_ << ", is_active: " << previous << "=>" << cfg.active << "},";
                 continue;

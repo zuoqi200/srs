@@ -29,5 +29,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 #include <srs_utest.hpp>
 
+class SrsRtpPacket2;
+
+// Set the pkt to be a packet with keyframe.
+SrsRtpPacket2* srs_set_packet_to_keyframe(SrsRtpPacket2* pkt);
+
 #endif
 
