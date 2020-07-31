@@ -1350,7 +1350,7 @@ SrsRtcTrackDescription::SrsRtcTrackDescription()
     ssrc_ = 0;
     rtx_ssrc_ = 0;
     fec_ssrc_ = 0;
-    is_active_ = true;
+    is_active_ = false;
 
     media_ = NULL;
     red_ = NULL;
@@ -2066,6 +2066,17 @@ void SrsStreamSwitchContext::try_switch_stream(SrsRtcVideoSendTrack* track, SrsR
 bool SrsStreamSwitchContext::is_track_preparing(SrsRtcVideoSendTrack* track)
 {
     return prepare_ == track;
+}
+
+void SrsStreamSwitchContext::disable_track(SrsRtcVideoSendTrack* track)
+{
+    if (prepare_ == track) {
+        prepare_ = NULL;
+    }
+
+    if (active_ == track) {
+        active_ = NULL;
+    }
 }
 
 void SrsStreamSwitchContext::switch_sequence_base()
