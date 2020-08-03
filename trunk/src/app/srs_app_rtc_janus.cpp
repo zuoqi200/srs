@@ -1183,7 +1183,7 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
     } else {
         // In the scene of H5, user does not config track.
         // active all play track.
-        rtc_session_->set_play_track_status(true);
+        rtc_session_->set_all_tracks_status_for_play(true);
     }
 
     ostringstream os;
