@@ -29,6 +29,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <srs_app_rtc_source.hpp>
 #include <srs_app_rtc_conn.hpp>
 
+extern int srs_count_merge_stream(const std::vector<SrsTrackConfig>& cfgs);
+extern SrsTrackConfig srs_find_track_config_active(const std::vector<SrsTrackConfig>& cfgs, const string& type, const string& track_id);
+
 SrsRtpPacket2* srs_set_packet_to_keyframe(SrsRtpPacket2* pkt)
 {
     SrsRtpExtensionPictureID* pid = pkt->header.get_picture_id();
@@ -136,15 +139,86 @@ VOID TEST(KernelRTCTest, SequenceCompare)
     }
 }
 
-extern int srs_count_merge_stream(const std::vector<SrsTrackConfig>& cfgs);
-extern SrsTrackConfig srs_find_track_config_active(const std::vector<SrsTrackConfig>& cfgs, const string& type, const string& track_id);
+VOID TEST(KernelRTCTest, DefaultTrackStatus)
+{
+    // By default, track is disabled.
+    if (true) {
+        SrsRtcTrackDescription td;
+
+        // The track must default to disable, that is, the active is false.
+        EXPECT_FALSE(td.is_active_);
+    }
+
+    // Enable it by player or connection.
+    if (true) {
+        SrsRtcConnection s(NULL, SrsContextId()); SrsRtcPlayStream play(&s, SrsContextId());
+        SrsRtcAudioSendTrack* audio; SrsRtcVideoSendTrack *video;
+
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "audio"; ds.id_ = "NSNWOn19NDn12o8nNeji2"; ds.ssrc_ = 100;
+            play.audio_tracks_[ds.ssrc_] = audio = new SrsRtcAudioSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "VMo22nfLDn122nfnDNL2"; ds.ssrc_ = 200;
+            play.video_tracks_[ds.ssrc_] = video = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        EXPECT_FALSE(audio->get_track_status());
+        EXPECT_FALSE(video->get_track_status());
+
+        play.set_all_tracks_status(true);
+        EXPECT_TRUE(audio->get_track_status());
+        EXPECT_TRUE(video->get_track_status());
+    }
+}
 
 VOID TEST(KernelRTCTest, TrackDescription)
 {
-    SrsRtcTrackDescription td;
+    // By default, track is disabled.
+    if (true) {
+        SrsRtcTrackDescription td;
 
-    // The track must default to disable, that is, the active is false.
-    EXPECT_FALSE(td.is_active_);
+        // The track must default to disable, that is, the active is false.
+        EXPECT_FALSE(td.is_active_);
+    }
+
+    // Enable it by player or connection.
+    if (true) {
+        SrsRtcConnection s(NULL, SrsContextId()); SrsRtcPlayStream play(&s, SrsContextId());
+        SrsRtcAudioSendTrack* audio; SrsRtcVideoSendTrack *small, *large, *super, *screen;
+
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "audio"; ds.id_ = "sophon_audio"; ds.ssrc_ = 100;
+            play.audio_tracks_[ds.ssrc_] = audio = new SrsRtcAudioSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_small"; ds.ssrc_ = 200;
+            play.video_tracks_[ds.ssrc_] = small = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_large"; ds.ssrc_ = 201;
+            play.video_tracks_[ds.ssrc_] = large = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_camera_super"; ds.ssrc_ = 202;
+            play.video_tracks_[ds.ssrc_] = super = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "sophon_video_screen_share"; ds.ssrc_ = 203;
+            play.video_tracks_[ds.ssrc_] = screen = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        EXPECT_FALSE(audio->get_track_status());
+        EXPECT_FALSE(small->get_track_status());
+        EXPECT_FALSE(large->get_track_status());
+        EXPECT_FALSE(super->get_track_status());
+        EXPECT_FALSE(screen->get_track_status());
+
+        play.set_all_tracks_status(true);
+        EXPECT_TRUE(audio->get_track_status());
+        EXPECT_TRUE(small->get_track_status());
+        EXPECT_TRUE(large->get_track_status());
+        EXPECT_TRUE(super->get_track_status());
+        EXPECT_TRUE(screen->get_track_status());
+    }
 }
 
 VOID TEST(KernelRTCTest, PlayerStreamConfig)
