@@ -1770,7 +1770,7 @@ bool SrsRtcSendTrack::set_track_status(bool active)
 
     bool previous_status = track_desc_->is_active_;
     track_desc_->is_active_ = active;
-    
+
     return previous_status;
 }
 
