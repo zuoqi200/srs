@@ -139,6 +139,38 @@ VOID TEST(KernelRTCTest, SequenceCompare)
     }
 }
 
+VOID TEST(KernelRTCTest, DefaultTrackStatus)
+{
+    // By default, track is disabled.
+    if (true) {
+        SrsRtcTrackDescription td;
+
+        // The track must default to disable, that is, the active is false.
+        EXPECT_FALSE(td.is_active_);
+    }
+
+    // Enable it by player or connection.
+    if (true) {
+        SrsRtcConnection s(NULL, SrsContextId()); SrsRtcPlayStream play(&s, SrsContextId());
+        SrsRtcAudioSendTrack* audio; SrsRtcVideoSendTrack *video;
+
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "audio"; ds.id_ = "NSNWOn19NDn12o8nNeji2"; ds.ssrc_ = 100;
+            play.audio_tracks_[ds.ssrc_] = audio = new SrsRtcAudioSendTrack(&s, &ds);
+        }
+        if (true) {
+            SrsRtcTrackDescription ds; ds.type_ = "video"; ds.id_ = "VMo22nfLDn122nfnDNL2"; ds.ssrc_ = 200;
+            play.video_tracks_[ds.ssrc_] = video = new SrsRtcVideoSendTrack(&s, &ds);
+        }
+        EXPECT_FALSE(audio->get_track_status());
+        EXPECT_FALSE(video->get_track_status());
+
+        play.set_all_tracks_status(true);
+        EXPECT_TRUE(audio->get_track_status());
+        EXPECT_TRUE(video->get_track_status());
+    }
+}
+
 VOID TEST(KernelRTCTest, TrackDescription)
 {
     // By default, track is disabled.
@@ -180,7 +212,7 @@ VOID TEST(KernelRTCTest, TrackDescription)
         EXPECT_FALSE(super->get_track_status());
         EXPECT_FALSE(screen->get_track_status());
 
-        play.set_track_status(true);
+        play.set_all_tracks_status(true);
         EXPECT_TRUE(audio->get_track_status());
         EXPECT_TRUE(small->get_track_status());
         EXPECT_TRUE(large->get_track_status());
