@@ -1180,6 +1180,10 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
 
     if (!track_cfgs.empty()) {
         rtc_session_->set_play_track_active(track_cfgs);
+    } else {
+        // In the scene of H5, user does not config track.
+        // active all play track.
+        rtc_session_->set_play_track_status(true);
     }
 
     ostringstream os;
