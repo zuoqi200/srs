@@ -1191,6 +1191,8 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         return srs_error_wrap(err, "encode sdp");
     }
     string local_sdp_str = os.str();
+    // Filter the \r\n to \\r\\n for JSON.
+    local_sdp_str = srs_string_replace(local_sdp_str.c_str(), "\r\n", "\\r\\n");
 
     SrsJanusMessage* res_msg = new SrsJanusMessage();
     res_msg->janus = "event";
@@ -1216,7 +1218,7 @@ srs_error_t SrsJanusCall::on_join_as_subscriber(SrsJsonObject* req, SrsJanusMess
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         "join", "listener", callee->feed_id_, callee->display_.c_str(), audio, offer_audio, video, offer_video, streams->count(),
         res_msg->sender, res_msg->private_id, publisher_, local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
-    srs_trace("RTC local offer: %s", srs_string_replace(local_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
+    srs_trace("RTC local offer: %s", local_sdp_str.c_str());
 
     // Write enter callstack log.
     join_msg->write_callstack("leave", 0);
@@ -1576,6 +1578,8 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
         return srs_error_wrap(err, "encode sdp");
     }
     string local_sdp_str = os.str();
+    // Filter the \r\n to \\r\\n for JSON.
+    local_sdp_str = srs_string_replace(local_sdp_str.c_str(), "\r\n", "\\r\\n");
 
     SrsJanusMessage* res_msg = new SrsJanusMessage();
     res_msg->janus = "event";
@@ -1599,7 +1603,7 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
         msg->janus.c_str(), msg->transaction.c_str(), msg->client_tid.c_str(), msg->rpcid.c_str(), msg->source_module.c_str(),
         "configure", has_audio, has_video, streams->count(), type.c_str(), remote_sdp_str.length(), local_sdp_str.length(), ::getpid(), rtc_session_->context_id().c_str());
     srs_trace("RTC remote offer: %s", srs_string_replace(remote_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
-    srs_trace("RTC local answer: %s", srs_string_replace(local_sdp_str.c_str(), "\r\n", "\\r\\n").c_str());
+    srs_trace("RTC local answer: %s", local_sdp_str.c_str());
 
     // Write enter callstack log.
     offer_msg->write_callstack("leave", 0);
