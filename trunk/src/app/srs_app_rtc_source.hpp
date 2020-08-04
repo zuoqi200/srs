@@ -476,7 +476,7 @@ public:
 protected:
     srs_error_t on_nack(SrsRtpPacket2* pkt);
 public:
-    virtual srs_error_t on_rtp(SrsRtcStream* source, SrsRtpPacket2* pkt);
+    virtual srs_error_t on_rtp(SrsRtcStream* source, SrsRtpPacket2* pkt) = 0;
 public:
     void collect(SrsRtcTrackStatisticLogRecv* to);
 };
@@ -526,8 +526,8 @@ public:
     std::string get_track_id();
     uint32_t get_ssrc();
 public:
-    virtual srs_error_t on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamStatistic& info);
-    virtual srs_error_t on_rtcp(SrsRtpPacket2* pkt);
+    virtual srs_error_t on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamStatistic& info) = 0;
+    virtual srs_error_t on_rtcp(SrsRtpPacket2* pkt) = 0;
     virtual void on_recv_nack();
 protected:
     // A group of stream for switching.

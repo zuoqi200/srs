@@ -1631,11 +1631,6 @@ srs_error_t SrsRtcRecvTrack::on_nack(SrsRtpPacket2* pkt)
     return err;
 }
 
-srs_error_t SrsRtcRecvTrack::on_rtp(SrsRtcStream* source, SrsRtpPacket2* pkt)
-{
-    return srs_success;
-}
-
 void SrsRtcRecvTrack::collect(SrsRtcTrackStatisticLogRecv* to)
 {
     to->type = track_desc_->type_;
@@ -1813,16 +1808,6 @@ std::string SrsRtcSendTrack::get_track_id()
 uint32_t SrsRtcSendTrack::get_ssrc()
 {
     return track_desc_->ssrc_;
-}
-
-srs_error_t SrsRtcSendTrack::on_rtp(SrsRtpPacket2* pkt, SrsRtcPlayStreamStatistic& info)
-{
-    return srs_success;
-}
-
-srs_error_t SrsRtcSendTrack::on_rtcp(SrsRtpPacket2* pkt)
-{
-    return srs_success;
 }
 
 void SrsRtcSendTrack::on_recv_nack()
