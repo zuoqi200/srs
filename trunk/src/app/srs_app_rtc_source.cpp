@@ -1573,7 +1573,7 @@ srs_error_t SrsRtcRecvTrack::send_rtcp_rr()
     uint32_t ssrc = track_desc_->ssrc_;
     const uint64_t& last_time = last_sender_report_sys_time;
     if ((err = session_->send_rtcp_rr(ssrc, rtp_queue_, last_time, last_sender_report_ntp)) != srs_success) {
-        return srs_error_wrap(err, "send RR ssrc=%u, last_time=%" PRId64, ssrc, last_time);
+        return srs_error_wrap(err, "ssrc=%u, last_time=%" PRId64, ssrc, last_time);
     }
 
     return err;
@@ -1581,7 +1581,13 @@ srs_error_t SrsRtcRecvTrack::send_rtcp_rr()
 
 srs_error_t SrsRtcRecvTrack::send_rtcp_xr_rrtr()
 {
-    return session_->send_rtcp_xr_rrtr(track_desc_->ssrc_);
+    srs_error_t err = srs_success;
+
+    if ((err = session_->send_rtcp_xr_rrtr(track_desc_->ssrc_)) != srs_success) {
+        return srs_error_wrap(err, "ssrc=%u", track_desc_->ssrc_);
+    }
+
+    return err;
 }
 
 bool SrsRtcRecvTrack::set_track_status(bool active)
@@ -1737,8 +1743,11 @@ srs_error_t SrsRtcVideoRecvTrack::on_rtp(SrsRtcStream* source, SrsRtpPacket2* pk
     if (request_key_frame_) {
         // TODO: FIXME: add coroutine to request key frame.
         request_key_frame_ = false;
-        // TODO: FIXME: Check error.
-        session_->send_rtcp_fb_pli(track_desc_->ssrc_);
+
+        if ((err = session_->send_rtcp_fb_pli(track_desc_->ssrc_)) != srs_success) {
+            srs_warn("PLI err %s", srs_error_desc(err).c_str());
+            srs_freep(err);
+        }
     }
 
     // For NACK to handle packet.

@@ -1012,7 +1012,6 @@ SrsRtcPublishStream::SrsRtcPublishStream(SrsRtcConnection* session)
 
     nn_audio_frames = 0;
     twcc_id_ = 0;
-    last_twcc_feedback_time_ = 0;
     twcc_fb_count_ = 0;
     is_started = false;
 
@@ -1175,12 +1174,16 @@ srs_error_t SrsRtcPublishStream::send_rtcp_xr_rrtr()
 
     for (int i = 0; i < (int)video_tracks_.size(); ++i) {
         SrsRtcVideoRecvTrack* track = video_tracks_.at(i);
-        track->send_rtcp_xr_rrtr();
+        if ((err = track->send_rtcp_xr_rrtr()) != srs_success) {
+            return srs_error_wrap(err, "track=%s", track->get_track_id().c_str());
+        }
     }
 
     for (int i = 0; i < (int)audio_tracks_.size(); ++i) {
         SrsRtcAudioRecvTrack* track = audio_tracks_.at(i);
-        track->send_rtcp_xr_rrtr();
+        if ((err = track->send_rtcp_xr_rrtr()) != srs_success) {
+            return srs_error_wrap(err, "track=%s", track->get_track_id().c_str());
+        }
     }
 
     session_->stat_->nn_xr++;
@@ -1358,30 +1361,25 @@ void SrsRtcPublishStream::on_before_decode_payload(SrsRtpPacket2* pkt, SrsBuffer
 srs_error_t SrsRtcPublishStream::send_periodic_twcc()
 {
     srs_error_t err = srs_success;
-    srs_utime_t now = srs_get_system_time();
-    if(0 == last_twcc_feedback_time_) {
-        last_twcc_feedback_time_ = now;
-        return err;
-    }
-    srs_utime_t diff = now - last_twcc_feedback_time_;
-    if( diff >= 50 * SRS_UTIME_MILLISECONDS) {
-        last_twcc_feedback_time_ = now;
-        char pkt[kRtcpPacketSize];
-        SrsBuffer *buffer = new SrsBuffer(pkt, sizeof(pkt));
-        SrsAutoFree(SrsBuffer, buffer);
-        rtcp_twcc_.set_feedback_count(twcc_fb_count_);
-        twcc_fb_count_++;
-        if((err = rtcp_twcc_.encode(buffer)) != srs_success) {
-            return srs_error_wrap(err, "fail to generate twcc feedback packet");
-        }
-        int nb_protected_buf = buffer->pos();
-        char protected_buf[kRtpPacketSize];
-        if (session_->transport_->protect_rtcp(pkt, protected_buf, nb_protected_buf) == srs_success) {
-            session_->sendonly_skt->sendto(protected_buf, nb_protected_buf, 0);
-        }
+
+    char pkt[kRtcpPacketSize];
+    SrsBuffer *buffer = new SrsBuffer(pkt, sizeof(pkt));
+    SrsAutoFree(SrsBuffer, buffer);
+
+    rtcp_twcc_.set_feedback_count(twcc_fb_count_);
+    twcc_fb_count_++;
+
+    if((err = rtcp_twcc_.encode(buffer)) != srs_success) {
+        return srs_error_wrap(err, "encode, count=%u", twcc_fb_count_);
     }
 
-    return err;
+    int nb_protected_buf = buffer->pos();
+    char protected_buf[kRtpPacketSize];
+    if ((err = session_->transport_->protect_rtcp(pkt, protected_buf, nb_protected_buf)) != srs_success) {
+        return srs_error_wrap(err, "protect rtcp, size=%u", nb_protected_buf);
+    }
+
+    return session_->sendonly_skt->sendto(protected_buf, nb_protected_buf, 0);
 }
 
 srs_error_t SrsRtcPublishStream::on_rtcp(char* data, int nb_data)
@@ -1750,13 +1748,17 @@ srs_error_t SrsRtcPublishStream::notify(int type, srs_utime_t interval, srs_utim
             srs_freep(err);
         }
 
-        // TODO: FIXME: Check error.
-        send_rtcp_xr_rrtr();
+        if ((err = send_rtcp_xr_rrtr()) != srs_success) {
+            srs_warn("XR err %s", srs_error_desc(err).c_str());
+            srs_freep(err);
+        }
 
-        // TODO: FIXME: Check error.
         // We should not depends on the received packet,
         // instead we should send feedback every Nms.
-        send_periodic_twcc();
+        if ((err = send_periodic_twcc()) != srs_success) {
+            srs_warn("TWCC err %s", srs_error_desc(err).c_str());
+            srs_freep(err);
+        }
     } else if (type == SRS_TICKID_SFUSTAT) {
         write_track_statistic();
     }
@@ -2503,10 +2505,7 @@ srs_error_t SrsRtcConnection::send_rtcp_xr_rrtr(uint32_t ssrc)
         return srs_error_wrap(err, "protect rtcp xr");
     }
 
-    // TDOO: FIXME: Check error.
-    sendonly_skt->sendto(protected_buf, nb_protected_buf, 0);
-
-    return err;
+    return sendonly_skt->sendto(protected_buf, nb_protected_buf, 0);
 }
 
 srs_error_t SrsRtcConnection::send_rtcp_fb_pli(uint32_t ssrc)
@@ -2533,10 +2532,7 @@ srs_error_t SrsRtcConnection::send_rtcp_fb_pli(uint32_t ssrc)
         return srs_error_wrap(err, "protect rtcp psfb pli");
     }
 
-    // TDOO: FIXME: Check error.
-    sendonly_skt->sendto(protected_buf, nb_protected_buf, 0);
-
-    return err;
+    return sendonly_skt->sendto(protected_buf, nb_protected_buf, 0);
 }
 
 void SrsRtcConnection::simulate_nack_drop(int nn)
