@@ -354,7 +354,7 @@ srs_error_t SrsRtcPlayStream::start()
 
         // If the track is merging stream, we should request PLI when it startup.
         if (switch_context_->is_track_preparing(track)) {
-            srs_session_request_keyframe(session_->source_, it->first);
+            srs_session_request_keyframe(source_, it->first);
         }
     }
 
@@ -921,7 +921,7 @@ void SrsRtcPlayStream::set_track_active(const std::vector<SrsTrackConfig>& cfgs)
             // User wants to active stream.
             // Note that the track is disabled.
             switch_context_->active_it_in_future(track, cfg);
-            srs_session_request_keyframe(session_->source_, it->first);
+            srs_session_request_keyframe(source_, it->first);
         }
     }
 
