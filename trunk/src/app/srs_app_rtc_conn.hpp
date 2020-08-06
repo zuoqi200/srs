@@ -191,6 +191,8 @@ private:
     SrsCoroutine* trd;
     SrsRtcConnection* session_;
 private:
+    SrsRequest* req_;
+    SrsRtcStream* source_;
     SrsHourGlass* timer_;
     // key: publish_ssrc, value: send track to process rtp/rtcp
     std::map<uint32_t, SrsRtcAudioSendTrack*> audio_tracks_;
@@ -386,7 +388,6 @@ private:
     // TODO: FIXME: Support reload.
     bool encrypt;
     SrsRequest* req;
-    SrsRtcStream* source_;
     SrsSdp remote_sdp;
     SrsSdp local_sdp;
 private:
