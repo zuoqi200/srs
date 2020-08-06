@@ -1774,7 +1774,7 @@ srs_error_t SrsRtcNativeClientPublishCall::do_start()
     SrsAutoFree(SrsRtcNativeCommonMediaParam, remote_param); 
     SrsRtcNativeMiniSDP *remote_sdp = new SrsRtcNativeMiniSDP();
     SrsAutoFree(SrsRtcNativeMiniSDP, remote_sdp);
-    if ((err = stream_desc->generate_miniSDP(req_->vhost, *remote_sdp, *remote_param)) != srs_success) {
+    if ((err = stream_desc->generate_mini_sdp(req_->vhost, *remote_sdp, *remote_param)) != srs_success) {
         return srs_error_wrap(err, "client publish gen mini sdp");
     }
 
@@ -1791,7 +1791,7 @@ srs_error_t SrsRtcNativeClientPublishCall::do_start()
     msg_id_ = session_->gen_new_msg_id();
     request->set_msg_id(msg_id_);
     request->set_url(url_);
-    if ((err = stream_desc->generate_miniSDP(req_->vhost, *local_sdp, *local_param)) != srs_success) {
+    if ((err = stream_desc->generate_mini_sdp(req_->vhost, *local_sdp, *local_param)) != srs_success) {
         srs_freep(request);
         return srs_error_wrap(err, "client publish gen mini sdp");
     }

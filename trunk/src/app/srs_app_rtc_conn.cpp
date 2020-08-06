@@ -3339,6 +3339,109 @@ srs_error_t SrsRtcConnection::create_twcc_handler()
 }
 #endif
 
+srs_error_t SrsRtcConnection::add_publisher(SrsRequest* request, SrsRtcNativeMiniSDP& req_mini_sdp,
+        SrsRtcNativeCommonMediaParam& req_common_media, SrsRtcNativeMiniSDP& resp_mini_sdp,
+        SrsRtcNativeCommonMediaParam& resp_common_media)
+{
+    srs_error_t err = srs_success;
+    SrsRtcStreamDescription* stream_desc = new SrsRtcStreamDescription();
+    SrsAutoFree(SrsRtcStreamDescription, stream_desc);
+    if (!req) {
+        req = request->copy();
+    }
+
+    if(srs_success != (err = stream_desc->parse_mini_sdp(request->vhost, req_mini_sdp, req_common_media, NULL))) {
+        return srs_error_wrap(err, "parse mini sdp");
+    }
+
+    if(srs_success != (err = stream_desc->generate_mini_sdp(request->vhost, resp_mini_sdp, resp_common_media))) {
+        return srs_error_wrap(err, "generate mini sdp");
+    }
+
+    SrsRtcStream* source = NULL;
+    if ((err = _srs_rtc_sources->fetch_or_create(request, &source)) != srs_success) {
+        return srs_error_wrap(err, "create source");
+    }
+
+    source->set_stream_desc(stream_desc->copy());
+
+    if ((err = create_publisher(request, stream_desc)) != srs_success) {
+        return srs_error_wrap(err, "create publish");
+    }
+
+    return err;
+}
+
+srs_error_t SrsRtcConnection::add_player(SrsRequest* request, SrsRtcNativeMiniSDP& req_mini_sdp,
+        SrsRtcNativeCommonMediaParam& req_common_media, SrsRtcNativeMiniSDP& resp_mini_sdp,
+        SrsRtcNativeCommonMediaParam& resp_common_media)
+{
+    srs_error_t err = srs_success;
+
+    SrsRtcStream* source = NULL;
+    if ((err = _srs_rtc_sources->fetch_or_create(request, &source)) != srs_success) {
+        return srs_error_wrap(err, "fetch rtc source");
+    }
+
+    SrsRtcStreamDescription* stream_desc = new SrsRtcStreamDescription();
+    SrsAutoFree(SrsRtcStreamDescription, stream_desc);
+    if (req_common_media.is_cascade_media()) {
+        // cascade mode, negotiate all tracks
+        int track_count = 0;
+        std::vector<SrsRtcTrackDescription*> tracks;
+        tracks = source->get_track_desc("audio", "opus");
+        if (!tracks.empty()) {
+            stream_desc->audio_track_desc_ = tracks.at(0)->copy();
+            ++track_count;
+        }
+        tracks = source->get_track_desc("video", "H264");
+        for (int i = 0; i < (int)tracks.size(); ++i) {
+            stream_desc->video_track_descs_.push_back(tracks.at(i)->copy());
+            ++track_count;
+        }
+        if (track_count == 0) {
+            return srs_error_new(ERROR_RTC_SOURCE_CHECK, "no tracks in source");
+        }
+        stream_desc->merge_ssrc_ = false;
+    } else {
+        if(srs_success != (err = stream_desc->parse_mini_sdp(request->vhost, req_mini_sdp, req_common_media, source))) {
+            return srs_error_wrap(err, "parse mini sdp");
+        }
+    }
+
+    std::map<uint32_t, SrsRtcTrackDescription*> play_sub_relations;
+    if(srs_success != (err = negotiate_play_capability(request, stream_desc, play_sub_relations))) {
+        return srs_error_wrap(err, "negotiate media capability");
+    }
+
+    SrsRtcStreamDescription* local_stream_desc = new SrsRtcStreamDescription();
+    SrsAutoFree(SrsRtcStreamDescription, local_stream_desc);
+    std::map<uint32_t, SrsRtcTrackDescription*>::iterator it = play_sub_relations.begin();
+    while (it != play_sub_relations.end()) {
+        SrsRtcTrackDescription* track_desc = it->second;
+        srs_trace("add_player: sub_relations : type=%s msid=%s source_ssrc=%u ssrc=%u pt=%u",
+                track_desc->type_.c_str(), track_desc->id_.c_str(),
+                it->first, track_desc->ssrc_, track_desc->media_->pt_);
+        if (track_desc->type_ == "audio" || !stream_desc->audio_track_desc_) {
+            local_stream_desc->audio_track_desc_ = track_desc->copy();
+        }
+
+        if (track_desc->type_ == "video") {
+            local_stream_desc->video_track_descs_.push_back(track_desc->copy());
+        }
+        ++it;
+    }
+
+    if(srs_success != (err = local_stream_desc->generate_mini_sdp(request->vhost, resp_mini_sdp, resp_common_media))) {
+        return srs_error_wrap(err, "generate mini sdp");
+    }
+
+    if ((err = create_player(request, play_sub_relations)) != srs_success) {
+        return srs_error_wrap(err, "create player");
+    }
+    return err;
+}
+
 ISrsRtcHijacker::ISrsRtcHijacker()
 {
 }

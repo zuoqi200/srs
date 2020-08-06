@@ -1510,6 +1510,8 @@ SrsRtcTrackDescription* SrsRtcTrackDescription::copy()
 SrsRtcStreamDescription::SrsRtcStreamDescription()
 {
     audio_track_desc_ = NULL;
+
+    merge_ssrc_ = true;
 }
 
 SrsRtcStreamDescription::~SrsRtcStreamDescription()
@@ -1550,6 +1552,399 @@ SrsRtcTrackDescription* SrsRtcStreamDescription::find_track_description_by_ssrc(
     }
 
     return NULL;
+}
+
+srs_error_t SrsRtcStreamDescription::parse_min_sdp(std::string vhost, SrsRtcNativeMiniSDP& mini_sdp, SrsRtcNativeCommonMediaParam& common_media, SrsRtcStream *source)
+{
+    srs_error_t err = srs_success;
+
+    bool nack_enabled = _srs_config->get_rtc_nack_enabled(vhost);
+    bool twcc_enabled = _srs_config->get_rtc_twcc_enabled(vhost);
+    std::vector<struct SrsRtcNativeCommonMediaParam::SrsRtcNativeRTPExtension>& exts = common_media.get_rtp_extension();
+    std::map<int, std::string> extmaps;
+    if (!exts.empty()) {
+        for(int i = 0; i < exts.size(); ++i) {
+            struct SrsRtcNativeCommonMediaParam::SrsRtcNativeRTPExtension ext = exts.at(i);
+            if((SrsRTCNativeRtpExtType_twcc == ext.type) && twcc_enabled) {
+                // twcc
+                extmaps[ext.id] = kTWCCExt;
+            } else if (SrsRTCNativeRtpExtType_picture_id == ext.type) {
+                // picture id
+                // TODO: FIXME: GRTN demo value lens = 7, decode failed
+                // extmaps[ext.id] = kPictureIDExt;
+            }
+            //TODO: add audio ranking rtp ext
+        }
+    } else if (source) {
+        std::vector<SrsRtcTrackDescription*> tracks = source->get_track_desc("audio", "opus");
+        std::map<int, std::string> source_extmaps;
+        if (!tracks.empty()) {
+            SrsRtcTrackDescription *track = tracks.at(0);
+            source_extmaps.insert(track->extmaps_.begin(), track->extmaps_.end());
+        }
+        tracks = source->get_track_desc("video", "H264");
+        if (!tracks.empty()) {
+            SrsRtcTrackDescription *track = tracks.at(0);
+            source_extmaps.insert(track->extmaps_.begin(), track->extmaps_.end());
+        }
+        for(std::map<int, std::string>::iterator it = source_extmaps.begin(); it != source_extmaps.end(); ++it) {
+            if (it->second == kTWCCExt || it->second == kPictureIDExt) {
+                extmaps[it->first] = it->second;
+            }
+        }
+    }
+
+    // parse audio track
+    std::vector<SrsRtcNativeAudioMediaParam*>& audio_tracks = mini_sdp.get_audio_medias();
+    if( 0 < audio_tracks.size()) {
+        //TODO: assume there is only one audio track
+        SrsRtcNativeAudioMediaParam* audio = audio_tracks.at(0);
+        if(NULL != audio_track_desc_) {
+            srs_freep(audio_track_desc_);
+        }
+        audio_track_desc_ = new SrsRtcTrackDescription();
+        audio_track_desc_->extmaps_ = extmaps;
+
+        audio_track_desc_->type_ = "audio";
+        audio_track_desc_->id_ = audio->get_msid();
+        audio_track_desc_->ssrc_ = audio->get_ssrc();
+
+        // opus codec info
+        SrsCodecPayload *audio_payload = NULL;
+        if (audio->get_pt() == 0 && source) {
+            std::vector<SrsRtcTrackDescription*> tracks = source->get_track_desc("audio", "opus");
+            if (!tracks.empty()) {
+                SrsRtcTrackDescription *track = tracks.at(0);
+                if (track->media_) {
+                    audio_payload = track->media_->copy();
+                }
+            }
+        } else {
+            //TODO: user const to replace 2
+            if(2 != audio->get_codec()) {
+                return srs_error_new(ERROR_RTC_NATIVE_NOT_SUPPORT, "not codec: %d", audio->get_codec());
+            }
+            SrsAudioPayload* opus_audio_payload = new SrsAudioPayload(audio->get_pt(), "opus", audio->get_sample(), audio->get_channel());
+            uint8_t inband_fec = 0;
+            uint8_t dtx = 0;
+            if(srs_success != (err = audio->get_opus_config(inband_fec, dtx))) {
+                srs_warn("%s", srs_error_summary(err).c_str());
+                srs_error_reset(err);
+            }
+            opus_audio_payload->opus_param_.use_inband_fec = inband_fec;
+            opus_audio_payload->opus_param_.usedtx = dtx;
+            audio_payload = opus_audio_payload;
+        }
+        if (audio_payload == NULL) {
+            return srs_error_new(ERROR_RTC_NATIVE_NOT_SUPPORT, "not opus codec found");
+        }
+        audio_track_desc_->media_ = audio_payload;
+
+        // trans info
+        // direction: 1 - sendonly, 2 - recvonly, 3 - sendrecv, 0 - not definition
+        uint8_t direction = audio->get_direction();
+        // when parse the direction to stream descritpion class, it should revert to other direction
+        if(1 == direction) {
+            audio_track_desc_->direction_ = "recvonly";
+        } else if(2 == direction) {
+            audio_track_desc_->direction_ = "sendonly";
+        } else if(3 == direction) {
+            audio_track_desc_->direction_ = "sendrecv";
+        } else {
+            srs_warn("unknown audio direction: %d", direction);
+            //TODO: return error to reject to join
+        }
+
+        // nack
+        if(nack_enabled && audio->nack_enabled()) {
+            audio_payload->rtcp_fbs_.push_back("nack");
+        }
+        // rtx
+        if(audio->rtx_enabled()) {
+            uint8_t pt = 0;
+            uint8_t apt = 0;
+            if(srs_success != (err = audio->get_rtx_config(pt, apt, audio_track_desc_->rtx_ssrc_))) {
+                return srs_error_wrap(err, "parse rtx info");
+            }
+            SrsRtxPayloadDes* rtx_des = new SrsRtxPayloadDes(pt, apt);
+            audio_track_desc_->rtx_ = rtx_des;
+        }
+
+        // red
+        if(audio->red_enabled()) {
+            uint8_t type = 0;
+            uint8_t pt = 0;
+            if(srs_success != (err = audio->get_red_config(type, pt))) {
+                return srs_error_wrap(err, "parse red info");
+            }
+            if(1 != type) {
+                return srs_error_new(ERROR_RTC_NATIVE_NOT_SUPPORT, "invalid %d type red", type);
+            }
+            SrsRedPayload* red_des = new SrsRedPayload(pt, "red", 8000, 1);
+            audio_track_desc_->red_ = red_des;
+        }
+
+        // fec
+        if(audio->fec_enabled()) {
+            uint8_t fec_type = 0;
+            if(srs_success != (err = audio->get_fec_type(fec_type))) {
+                return srs_error_wrap(err, "parse fec type");
+            }
+            if (2 != fec_type) {
+                return srs_error_new(ERROR_RTC_NATIVE_NOT_SUPPORT, "invalid %d type of fec", fec_type);
+            }
+
+            uint8_t pt = 0;
+            uint32_t prime_ssrc = 0;
+            uint32_t fec_ssrc = 0;
+            if(srs_success != (err = audio->get_flex_fec(fec_type, pt, prime_ssrc, fec_ssrc))) {
+                return srs_error_wrap(err, "parse rsfec info");
+            }
+
+            if(2 != fec_type) {
+                return srs_error_new(ERROR_RTC_NATIVE_NOT_SUPPORT, "invalid %d type of rsfec", fec_type);
+            }
+            audio_track_desc_->rsfec_ = new SrsCodecPayload(pt, "rsfec", 80000);
+            audio_track_desc_->fec_ssrc_ = fec_ssrc;
+        }
+    }
+
+
+    // parse video track
+    std::vector<SrsRtcNativeVideoMediaParam*>& videos = mini_sdp.get_video_medias();
+    for(int i = 0; i < videos.size(); ++i) {
+        SrsRtcNativeVideoMediaParam* video = videos.at(i);
+
+        SrsRtcTrackDescription* video_desc = new SrsRtcTrackDescription();
+        video_desc->extmaps_ = extmaps;
+        video_desc->type_ = "video";
+        video_desc->id_ = video->get_msid();
+        video_desc->ssrc_ = video->get_ssrc();
+
+        SrsCodecPayload *video_payload = NULL;
+        if (video->get_pt() == 0 && source) {
+            std::vector<SrsRtcTrackDescription*> tracks = source->get_track_desc("video", "H264");
+            if (!tracks.empty()) {
+                SrsRtcTrackDescription *track = tracks.at(0);
+                if (track->media_) {
+                    video_payload = track->media_->copy();
+                }
+            }
+        } else {
+            if(1 != video->get_codec()) {
+                return srs_error_new(ERROR_RTC_NATIVE_NOT_SUPPORT, "invalid %d codec, not h264", video->get_codec());
+            }
+            video_payload = new SrsVideoPayload(video->get_pt(), "h264", 90000);
+        }
+        if (video_payload == NULL) {
+            return srs_error_new(ERROR_RTC_NATIVE_NOT_SUPPORT, "video codec H264 not found");
+        }
+
+        video_desc->media_ = video_payload;
+
+        // trans info
+        // direction: 1 - sendonly, 2 - recvonly, 3 - sendrecv, 0 - not definition
+        uint8_t direction = video->get_direction();
+        // when parse the direction to stream descritpion class, it should revert to other direction
+        if(1 == direction) {
+            video_desc->direction_ = "recvonly";
+        } else if(2 == direction) {
+            video_desc->direction_ = "sendnly";
+        } else if(3 == direction) {
+            video_desc->direction_ = "sendrecv";
+        } else {
+            srs_warn("unknown audio direction: %d", direction);
+            //TODO: return error to reject to join
+        }
+        // nack
+        if(nack_enabled && video->nack_enabled()) {
+            video_payload->rtcp_fbs_.push_back("nack");
+        }
+        // rtx
+        if(video->rtx_enabled()) {
+            uint8_t pt = 0;
+            uint8_t apt = 0;
+            if(srs_success != (err = video->get_rtx_config(pt, apt, video_desc->rtx_ssrc_))) {
+                return srs_error_wrap(err, "parse rtx info");
+            }
+            SrsRtxPayloadDes* rtx_des = new SrsRtxPayloadDes(pt, apt);
+            video_desc->rtx_ = rtx_des;
+        }
+
+        // red
+        if(video->red_enabled()) {
+            uint8_t type = 0;
+            uint8_t pt = 0;
+            if(srs_success != (err = video->get_red_config(type, pt))) {
+                return srs_error_wrap(err, "parse red info");
+            }
+            if(1 != type) {
+                return srs_error_new(ERROR_RTC_NATIVE_NOT_SUPPORT, "invalid %d type red", type);
+            }
+            SrsRedPayload* red_des = new SrsRedPayload(pt, "red", 8000, 1);
+            video_desc->red_ = red_des;
+        }
+
+        // fec
+        if(video->fec_enabled()) {
+            uint8_t fec_type = 0;
+            if(srs_success != (err = video->get_fec_type(fec_type))) {
+                return srs_error_wrap(err, "parse fec type");
+            }
+            if (2 != fec_type) {
+                return srs_error_new(ERROR_RTC_NATIVE_NOT_SUPPORT, "invalid %d type of fec", fec_type);
+            }
+
+            uint8_t pt = 0;
+            uint32_t prime_ssrc = 0;
+            uint32_t fec_ssrc = 0;
+            if(srs_success != (err = video->get_flex_fec(fec_type, pt, prime_ssrc, fec_ssrc))) {
+                return srs_error_wrap(err, "parse rsfec info");
+            }
+
+            if(2 != fec_type) {
+                return srs_error_new(ERROR_RTC_NATIVE_NOT_SUPPORT, "invalid %d type of rsfec", fec_type);
+            }
+            video_desc->rsfec_ = new SrsCodecPayload(pt, "rsfec", 80000);
+            video_desc->fec_ssrc_ = fec_ssrc;
+        }
+        video_track_descs_.push_back(video_desc);
+    }
+
+    return err;
+}
+
+srs_error_t SrsRtcStreamDescription::generate_mini_sdp(std::string vhost, SrsRtcNativeMiniSDP& mini_sdp, SrsRtcNativeCommonMediaParam& common_media)
+{
+    srs_error_t err = srs_success;
+    bool nack_enabled = _srs_config->get_rtc_nack_enabled(vhost);
+    bool twcc_enabled = _srs_config->get_rtc_twcc_enabled(vhost);
+
+    std::map<int, std::string> extmaps;
+    std::map<int, std::string>::iterator it;
+
+    // construct audio info
+    if(NULL != audio_track_desc_) {
+        SrsRtcNativeAudioMediaParam* audio = mini_sdp.apply_audio_media();
+        audio->set_pt(audio_track_desc_->media_->pt_);
+        audio->set_msid(audio_track_desc_->id_);
+        audio->set_ssrc(audio_track_desc_->ssrc_);
+
+        srs_trace("MinSDP audio : msid=%s ssrc=%u pt=%u", audio_track_desc_->id_.c_str(),
+            audio_track_desc_->ssrc_, audio_track_desc_->media_->pt_);
+
+        //media
+        audio->set_codec(2);
+        audio->set_sample(audio_track_desc_->media_->sample_);
+        SrsAudioPayload* audio_payload = dynamic_cast<SrsAudioPayload*>(audio_track_desc_->media_);
+        srs_assert(NULL != audio_payload);
+        audio->set_channel(audio_payload->channel_);
+        audio->set_opus_config(audio_payload->opus_param_.use_inband_fec, audio_payload->opus_param_.usedtx);
+
+        //trans
+        if("sendonly" == audio_track_desc_->direction_) {
+            audio->set_direction(1);
+        } else if("recvonly" == audio_track_desc_->direction_) {
+            audio->set_direction(2);
+        } else if("sendrecv" == audio_track_desc_->direction_) {
+            audio->set_direction(3);
+        }
+
+        if(nack_enabled) {
+            audio->enable_nack();
+        }
+
+        if(NULL != audio_track_desc_->rtx_) {
+            SrsRtxPayloadDes* rtx = dynamic_cast<SrsRtxPayloadDes*>(audio_track_desc_->rtx_);
+            srs_assert(NULL != rtx);
+            audio->enable_rtx();
+            audio->set_rtx_config(rtx->pt_, rtx->apt_, audio_track_desc_->rtx_ssrc_);
+        }
+
+        if(NULL != audio_track_desc_->red_) {
+            SrsRedPayload* red = dynamic_cast<SrsRedPayload*>(audio_track_desc_->red_);
+            srs_assert(NULL != red);
+            audio->enable_red();
+            audio->set_red_config(1, red->pt_);
+        }
+
+        if(NULL != audio_track_desc_->rsfec_) {
+            audio->enable_fec();
+            audio->set_fec_type(2);
+            audio->set_flex_fec(2, audio_track_desc_->rsfec_->pt_, audio_track_desc_->ssrc_, audio_track_desc_->fec_ssrc_);
+        }
+
+        // rtp extension map
+        for(it = audio_track_desc_->extmaps_.begin(); it != audio_track_desc_->extmaps_.end(); ++it) {
+            extmaps[it->first] = it->second;
+        }
+    }
+
+    // video info
+    for(int i = 0; i < video_track_descs_.size(); ++i) {
+        SrsRtcTrackDescription* video_track_desc = video_track_descs_.at(i);
+        SrsRtcNativeVideoMediaParam* video = mini_sdp.apply_video_media();
+
+        video->set_pt(video_track_desc->media_->pt_);
+        video->set_msid(video_track_desc->id_);
+        video->set_ssrc(video_track_desc->ssrc_);
+        //media
+        video->set_codec(1);
+
+        srs_trace("MinSDP video : msid=%s ssrc=%u pt=%u", video_track_desc->id_.c_str(),
+            video_track_desc->ssrc_, video_track_desc->media_->pt_);
+
+        //trans
+        if("sendonly" == video_track_desc->direction_) {
+            video->set_direction(1);
+        } else if("recvonly" == video_track_desc->direction_) {
+            video->set_direction(2);
+        } else if("sendrecv" == video_track_desc->direction_) {
+            video->set_direction(3);
+        }
+
+        if(nack_enabled) {
+            video->enable_nack();
+        }
+
+        if(NULL != video_track_desc->rtx_) {
+            SrsRtxPayloadDes* rtx = dynamic_cast<SrsRtxPayloadDes*>(video_track_desc->rtx_);
+            srs_assert(NULL != rtx);
+            video->enable_rtx();
+            video->set_rtx_config(rtx->pt_, rtx->apt_, video_track_desc->rtx_ssrc_);
+        }
+
+        if(NULL != video_track_desc->red_) {
+            SrsRedPayload* red = dynamic_cast<SrsRedPayload*>(video_track_desc->red_);
+            srs_assert(NULL != red);
+            video->enable_red();
+            video->set_red_config(1, red->pt_);
+        }
+
+        if(NULL != video_track_desc->rsfec_) {
+            video->enable_fec();
+            video->set_fec_type(2);
+            video->set_flex_fec(2, video_track_desc->rsfec_->pt_, video_track_desc->ssrc_, video_track_desc->fec_ssrc_);
+        }
+
+        // rtp extension map
+        for(it = video_track_desc->extmaps_.begin(); it != video_track_desc->extmaps_.end(); ++it) {
+            extmaps[it->first] = it->second;
+        }
+    }
+
+    // rtp extension map
+    for(it = extmaps.begin(); it != extmaps.end(); ++it) {
+        if (kPictureIDExt == it->second) {
+            // picture id
+            common_media.add_rtp_extension(SrsRTCNativeRtpExtType_picture_id, it->first);
+        } else if(twcc_enabled && kTWCCExt == it->second) {
+            // twcc
+            common_media.add_rtp_extension(SrsRTCNativeRtpExtType_twcc, it->first);
+        }
+    }
+
+    return err;
 }
 
 SrsRtcTrackStatistic::SrsRtcTrackStatistic()
