@@ -57,6 +57,8 @@ using namespace std;
 #include <srs_app_rtc_server.hpp>
 #include <srs_app_rtc_source.hpp>
 #include <srs_protocol_utility.hpp>
+#include <srs_app_rtc_native.hpp>
+#include <srs_app_rtc_native_signaling.hpp>
 
 #ifdef SRS_CXX14
 #include <srs_api/srs_webrtc_api.hpp>
