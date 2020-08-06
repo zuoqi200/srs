@@ -153,6 +153,11 @@ private:
     bool hard_codec_keyframe_;
     uint8_t stream_id_;
     uint16_t real_sn_;
+private:
+    bool grtn_ver_;
+    bool enabled_offset_;
+    uint8_t start_sn_offset_;
+    uint8_t end_sn_offset_;
 public:
     SrsRtpExtensionPictureID();
     virtual ~SrsRtpExtensionPictureID();
@@ -175,6 +180,12 @@ public:
 
     bool is_keyframe();
 
+    bool is_grtn_ver();
+    void enable_grtn_version(bool enable);
+    uint8_t get_start_sn_offset();
+    void set_start_sn_offset(uint8_t offset);
+    uint8_t get_end_sn_offset();
+    void set_end_sn_offset(uint8_t offset);
 public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer* buf);
