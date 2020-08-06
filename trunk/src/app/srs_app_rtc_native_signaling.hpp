@@ -48,6 +48,7 @@ enum SrsRTCNativeSubType {
     SrsRTCNativeSubTypeMediaControl = 10,
     SrsRTCNativeSubTypeNotify = 11,
     SrsRTCNativeSubTypeSwitchMSID = 12,
+    SrsRTCNativeSubTypeWanSwitched = 13,
 };
 
 // native message type for Msg-Type field
@@ -81,6 +82,22 @@ enum SrsRTCNativeType {
     SrsRTCNativeType_hold_mode             =       24,
     SrsRTCNativeType_notify_recvSSRC       =       25,
     SrsRTCNativeType_new_msid              =       26,
+    SrsRTCNativeType_is_mobility           =       27,
+    SrsRTCNativeType_tenfold_config        =       99,
+};
+
+// rtp ext id
+enum SrsRTCNativeRtpExtType {
+    SrsRTCNativeRtpExtType_twcc                = 1, /* http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01 */
+    SrsRTCNativeRtpExtType_cts                 = 2,
+    SrsRTCNativeRtpExtType_frame_start         = 3,
+    SrsRTCNativeRtpExtType_audio_level         = 4,               /* urn:ietf:params:rtp-hdrext:ssrc-audio-level */
+    SrsRTCNativeRtpExtType_abs_send_time       = 5,        /* http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time */
+    SrsRTCNativeRtpExtType_abs_capture_time    = 6,          /* http://www.webrtc.org/experiments/rtp-hdrext/abs-capture-time */
+    SrsRTCNativeRtpExtType_picture_id          = 7,
+    SrsRTCNativeRtpExtType_svc_info            = 8,
+    SrsRTCNativeRtpExtType_audio_ranking_level = 9,       /* http://www.alibaba.com/experiments/rtp-hdrext/audio_ranking_level_id */
+    SrsRTCNativeRtpExtType_max_count           = 32
 };
 
 
@@ -97,6 +114,8 @@ protected:
     uint8_t tlv_ver_;
     uint8_t msg_type_;
     uint16_t msg_id_;
+    uint8_t sub_type_;
+    std::string name_;
 
 protected:
     srs_error_t decode_native_header(SrsBuffer *buffer);
@@ -116,8 +135,11 @@ public:
     srs_error_t set_msg_type(uint8_t type);
     srs_error_t set_msg_id(uint16_t id);
 
-    virtual uint8_t get_subtype() = 0;
-    virtual std::string get_name() = 0;
+    srs_error_t set_subtype(uint8_t sub_type);
+    srs_error_t set_name(const std::string &name);
+    
+    virtual uint8_t get_subtype();
+    virtual std::string get_name();
 
 public:
     // ISrsCodec
@@ -162,9 +184,6 @@ public:
 
     const std::string& get_trace_id() const;
     void set_trace_id(std::string id);
-
-    virtual uint8_t get_subtype() { return 32; }
-    virtual std::string get_name() { return "TEMP"; }
 public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer *buffer);
@@ -178,8 +197,6 @@ class SrsRtcNativeFinalAck : public SrsRtcNativeHeader
 public:
     SrsRtcNativeFinalAck();
     virtual ~SrsRtcNativeFinalAck();
-    virtual uint8_t get_subtype() { return 33; };
-    virtual std::string get_name() { return "FINAL"; }
 };
 
 
@@ -266,10 +283,10 @@ public:
     const uint8_t get_channel() const;
     const srs_error_t get_opus_config(uint8_t& inband_fec, uint8_t& dtx) const;
     const uint8_t get_direction() const;
-    const bool enable_nack() const;
-    const bool enable_rtx() const;
-    const bool enable_fec() const;
-    const bool enable_red() const;
+    const bool nack_enabled() const;
+    const bool rtx_enabled() const;
+    const bool fec_enabled() const;
+    const bool red_enabled() const;
     const srs_error_t get_fec_type(uint8_t& type) const;
     const srs_error_t get_rtx_config(uint8_t& pt, uint8_t& apt, uint32_t& ssrc) const;
     const srs_error_t get_flex_fec(uint8_t& type, uint8_t& pt, uint32_t& prime_ssrc, uint32_t& fec_ssrc) const;
@@ -366,10 +383,10 @@ public:
     const uint8_t get_codec() const;
     // trans config
     const uint8_t get_direction() const;
-    const bool enable_nack() const;
-    const bool enable_rtx() const;
-    const bool enable_fec() const;
-    const bool enable_red() const;
+    const bool nack_enabled() const;
+    const bool rtx_enabled() const;
+    const bool fec_enabled() const;
+    const bool red_enabled() const;
     
     const srs_error_t get_fec_type(uint8_t& type) const;
     const srs_error_t get_rtx_config(uint8_t& pt, uint8_t& apt, uint32_t& ssrc) const;
@@ -462,7 +479,9 @@ public:
     uint8_t sdp_version_;
     std::vector<struct SrsRtcNativeRTPExtension> rtp_extension_;
     struct SrsRtcNativeRTXPadding* rtx_;
-
+private:
+    // default false, not part of rtcp app
+    bool cascade_media_;
 public:
     SrsRtcNativeCommonMediaParam();
     virtual ~SrsRtcNativeCommonMediaParam();
@@ -470,10 +489,12 @@ public:
     const uint8_t get_sdp_version() const;
     std::vector<struct SrsRtcNativeRTPExtension>& get_rtp_extension();
     const srs_error_t get_rtx_padding(uint8_t& pt, uint32_t& ssrc) const;
+    bool is_cascade_media() const { return cascade_media_; };
 
     void set_sdp_version(const uint8_t ver);
     void add_rtp_extension(const uint8_t type, const uint8_t id);
     void set_rtx(const uint8_t pt, const uint32_t ssrc);
+    void set_cascade_media(bool v) { cascade_media_ = v; }
 
 public:
     // ISrsCodec
@@ -525,6 +546,62 @@ public:
     virtual srs_error_t encode(SrsBuffer *buffer);
 };
 
+class SrsRtcNativeCascadePath : public ISrsCodec
+{
+public:
+    uint8_t                         idx_;
+    uint16_t                        port_;
+    std::string                     ip_;
+    std::string                     region_;
+    std::vector<std::string>        vips_;
+private:
+    enum SrsRTCNativeTLVType {
+        SrsRTCNativeType_idx                   = 1,
+        SrsRTCNativeType_ip                    = 2,
+        SrsRTCNativeType_port                  = 3,
+        SrsRTCNativeType_vip                   = 4,
+        SrsRTCNativeType_region                = 5,
+    };
+public:
+    SrsRtcNativeCascadePath();
+    virtual ~SrsRtcNativeCascadePath();
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer);  
+};
+
+class SrsRtcNativeTenfoldConfig : public ISrsCodec
+{
+public:
+    enum {
+        MODE_NONE                              = 0,
+        MODE_CASCADE                           = 1, 
+    };
+private:
+    enum SrsRTCNativeTLVType {
+        SrsRTCNativeType_mode                  = 1,
+        SrsRTCNativeType_cascade_path          = 2,
+    };
+    uint8_t                                    mode_;
+    std::vector<SrsRtcNativeCascadePath*>      paths_;
+public:
+    SrsRtcNativeTenfoldConfig();
+    virtual ~SrsRtcNativeTenfoldConfig();
+public:
+    uint8_t get_mode()  const { return mode_; }
+    const std::vector<SrsRtcNativeCascadePath*>& get_paths() const;
+
+    void set_mode(uint8_t mode) { mode_ = mode; }
+    void append_path(SrsRtcNativeCascadePath * cascade_path);
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer);   
+};
+
 class SrsRtcNativePublishRequest : public SrsRtcNativeHeader
 {
 private:
@@ -538,7 +615,7 @@ public:
 
     const std::string& get_url() const;
     const uint8_t get_mode() const;
-    SrsRtcNativeMiniSDP* get_mini_sdp();
+    SrsRtcNativeMiniSDP* get_sdp();
     SrsRtcNativeSessionParam* get_session_param();
 
     void set_url(std::string url);
@@ -599,6 +676,7 @@ private:
     SrsRtcNativeMiniSDP* mini_sdp_;
     uint8_t mode_;
     SrsRtcNativeSessionParam *session_param_;
+    SrsRtcNativeTenfoldConfig *tenfold_config_;
 public:
     SrsRtcNativeSubscribeRequest();
     virtual ~SrsRtcNativeSubscribeRequest();
@@ -608,9 +686,10 @@ public:
     const uint8_t get_mode() const;
     SrsRtcNativeMiniSDP* get_sdp();
     SrsRtcNativeSessionParam* get_session_param();
+    SrsRtcNativeTenfoldConfig* get_tenfold_config();
 
-    void set_url(std::string& url);
-    void add_msid(std::string& msid);
+    void set_url(const std::string& url);
+    void add_msid(const std::string& msid);
     void set_mode(uint8_t mode);
 
 public:
@@ -680,7 +759,7 @@ public:
     
     std::string& get_url();
     std::vector<SrsRtcNativeMsidCMD>& get_msid_cmd();
-    SrsRtcNativeMiniSDP* get_mini_sdp();
+    SrsRtcNativeMiniSDP* get_sdp();
 
     void set_url(std::string url);
     void add_msid_cmd(SrsRtcNativeMsidCMD& cmd);
@@ -740,7 +819,7 @@ public:
 
     std::string& get_url();
     std::vector<SrsRtcNativeMsidCMD>& get_msid_cmd();
-    SrsRtcNativeMiniSDP* get_mini_sdp();
+    SrsRtcNativeMiniSDP* get_sdp();
 
     void set_url(std::string url);
     void add_msid_cmd(SrsRtcNativeMsidCMD& cmd);
@@ -799,7 +878,7 @@ public:
     const uint16_t get_code() const;
     const std::string& get_msg() const;
     void set_code(uint16_t code);
-    void set_msg(std::string& msg);
+    void set_msg(const std::string& msg);
 public:
     // ISrsCodec
     virtual srs_error_t decode(SrsBuffer *buffer);
@@ -846,6 +925,61 @@ public:
     //SrsRtcNativeHeader
     virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeStop; }
     virtual std::string get_name() { return "STOP"; }
+};
+
+class SrsRtcNativeConnectRequest : public SrsRtcNativeHeader
+{
+private:
+    std::string url_;
+    SrsRtcNativeSessionParam *session_param_;
+public:
+    SrsRtcNativeConnectRequest();
+    ~SrsRtcNativeConnectRequest();
+public:
+    SrsRtcNativeSessionParam* get_session_param();
+    const std::string& get_url() const;
+
+    void set_url(std::string url);
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer); 
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeConnect; }
+    virtual std::string get_name() { return "CON"; }
+};
+
+class SrsRtcNativeConnectResponse : public SrsRtcNativeHeader
+{
+private:
+    uint16_t code_;
+    std::string msg_;
+    std::string trace_id_;
+    SrsRtcNativeSessionParam* session_param_;
+public:
+    SrsRtcNativeConnectResponse();
+    virtual ~SrsRtcNativeConnectResponse();
+public:
+    SrsRtcNativeSessionParam* get_session_param();
+    
+    const uint16_t get_code() const;
+    const std::string& get_msg() const;
+    const std::string& get_trace_id() const;
+
+    void set_code(uint16_t code);
+    void set_msg(std::string& msg);
+    void set_trace_id(std::string& id);
+public:
+    // ISrsCodec
+    virtual srs_error_t decode(SrsBuffer *buffer);
+    virtual int nb_bytes();
+    virtual srs_error_t encode(SrsBuffer *buffer); 
+public:
+    //SrsRtcNativeHeader
+    virtual uint8_t get_subtype() { return SrsRTCNativeSubTypeConnect; }
+    virtual std::string get_name() { return "CON"; }
 };
 
 class SrsRtcNativeDisconnectRequest : public SrsRtcNativeCommonResponse
