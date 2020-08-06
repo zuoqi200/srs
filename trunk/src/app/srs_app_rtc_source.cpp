@@ -42,6 +42,7 @@
 #include <srs_protocol_utility.hpp>
 #include <srs_protocol_json.hpp>
 #include <srs_app_log.hpp>
+#include <srs_app_rtc_native_signaling.hpp>
 
 #ifdef SRS_FFMPEG_FIT
 #include <srs_app_rtc_codec.hpp>
@@ -1555,7 +1556,7 @@ SrsRtcTrackDescription* SrsRtcStreamDescription::find_track_description_by_ssrc(
     return NULL;
 }
 
-srs_error_t SrsRtcStreamDescription::parse_min_sdp(std::string vhost, SrsRtcNativeMiniSDP& mini_sdp, SrsRtcNativeCommonMediaParam& common_media, SrsRtcStream *source)
+srs_error_t SrsRtcStreamDescription::parse_mini_sdp(std::string vhost, SrsRtcNativeMiniSDP& mini_sdp, SrsRtcNativeCommonMediaParam& common_media, SrsRtcStream *source)
 {
     srs_error_t err = srs_success;
 

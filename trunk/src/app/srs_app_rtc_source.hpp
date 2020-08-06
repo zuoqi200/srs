@@ -59,6 +59,8 @@ class SrsRtcPlayStreamStatistic;
 class SrsStreamSwitchContext;
 class SrsRtcTrackStatisticLogRecv;
 class SrsRtcTrackStatisticLogSend;
+class SrsRtcNativeMiniSDP;
+class SrsRtcNativeCommonMediaParam;
 
 class SrsNtp
 {
@@ -424,7 +426,7 @@ public:
 
 public:
     bool merge_ssrc_;
-    srs_error_t parse_min_sdp(std::string vhost, SrsRtcNativeMiniSDP& mini_sdp, SrsRtcNativeCommonMediaParam& common_media, SrsRtcStream *source);
+    srs_error_t parse_mini_sdp(std::string vhost, SrsRtcNativeMiniSDP& mini_sdp, SrsRtcNativeCommonMediaParam& common_media, SrsRtcStream *source);
     srs_error_t generate_mini_sdp(std::string vhost, SrsRtcNativeMiniSDP& mini_sdp, SrsRtcNativeCommonMediaParam& common_media);
 };
 
