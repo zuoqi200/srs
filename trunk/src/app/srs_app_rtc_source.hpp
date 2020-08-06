@@ -421,6 +421,11 @@ public:
 public:
     SrsRtcStreamDescription* copy();
     SrsRtcTrackDescription* find_track_description_by_ssrc(uint32_t ssrc);
+
+public:
+    bool merge_ssrc_;
+    srs_error_t parse_min_sdp(std::string vhost, SrsRtcNativeMiniSDP& mini_sdp, SrsRtcNativeCommonMediaParam& common_media, SrsRtcStream *source);
+    srs_error_t generate_mini_sdp(std::string vhost, SrsRtcNativeMiniSDP& mini_sdp, SrsRtcNativeCommonMediaParam& common_media);
 };
 
 class SrsRtcTrackStatistic

@@ -477,6 +477,13 @@ public:
     void set_rtc_callid(SrsRtcCallTraceId id);
     SrsRtcCallTraceId* get_rtc_callid();
     void write_downlink_bwe();
+public:
+    srs_error_t add_publisher(SrsRequest* request, SrsRtcNativeMiniSDP& req_mini_sdp,
+        SrsRtcNativeCommonMediaParam& req_common_media, SrsRtcNativeMiniSDP& resp_mini_sdp,
+        SrsRtcNativeCommonMediaParam& resp_common_media);
+    srs_error_t add_player(SrsRequest* request, SrsRtcNativeMiniSDP& req_mini_sdp,
+        SrsRtcNativeCommonMediaParam& req_common_media, SrsRtcNativeMiniSDP& resp_mini_sdp,
+        SrsRtcNativeCommonMediaParam& resp_common_media);
 private:
     SrsRtcConnectionDownlinkBweStatistic* bwe_stats_;
     SrsRtcConnectionDownlinkBweEvent* bwe_event_;
