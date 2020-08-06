@@ -1269,7 +1269,11 @@ SrsRtpExtensionPictureID::SrsRtpExtensionPictureID(): has_picture_id_(false),
     is_hard_codec_(false),
     hard_codec_keyframe_(false),
     stream_id_(0),
-    real_sn_(0)
+    real_sn_(0),
+    grtn_ver_(false),
+    enabled_offset_(false),
+    start_sn_offset_(0),
+    end_sn_offset_(0)
 {
 }
 
@@ -1377,6 +1381,37 @@ bool SrsRtpExtensionPictureID::is_keyframe()
     return false;
 }
 
+bool SrsRtpExtensionPictureID::is_grtn_ver()
+{
+    return grtn_ver_ && enabled_offset_;
+}
+
+void SrsRtpExtensionPictureID::enable_grtn_version(bool enable)
+{
+    grtn_ver_ = enable;
+    enabled_offset_ = enable;
+}
+
+uint8_t SrsRtpExtensionPictureID::get_start_sn_offset()
+{
+    return start_sn_offset_;
+}
+
+void SrsRtpExtensionPictureID::set_start_sn_offset(uint8_t offset)
+{
+    start_sn_offset_ = offset;
+}
+
+uint8_t SrsRtpExtensionPictureID::get_end_sn_offset()
+{
+    return end_sn_offset_;
+}
+
+void SrsRtpExtensionPictureID::set_end_sn_offset(uint8_t offset)
+{
+    end_sn_offset_ = offset;
+}
+
 srs_error_t SrsRtpExtensionPictureID::decode(SrsBuffer* buf)
 {
     srs_error_t err = srs_success;
@@ -1391,6 +1426,16 @@ srs_error_t SrsRtpExtensionPictureID::decode(SrsBuffer* buf)
         |      Real Sequence Number     |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     */
+    /*  new GRTN  picture ID rtp extension
+    @doc: https://yuque.antfin-inc.com/nf441k/ma1uf9/ikdmu7
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |        PictureID              |T|R|TID| RefID |S|H|I|SID|O|rsd|
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |      Real Sequence Number     | StartSnOffset |  EndSnOffset  |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   */
     // extension header
     if (!buf->require(1)) {
         return srs_error_new(ERROR_RTC_RTP_MUXER, "requires %d bytes", 1);
@@ -1399,7 +1444,7 @@ srs_error_t SrsRtpExtensionPictureID::decode(SrsBuffer* buf)
 
     id_ = (v & 0xF0) >> 4;
     uint8_t len = (v & 0x0F);
-    if(!id_ || len != 5) {
+    if(!id_ || len != 5 || len != 7) {
         return srs_error_new(ERROR_RTC_RTP, "invalid picture id=%d, len=%d", id_, len);
     }
 
@@ -1418,8 +1463,14 @@ srs_error_t SrsRtpExtensionPictureID::decode(SrsBuffer* buf)
     is_hard_codec_ = (v & 0x40) >> 6;
     hard_codec_keyframe_ = (v & 0x20) >> 5;
     stream_id_ = (v & 0x18) >> 3;
+    enabled_offset_ = ( v & 0x4) >> 2;
     real_sn_ = buf->read_2bytes();
     //buf->skip(len - 4);
+    if( 8 == len && enabled_offset_) {
+        grtn_ver_ = true;
+        start_sn_offset_ = buf->read_1bytes();
+        end_sn_offset_ = buf->read_1bytes();
+    }
 
     has_picture_id_ = true;
 
@@ -1446,6 +1497,17 @@ srs_error_t SrsRtpExtensionPictureID::encode(SrsBuffer* buf)
         |      Real Sequence Number     |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     */
+
+   /*  new GRTN  picture ID rtp extension
+    @doc: https://yuque.antfin-inc.com/nf441k/ma1uf9/ikdmu7
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |        PictureID              |T|R|TID| RefID |S|H|I|SID|O|rsd|
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |      Real Sequence Number     | StartSnOffset |  EndSnOffset  |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   */
     //picture id
     buf->write_2bytes(picture_id_);
 
@@ -1453,17 +1515,32 @@ srs_error_t SrsRtpExtensionPictureID::encode(SrsBuffer* buf)
     v = 0xc0 | ((tid_ << 4) & 0x30) | (ref_id_ & 0x0f);
     buf->write_1bytes(v);
 
-    // hard codec, hard codec I frame and stream id
-    v = ((is_hard_codec_ << 6) & 0x40) | ((hard_codec_keyframe_ << 5) & 0x20) | ((stream_id_ << 3) & 0x18);
+    if (grtn_ver_) {
+        // hard codec, hard codec I frame , stream id and enable offset
+        v = ((is_hard_codec_ << 6) & 0x40) | ((hard_codec_keyframe_ << 5) & 0x20) | ((stream_id_ << 3) & 0x18) |
+            (((enabled_offset_ ? 1 : 0) << 2) & 0x04);
+    } else {
+        // hard codec, hard codec I frame   and stream id
+        v = ((is_hard_codec_ << 6) & 0x40) | ((hard_codec_keyframe_ << 5) & 0x20) | ((stream_id_ << 3) & 0x18);
+    }
     buf->write_1bytes(v);
+
     buf->write_2bytes(real_sn_);
-    buf->write_1bytes(0x00);
+
+    // write grtn version field
+    if(grtn_ver_ && enabled_offset_) {
+        buf->write_1bytes(start_sn_offset_);
+        buf->write_1bytes(end_sn_offset_);
+    }
 
     return err;
 }
 
 int SrsRtpExtensionPictureID::nb_bytes()
 {
-    return 1 + 4 + 3;
+    if(grtn_ver_) {
+        return 1 + 8;
+    }
+    return 1 + 6;
 }
 
