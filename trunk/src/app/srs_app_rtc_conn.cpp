@@ -219,6 +219,9 @@ SrsRtcPlayStream::SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid)
     _parent_cid = parent_cid;
     trd = new SrsDummyCoroutine();
 
+    req_ = NULL;
+    source_ = NULL;
+
     session_ = s;
 
     mw_msgs = 0;
@@ -236,6 +239,8 @@ SrsRtcPlayStream::SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid)
 SrsRtcPlayStream::~SrsRtcPlayStream()
 {
     _srs_config->unsubscribe(this);
+
+    srs_freep(req_);
 
     srs_freep(trd);
     srs_freep(timer_);
@@ -262,6 +267,12 @@ srs_error_t SrsRtcPlayStream::initialize(SrsRequest* req, std::map<uint32_t, Srs
 {
     srs_error_t err = srs_success;
 
+    req_ = req->copy();
+
+    if ((err = _srs_rtc_sources->fetch_or_create(req_, &source_)) != srs_success) {
+        return srs_error_wrap(err, "rtc fetch source failed");
+    }
+
     if (true) {
         std::map<uint32_t, SrsRtcTrackDescription*>::iterator it = sub_relations.begin();
         while (it != sub_relations.end()) {
@@ -286,14 +297,12 @@ srs_error_t SrsRtcPlayStream::initialize(SrsRequest* req, std::map<uint32_t, Srs
 
 srs_error_t SrsRtcPlayStream::on_reload_vhost_play(string vhost)
 {
-    SrsRequest* req = session_->req;
-
-    if (req->vhost != vhost) {
+    if (req_->vhost != vhost) {
         return srs_success;
     }
 
-    realtime = _srs_config->get_realtime_enabled(req->vhost, true);
-    mw_msgs = _srs_config->get_mw_msgs(req->vhost, realtime, true);
+    realtime = _srs_config->get_realtime_enabled(req_->vhost, true);
+    mw_msgs = _srs_config->get_mw_msgs(req_->vhost, realtime, true);
 
     srs_trace("Reload play realtime=%d, mw_msgs=%d", realtime, mw_msgs);
 
@@ -333,7 +342,7 @@ srs_error_t SrsRtcPlayStream::start()
     }
 
     if (_srs_rtc_hijacker) {
-        if ((err = _srs_rtc_hijacker->on_start_play(session_, this, session_->req)) != srs_success) {
+        if ((err = _srs_rtc_hijacker->on_start_play(session_, this, req_)) != srs_success) {
             return srs_error_wrap(err, "on start play");
         }
     }
@@ -363,33 +372,28 @@ srs_error_t SrsRtcPlayStream::cycle()
 {
     srs_error_t err = srs_success;
 
-    SrsRtcStream* source = NULL;
-    SrsRequest* req = session_->req;
-
-    if ((err = _srs_rtc_sources->fetch_or_create(req, &source)) != srs_success) {
-        return srs_error_wrap(err, "fetch source");
-    }
+    SrsRtcStream* source = source_;
 
     SrsRtcConsumer* consumer = NULL;
     SrsAutoFree(SrsRtcConsumer, consumer);
     if ((err = source->create_consumer(consumer)) != srs_success) {
-        return srs_error_wrap(err, "create consumer, source=%s", req->get_stream_url().c_str());
+        return srs_error_wrap(err, "create consumer, source=%s", req_->get_stream_url().c_str());
     }
 
     // TODO: FIXME: Dumps the SPS/PPS from gop cache, without other frames.
     if ((err = source->consumer_dumps(consumer)) != srs_success) {
-        return srs_error_wrap(err, "dumps consumer, url=%s", req->get_stream_url().c_str());
+        return srs_error_wrap(err, "dumps consumer, url=%s", req_->get_stream_url().c_str());
     }
 
-    realtime = _srs_config->get_realtime_enabled(req->vhost, true);
-    mw_msgs = _srs_config->get_mw_msgs(req->vhost, realtime, true);
+    realtime = _srs_config->get_realtime_enabled(req_->vhost, true);
+    mw_msgs = _srs_config->get_mw_msgs(req_->vhost, realtime, true);
 
     SrsContextId cid = source->source_id();
     if (!cid.empty()) {
         _srs_context->bind(cid, "RTC play");
     }
     // TODO: FIXME: Add cost in ms.
-    srs_trace("RTC: start play url=%s, source_id=[%d][%s], encrypt=%d, realtime=%d, mw_msgs=%d", req->get_stream_url().c_str(),
+    srs_trace("RTC: start play url=%s, source_id=[%d][%s], encrypt=%d, realtime=%d, mw_msgs=%d", req_->get_stream_url().c_str(),
         ::getpid(), cid.c_str(), session_->encrypt, realtime, mw_msgs);
 
     SrsPithyPrint* pprint = SrsPithyPrint::create_rtc_play();
@@ -402,7 +406,7 @@ srs_error_t SrsRtcPlayStream::cycle()
     vector<SrsRtpPacket2*> pkts;
 
     if (_srs_rtc_hijacker) {
-        if ((err = _srs_rtc_hijacker->on_start_consume(session_, this, session_->req, consumer)) != srs_success) {
+        if ((err = _srs_rtc_hijacker->on_start_consume(session_, this, req_, consumer)) != srs_success) {
             return srs_error_wrap(err, "on start consuming");
         }
     }
@@ -783,7 +787,7 @@ srs_error_t SrsRtcPlayStream::on_rtcp_ps_feedback(char* buf, int nb_buf)
 
     switch (fmt) {
         case kPLI: {
-            ISrsRtcPublishStream* publisher = session_->source_->publish_stream();
+            ISrsRtcPublishStream* publisher = source_->publish_stream();
             if (publisher) {
                 uint32_t ssrc = get_video_publish_ssrc(ssrc_of_media_source);
                 if (ssrc != 0) {
@@ -1804,7 +1808,6 @@ SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
     stat_ = new SrsRtcConnectionStatistic();
     timer_ = new SrsHourGlass(this, 1000 * SRS_UTIME_MILLISECONDS);
 
-    source_ = NULL;
     publisher_ = NULL;
     player_ = NULL;
     sendonly_skt = NULL;
@@ -2013,14 +2016,17 @@ srs_error_t SrsRtcConnection::add_player2(SrsRequest* req, SrsSdp& local_sdp)
     return err;
 }
 
+// TODO: FIXME: Remove unused source.
 srs_error_t SrsRtcConnection::initialize(SrsRtcStream* source, SrsRequest* r, bool is_publisher, string username)
 {
     srs_error_t err = srs_success;
 
     username_ = username;
-    req = r->copy();
     is_publisher_ = is_publisher;
-    source_ = source;
+
+    if (r) { //TODO: FIXME: SrsRequest owner by Stream, not connection
+        req = r->copy();
+    }
 
     SrsSessionConfig* cfg = &local_sdp.session_config_;
     if ((err = transport_->initialize(cfg)) != srs_success) {
