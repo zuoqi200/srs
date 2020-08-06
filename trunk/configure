@@ -360,7 +360,7 @@ if [[ $SRS_RTC == YES ]]; then
         "srs_app_rtc_janus")
 fi
 if [[ $SRS_RTC == YES ]]; then
-    MODULE_FILES+=("srs_app_rtc_native_signaling" "srs_app_rtc_gslb")
+    MODULE_FILES+=("srs_app_rtc_native_signaling" "srs_app_rtc_native" "srs_app_rtc_gslb")
 fi
 if [[ $SRS_FFMPEG_FIT == YES ]]; then
     MODULE_FILES+=("srs_app_rtc_codec")
