@@ -2987,6 +2987,9 @@ srs_error_t SrsRtcConnection::negotiate_play_capability(SrsRequest* req, SrsRtcS
         return srs_error_wrap(err, "fetch rtc source");
     }
 
+    // for need merged track, use the same ssrc
+    uint32_t merged_track_ssrc = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+
     std::vector<SrsRtcTrackDescription*> src_track_descs;
     //negotiate audio media
     if(NULL != req_stream_desc->audio_track_desc_) {
@@ -3010,7 +3013,12 @@ srs_error_t SrsRtcConnection::negotiate_play_capability(SrsRequest* req, SrsRtcS
                 // FIXME: use source sdp or subscribe sdp? native subscribe may have no sdp
                 SrsRtcTrackDescription *track = src_video->copy();
                 sub_relations.insert(make_pair(track->ssrc_, track));
-                track->ssrc_ = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+                if (_srs_track_id_group->get_merged_track_id(track->id_) != track->id_
+                        && req_stream_desc->merge_ssrc_) {
+                    track->ssrc_ = merged_track_ssrc;
+                } else {
+                    track->ssrc_ = SrsRtcSSRCGenerator::instance()->generate_ssrc();
+                }
             }
         }
     }
