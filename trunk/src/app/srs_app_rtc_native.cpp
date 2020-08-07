@@ -238,7 +238,6 @@ SrsRtcNativeSession::SrsRtcNativeSession(SrsRtcServer* server, SrsRtcNativeSessi
 
     // TODO: FIXME: support encrypt signaling
     conn_->set_native_session(this);
-    conn_->set_state(encrypt_ ? DOING_DTLS_HANDSHAKE : ESTABLISHED);
 }
 
 SrsRtcNativeSession::SrsRtcNativeSession(SrsRtcServer* server, const std::string &server_ip, int server_port, bool encrypt)
