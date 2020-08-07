@@ -210,8 +210,6 @@ const int SrsRtcNativeSession::RETRY_INTERVAL[] = {
     SRS_UTIME_SECONDS * 8,
 };
 
-SrsRtcServer* SrsRtcNativeSession::rtc_ = NULL;
-
 int SrsRtcNativeSession::get_retry_interval(int retry_count)
 {
     int interval_count = sizeof(SrsRtcNativeSession::RETRY_INTERVAL) / sizeof(int);
@@ -223,13 +221,7 @@ int SrsRtcNativeSession::get_retry_interval(int retry_count)
     return SrsRtcNativeSession::RETRY_INTERVAL[idx];
 }
 
-void SrsRtcNativeSession::set_rtc_server(SrsRtcServer *server)
-{
-    SrsRtcNativeSession::rtc_ = server;
-}
-
-
-SrsRtcNativeSession::SrsRtcNativeSession(SrsRtcNativeSessionRole role, bool encrypt)
+SrsRtcNativeSession::SrsRtcNativeSession(SrsRtcServer* server, SrsRtcNativeSessionRole role, bool encrypt)
         : role_(role), encrypt_(encrypt), start_us_(srs_get_system_time()), connect_msg_id_(0)
 {
     cid_ = _srs_context->generate_id("sid");
@@ -240,6 +232,7 @@ SrsRtcNativeSession::SrsRtcNativeSession(SrsRtcNativeSessionRole role, bool encr
     listener_   = NULL;
     udp_socket_ = NULL;
     msg_id_     = 0;
+    rtc_        = server;
 
     conn_ = new SrsRtcConnection(SrsRtcNativeSession::rtc_, cid_);
 
@@ -248,10 +241,10 @@ SrsRtcNativeSession::SrsRtcNativeSession(SrsRtcNativeSessionRole role, bool encr
     conn_->set_state(encrypt_ ? DOING_DTLS_HANDSHAKE : ESTABLISHED);
 }
 
-SrsRtcNativeSession::SrsRtcNativeSession(const std::string &server_ip, int server_port, bool encrypt)
+SrsRtcNativeSession::SrsRtcNativeSession(SrsRtcServer* server, const std::string &server_ip, int server_port, bool encrypt)
         : role_(SrsRtcNativeSession::ROLE_CLIENT), encrypt_(encrypt), start_us_(srs_get_system_time())
 {
-    new (this)SrsRtcNativeSession(SrsRtcNativeSession::ROLE_CLIENT, encrypt);
+    new (this)SrsRtcNativeSession(server, SrsRtcNativeSession::ROLE_CLIENT, encrypt);
     
     server_ip_   = server_ip;
     server_port_ = server_port;
@@ -348,7 +341,7 @@ void SrsRtcNativeSession::stop()
     
     if (conn_) {
         conn_->set_native_session(NULL);
-        SrsRtcNativeSession::rtc_->destroy(conn_);
+        rtc_->destroy(conn_);
         conn_ = NULL;
     }
     
@@ -1046,21 +1039,22 @@ srs_error_t SrsRtcNativeSession::send_heartbeat() {
 SrsRtcNativeSessionManager::SrsRtcNativeSessionManager()
 {
     timer_ = NULL;
+    rtc_   = NULL;
 }
 
 SrsRtcNativeSessionManager::~SrsRtcNativeSessionManager()
 {
-
 }
 
 srs_error_t SrsRtcNativeSessionManager::initialize(SrsRtcServer *server)
 {
     srs_error_t err = srs_success;
+
     if (timer_) {
         return err;
     }
 
-    SrsRtcNativeSession::set_rtc_server(server);    
+    rtc_ = server;
 
     timer_ = new SrsHourGlass(this, 10 * SRS_UTIME_SECONDS);
     if ((err = timer_->tick(10 * SRS_UTIME_SECONDS)) != srs_success) {
@@ -1091,7 +1085,7 @@ srs_error_t SrsRtcNativeSessionManager::fetch_or_create(const std::string &serve
         sessions_.erase(it);
     }
 
-    s = new SrsRtcNativeSession(server_ip, server_port, false);
+    s = new SrsRtcNativeSession(rtc_, server_ip, server_port, false);
     if ((err = s->start()) != srs_success) {
         srs_freep(s);
         return srs_error_wrap(err, "start");
@@ -1121,7 +1115,7 @@ srs_error_t SrsRtcNativeSessionManager::create(char* data, int nb_data, SrsRtcNa
                 msg->get_subtype(), msg->get_msg_type());
     }
 
-    SrsRtcNativeSession *s = new SrsRtcNativeSession(SrsRtcNativeSession::ROLE_SERVER, false);
+    SrsRtcNativeSession *s = new SrsRtcNativeSession(rtc_, SrsRtcNativeSession::ROLE_SERVER, false);
 
     if ((err = s->start()) != srs_success) {
         srs_freep(s);

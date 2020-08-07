@@ -43,6 +43,7 @@ using namespace std;
 #include <srs_app_rtc_source.hpp>
 #include <srs_app_rtc_api.hpp>
 #include <srs_protocol_utility.hpp>
+#include <srs_app_rtc_native.hpp>
 
 #ifdef SRS_CXX14
 #include <srs_api/srs_webrtc_log.hpp>
@@ -709,6 +710,10 @@ srs_error_t RtcServerAdapter::initialize()
 
     if ((err = rtc->initialize()) != srs_success) {
         return srs_error_wrap(err, "rtc server initialize");
+    }
+
+    if ((err = _srs_rtc_native->initialize(rtc)) != srs_success) {
+        return srs_error_wrap(err, "rtc native signaling initialize");
     }
 
     return err;

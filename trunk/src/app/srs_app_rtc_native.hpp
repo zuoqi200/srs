@@ -69,8 +69,7 @@ public:
     };
 public:
     static const int RETRY_INTERVAL[];
-private:
-    static SrsRtcServer      *rtc_;
+    SrsRtcServer      *rtc_;
 private:
     const SrsRtcNativeSessionRole   role_;
     const bool                      encrypt_;
@@ -97,10 +96,9 @@ public:
     static srs_error_t parse_signaling(char *data, int nb_data, SrsRtcNativeHeader **msg);
     static srs_error_t parse_url(const std::string &url, SrsRequest **request);
     static int get_retry_interval(int retry_count);
-    static void set_rtc_server(SrsRtcServer *server);
 public:
-    SrsRtcNativeSession(SrsRtcNativeSessionRole role, bool encrypt);
-    SrsRtcNativeSession(const std::string &server_ip, int server_port, bool encrypt);
+    SrsRtcNativeSession(SrsRtcServer* server, SrsRtcNativeSessionRole role, bool encrypt);
+    SrsRtcNativeSession(SrsRtcServer* server, const std::string &server_ip, int server_port, bool encrypt);
     virtual ~SrsRtcNativeSession();
     // start timer and udp listener
     srs_error_t start();
@@ -157,6 +155,7 @@ private:
 class SrsRtcNativeSessionManager : virtual public ISrsHourGlass
 {
 private:
+    SrsRtcServer                   *rtc_;
     SrsHourGlass                   *timer_;
     std::map<std::string, SrsRtcNativeSession*> sessions_;
     std::vector<SrsRtcNativeSession*> zombies_;
@@ -176,7 +175,6 @@ public:
 
 // Global singleton instance.
 extern SrsRtcNativeSessionManager* _srs_rtc_native;
-
 
 class SrsRtcNativeCall
 {
