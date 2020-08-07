@@ -2117,8 +2117,7 @@ srs_error_t SrsRtcConnection::add_player2(SrsRequest* req, SrsSdp& local_sdp)
     return err;
 }
 
-// TODO: FIXME: Remove unused param source.
-srs_error_t SrsRtcConnection::initialize(SrsRtcStream* source, SrsRequest* r, bool is_publisher, bool dtls, bool srtp, string username)
+srs_error_t SrsRtcConnection::initialize(SrsRequest* r, bool is_publisher, bool dtls, bool srtp, string username)
 {
     srs_error_t err = srs_success;
 
