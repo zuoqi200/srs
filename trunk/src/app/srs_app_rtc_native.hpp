@@ -27,6 +27,7 @@
 #include <srs_core.hpp>
 #include <srs_app_listener.hpp>
 #include <srs_app_hourglass.hpp>
+#include <srs_app_rtc_conn.hpp>
 
 #include <map>
 #include <string>
@@ -45,7 +46,7 @@ class SrsRtcStream;
 class SrsRtcNativeClientPublishCall;
 class SrsRtcNativeClientSubscribeCall;
 
-class SrsRtcNativeSession : virtual public ISrsUdpMuxHandler, virtual public ISrsHourGlass
+class SrsRtcNativeSession : virtual public ISrsUdpMuxHandler, virtual public ISrsHourGlass, virtual public ISrsRtcConnectionHijacker
 {
 public:
     enum SrsRtcNativeSessionRole {
@@ -122,6 +123,9 @@ public:
 // for ISrsHourGlass
 public:
     virtual srs_error_t notify(int event, srs_utime_t interval, srs_utime_t tick);
+// for ISrsRtcConnectionHijacker
+public:
+    virtual srs_error_t on_dtls_done();
 private:
     srs_error_t check_state();
 // process incoming signaling

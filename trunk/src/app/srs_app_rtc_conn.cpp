@@ -2011,6 +2011,14 @@ string SrsRtcConnectionStatistic::summary()
     return ss.str();
 }
 
+ISrsRtcConnectionHijacker::ISrsRtcConnectionHijacker()
+{
+}
+
+ISrsRtcConnectionHijacker::~ISrsRtcConnectionHijacker()
+{
+}
+
 SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
 {
     req = NULL;
@@ -2019,6 +2027,7 @@ SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
     timer_ = new SrsHourGlass(this, 1000 * SRS_UTIME_MILLISECONDS);
     stat_ = new SrsRtcConnectionStatistic();
     timer_ = new SrsHourGlass(this, 1000 * SRS_UTIME_MILLISECONDS);
+    hijacker_ = NULL;
 
     publisher_ = NULL;
     player_ = NULL;
@@ -2363,6 +2372,11 @@ srs_error_t SrsRtcConnection::on_rtcp_feedback(char* data, int nb_data)
     return err;
 }
 
+void SrsRtcConnection::set_hijacker(ISrsRtcConnectionHijacker* h)
+{
+    hijacker_ = h;
+}
+
 srs_error_t SrsRtcConnection::on_rtp(char* data, int nb_data)
 {
     if (publisher_ == NULL) {
@@ -2389,6 +2403,12 @@ srs_error_t SrsRtcConnection::on_connection_established()
     } else {
         if ((err = start_play()) != srs_success) {
             return srs_error_wrap(err, "start play");
+        }
+    }
+
+    if (hijacker_) {
+        if ((err = hijacker_->on_dtls_done()) != srs_success) {
+            return srs_error_wrap(err, "hijack on dtls done");
         }
     }
 
