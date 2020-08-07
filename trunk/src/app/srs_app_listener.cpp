@@ -403,6 +403,26 @@ SrsUdpMuxSocket* SrsUdpMuxSocket::copy_sendonly()
     return sendonly;
 }
 
+srs_error_t SrsUdpMuxSocket::set_peer_addr(const std::string &ip, int port)
+{
+    sockaddr_in *sa = (sockaddr_in*)&from;
+    fromlen = sizeof(sockaddr_in);
+
+    memset(sa, 0, sizeof(sockaddr_in));
+    sa->sin_family = AF_INET;
+    sa->sin_port = htons(port);
+
+    // TODO: FIXME: Support domain name.
+    if((inet_aton(ip.c_str(), &sa->sin_addr)) <= 0) {
+        return srs_error_new(ERROR_SOCKET_GET_PEER_IP, "numeric ip only, ip=%s", ip.c_str());
+    }
+
+    peer_ip = ip;
+    peer_port = port;
+
+    return srs_success;
+}
+
 SrsUdpMuxListener::SrsUdpMuxListener(ISrsUdpMuxHandler* h, std::string i, int p)
 {
     handler = h;
