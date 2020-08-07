@@ -310,8 +310,8 @@ srs_error_t SrsRtcNativeSession::start() {
         return srs_error_wrap(err, "native session");
     }
 
-    // TODO: FIXME: Should not be NULL source or request.
-    if ((err = conn_->initialize(NULL, NULL, true, encrypt_, encrypt_, "")) != srs_success) {
+    SrsRequest req;
+    if ((err = conn_->initialize(&req, true, encrypt_, encrypt_, "")) != srs_success) {
         return srs_error_wrap(err, "native session");
     }
 
