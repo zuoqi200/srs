@@ -640,6 +640,12 @@ srs_error_t SrsRtcNativeSession::on_dtls_done()
     return update_state(SrsRtcNativeSession::STATE_CONNECTED);
 }
 
+// TODO: FIXME: Remove it when use one manager to destroy connection.
+bool SrsRtcNativeSession::session_never_timeout()
+{
+    return true;
+}
+
 srs_error_t SrsRtcNativeSession::process_connect(SrsRtcNativeHeader *msg)
 {
     srs_error_t err = srs_success;
