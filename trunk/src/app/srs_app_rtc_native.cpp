@@ -524,7 +524,7 @@ srs_error_t SrsRtcNativeSession::send_signaling(SrsRtcNativeHeader *msg)
         return srs_error_wrap(err, "send_signaling");   
     }
 
-    if ((err = conn_->send_native_signaling(rtcp_buf->data(), rtcp_buf->pos())) != srs_success) {
+    if ((err = conn_->send_rtcp(rtcp_buf->data(), rtcp_buf->pos())) != srs_success) {
         return srs_error_wrap(err, "send_signaling");   
     }
 
