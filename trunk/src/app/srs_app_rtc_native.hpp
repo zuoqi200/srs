@@ -28,6 +28,7 @@
 #include <srs_app_listener.hpp>
 #include <srs_app_hourglass.hpp>
 #include <srs_app_rtc_conn.hpp>
+#include <srs_app_rtc_server.hpp>
 
 #include <map>
 #include <string>
@@ -156,7 +157,7 @@ private:
 };
 
 
-class SrsRtcNativeSessionManager : virtual public ISrsHourGlass
+class SrsRtcNativeSessionManager : virtual public ISrsHourGlass, virtual public ISrsRtcServerHijacker
 {
 private:
     SrsRtcServer                   *rtc_;
@@ -175,6 +176,9 @@ public:
 // for ISrsHourGlass
 public:
     virtual srs_error_t notify(int event, srs_utime_t interval, srs_utime_t tick);
+// for ISrsRtcServerHijacker
+public:
+    virtual srs_error_t on_udp_packet(SrsUdpMuxSocket* skt, SrsRtcConnection* session, bool* pconsumed);
 };
 
 // Global singleton instance.

@@ -1156,6 +1156,31 @@ srs_error_t SrsRtcNativeSessionManager::notify(int event, srs_utime_t interval, 
     return srs_success;
 }
 
+srs_error_t SrsRtcNativeSessionManager::on_udp_packet(SrsUdpMuxSocket* skt, SrsRtcConnection* session, bool* pconsumed)
+{
+    srs_error_t err = srs_success;
+
+    char* data = skt->data(); int size = skt->size();
+    if (!SrsRtcpApp::is_rtcp_app((uint8_t*)data, size)) {
+        *pconsumed = false;
+        return err;
+    }
+
+    if (!session) {
+        SrsRtcNativeSession *s = NULL;
+        if ((err = _srs_rtc_native->create(data, size, &s)) != srs_success) {
+            srs_trace("SrsRtcNativeSession::create faild: %s", srs_error_summary(err).c_str());
+            return srs_error_wrap(err, "invalid native signaling");
+        }
+        session = s->get_rtc_connection();
+        session->switch_to_context();
+        session->update_sendonly_socket(skt);
+    }
+
+    *pconsumed = true;
+    return session->on_native_signaling(data, size);
+}
+
 SrsRtcNativeSessionManager* _srs_rtc_native = new SrsRtcNativeSessionManager();
     
 SrsRtcNativeCall::SrsRtcNativeCall(SrsRtcNativeSession *session, SrsRtcNativeCallType type, const std::string &url)
