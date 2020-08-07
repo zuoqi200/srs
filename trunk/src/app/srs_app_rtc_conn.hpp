@@ -412,6 +412,8 @@ public:
     virtual ~ISrsRtcConnectionHijacker();
 public:
     virtual srs_error_t on_dtls_done() = 0;
+    // TODO: FIXME: Remove it when use one manager to destroy connection.
+    virtual bool session_never_timeout() = 0;
 };
 
 // A RTC Peer Connection, SDP level object.

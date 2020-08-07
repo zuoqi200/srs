@@ -2439,6 +2439,10 @@ srs_error_t SrsRtcConnection::start_publish()
 
 bool SrsRtcConnection::is_stun_timeout()
 {
+    if (hijacker_ && hijacker_->session_never_timeout()) {
+        return false;
+    }
+
     return last_stun_time + session_timeout < srs_get_system_time();
 }
 

@@ -127,6 +127,7 @@ public:
 // for ISrsRtcConnectionHijacker
 public:
     virtual srs_error_t on_dtls_done();
+    virtual bool session_never_timeout();
 private:
     srs_error_t check_state();
 // process incoming signaling
