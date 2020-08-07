@@ -552,7 +552,7 @@ public:
 private:
     SrsRtcConnectionDownlinkBweStatistic* bwe_stats_;
     SrsRtcConnectionDownlinkBweEvent* bwe_event_;
-    friend class SrsRtcNativeSessionManager;
+    friend class SrsRtcNativeSession;
 };
 
 class ISrsRtcHijacker

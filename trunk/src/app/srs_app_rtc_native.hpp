@@ -121,6 +121,8 @@ public:
 // for ISrsUdpMuxHandler
 public:
     virtual srs_error_t on_udp_packet(SrsUdpMuxSocket* skt);
+public:
+    srs_error_t on_native_signaling(SrsUdpMuxSocket* skt);
 // for ISrsHourGlass
 public:
     virtual srs_error_t notify(int event, srs_utime_t interval, srs_utime_t tick);
