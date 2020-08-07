@@ -425,7 +425,7 @@ srs_error_t SrsRtcServer::create_session(
 
     // TODO: FIXME: add do_create_session to error process.
     SrsRtcConnection* session = new SrsRtcConnection(this, cid);
-    if ((err = do_create_session(session, req, remote_sdp, local_sdp, mock_eip, publish, dtls, srtp, source)) != srs_success) {
+    if ((err = do_create_session(session, req, remote_sdp, local_sdp, mock_eip, publish, dtls, srtp)) != srs_success) {
         srs_freep(session);
         return srs_error_wrap(err, "create session");
     }
@@ -437,7 +437,7 @@ srs_error_t SrsRtcServer::create_session(
 
 srs_error_t SrsRtcServer::do_create_session(
     SrsRtcConnection* session, SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp, const std::string& mock_eip,
-    bool publish, bool dtls, bool srtp, SrsRtcStream* source
+    bool publish, bool dtls, bool srtp
 )
 {
     srs_error_t err = srs_success;
@@ -505,11 +505,13 @@ srs_error_t SrsRtcServer::do_create_session(
     session->set_state(WAITING_STUN);
 
     // Before session initialize, we must setup the local SDP.
-    if ((err = session->initialize(source, req, publish, dtls, srtp, username)) != srs_success) {
+    if ((err = session->initialize(req, publish, dtls, srtp, username)) != srs_success) {
         return srs_error_wrap(err, "init");
     }
 
+    // We allows username is optional, but it never empty here.
     map_username_session.insert(make_pair(username, session));
+
     return err;
 }
 
@@ -571,11 +573,6 @@ srs_error_t SrsRtcServer::setup_session2(SrsRtcConnection* session, SrsRequest* 
         return err;
     }
 
-    SrsRtcStream* source = NULL;
-    if ((err = _srs_rtc_sources->fetch_or_create(req, &source)) != srs_success) {
-        return srs_error_wrap(err, "create source");
-    }
-
     // first add player for negotiate sdp media info
     SrsSdp local_sdp = *session->get_local_sdp();
     if ((err = session->add_player(req, remote_sdp, local_sdp)) != srs_success) {
@@ -586,10 +583,11 @@ srs_error_t SrsRtcServer::setup_session2(SrsRtcConnection* session, SrsRequest* 
     string username = local_sdp.get_ice_ufrag() + ":" + remote_sdp.get_ice_ufrag();
 
     // Before session initialize, we must setup the local SDP.
-    if ((err = session->initialize(source, req, false, true, true, username)) != srs_success) {
+    if ((err = session->initialize(req, false, true, true, username)) != srs_success) {
         return srs_error_wrap(err, "init");
     }
 
+    // We allows username is optional, but it never empty here.
     map_username_session.insert(make_pair(username, session));
 
     session->set_remote_sdp(remote_sdp);

@@ -1558,7 +1558,7 @@ srs_error_t SrsJanusCall::on_configure_publisher(SrsJsonObject* req, SrsJsonObje
     }
 
     // TODO: FIXME: When server enabled, but vhost disabled, should report error.
-    if ((err = session_->janus_->rtc_->create_session(&request, remote_sdp, local_sdp, eip, true, &rtc_session_)) != srs_success) {
+    if ((err = session_->janus_->rtc_->create_session(&request, remote_sdp, local_sdp, eip, true, true, true, &rtc_session_)) != srs_success) {
         return srs_error_wrap(err, "create session");
     }
 
