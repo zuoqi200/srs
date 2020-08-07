@@ -1160,9 +1160,10 @@ srs_error_t SrsRtcNativeSessionManager::on_udp_packet(SrsUdpMuxSocket* skt, SrsR
 {
     srs_error_t err = srs_success;
 
+    *pconsumed = false;
+
     char* data = skt->data(); int size = skt->size();
     if (!SrsRtcpApp::is_rtcp_app((uint8_t*)data, size)) {
-        *pconsumed = false;
         return err;
     }
 
@@ -1177,8 +1178,21 @@ srs_error_t SrsRtcNativeSessionManager::on_udp_packet(SrsUdpMuxSocket* skt, SrsR
         session->update_sendonly_socket(skt);
     }
 
+    SrsRtcNativeSession* nsession = dynamic_cast<SrsRtcNativeSession*>(session->hijacker);
+    if (!nsession) {
+        return err;
+    }
+
     *pconsumed = true;
-    return session->on_native_signaling(data, size);
+
+    // Decrypt the SRTP
+    int  nb_buf = nb_data;
+    char unprotected_buf[kRtpPacketSize];
+    if ((err = session_->transport_->unprotect_rtcp(data, unprotected_buf, nb_buf)) != srs_success) {
+        return srs_error_wrap(err, "rtcp unprotect failed");
+    }
+
+    return nsession->on_signaling(unprotected_buf, nb_buf);
 }
 
 SrsRtcNativeSessionManager* _srs_rtc_native = new SrsRtcNativeSessionManager();
