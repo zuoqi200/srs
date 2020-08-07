@@ -515,7 +515,7 @@ public:
 public:
     srs_error_t start_dtls_handshake();
 private:
-    friend class SrsRtcNativeSessionManager;
+    friend class SrsRtcNativeSession;
 };
 
 class ISrsRtcHijacker

@@ -614,7 +614,7 @@ srs_error_t SrsRtcNativeSession::on_udp_packet(SrsUdpMuxSocket* skt)
     } else if (is_rtp_or_rtcp((uint8_t*)data, size)) {
         if (is_rtcp((uint8_t*)data, size)) {
             if (SrsRtcpApp::is_rtcp_app((uint8_t*)data, size)) {
-                return conn_->on_native_signaling(data, size);
+                return on_native_signaling(skt);
             }
             return conn_->on_rtcp(data, size);
         }
@@ -622,6 +622,22 @@ srs_error_t SrsRtcNativeSession::on_udp_packet(SrsUdpMuxSocket* skt)
     }
 
     return srs_error_new(ERROR_RTC_UDP, "unknown udp packet type");
+}
+
+srs_error_t SrsRtcNativeSession::on_native_signaling(SrsUdpMuxSocket* skt)
+{
+    srs_error_t err = srs_success;
+
+    char* data = skt->data(); int size = skt->size();
+
+    // Decrypt the SRTP
+    int  nb_buf = size;
+    char unprotected_buf[kRtpPacketSize];
+    if ((err = conn_->transport_->unprotect_rtcp(data, unprotected_buf, nb_buf)) != srs_success) {
+        return srs_error_wrap(err, "rtcp unprotect failed");
+    }
+
+    return on_signaling(unprotected_buf, nb_buf);
 }
 
 srs_error_t SrsRtcNativeSession::notify(int event, srs_utime_t interval, srs_utime_t tick)
@@ -1184,21 +1200,13 @@ srs_error_t SrsRtcNativeSessionManager::on_udp_packet(SrsUdpMuxSocket* skt, SrsR
         session->update_sendonly_socket(skt);
     }
 
-    SrsRtcNativeSession* nsession = dynamic_cast<SrsRtcNativeSession*>(session->hijacker);
+    SrsRtcNativeSession* nsession = dynamic_cast<SrsRtcNativeSession*>(session->hijacker_);
     if (!nsession) {
         return err;
     }
 
     *pconsumed = true;
-
-    // Decrypt the SRTP
-    int  nb_buf = nb_data;
-    char unprotected_buf[kRtpPacketSize];
-    if ((err = session_->transport_->unprotect_rtcp(data, unprotected_buf, nb_buf)) != srs_success) {
-        return srs_error_wrap(err, "rtcp unprotect failed");
-    }
-
-    return nsession->on_signaling(unprotected_buf, nb_buf);
+    return nsession->on_native_signaling(skt);
 }
 
 SrsRtcNativeSessionManager* _srs_rtc_native = new SrsRtcNativeSessionManager();
