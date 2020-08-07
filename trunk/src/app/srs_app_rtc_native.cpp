@@ -236,8 +236,7 @@ SrsRtcNativeSession::SrsRtcNativeSession(SrsRtcServer* server, SrsRtcNativeSessi
 
     conn_ = new SrsRtcConnection(SrsRtcNativeSession::rtc_, cid_);
 
-    // TODO: FIXME: support encrypt signaling
-    conn_->set_native_session(this);
+    conn_->set_hijacker(this);
 }
 
 SrsRtcNativeSession::SrsRtcNativeSession(SrsRtcServer* server, const std::string &server_ip, int server_port, bool encrypt)
@@ -339,7 +338,7 @@ void SrsRtcNativeSession::stop()
     srs_freep(timer_);
     
     if (conn_) {
-        conn_->set_native_session(NULL);
+        conn_->set_hijacker(NULL);
         rtc_->destroy(conn_);
         conn_ = NULL;
     }
@@ -634,6 +633,11 @@ srs_error_t SrsRtcNativeSession::notify(int event, srs_utime_t interval, srs_uti
     }
 
     return srs_success;
+}
+
+srs_error_t SrsRtcNativeSession::on_dtls_done()
+{
+    return update_state(SrsRtcNativeSession::STATE_CONNECTED);
 }
 
 srs_error_t SrsRtcNativeSession::process_connect(SrsRtcNativeHeader *msg)
