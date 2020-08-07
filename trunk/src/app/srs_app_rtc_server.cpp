@@ -397,7 +397,8 @@ srs_error_t SrsRtcServer::listen_api()
 }
 
 srs_error_t SrsRtcServer::create_session(
-    SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp, const std::string& mock_eip, bool publish,
+    SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp, const std::string& mock_eip,
+    bool publish, bool dtls, bool srtp,
     SrsRtcConnection** psession
 ) {
     srs_error_t err = srs_success;
@@ -424,7 +425,7 @@ srs_error_t SrsRtcServer::create_session(
 
     // TODO: FIXME: add do_create_session to error process.
     SrsRtcConnection* session = new SrsRtcConnection(this, cid);
-    if ((err = do_create_session(session, req, remote_sdp, local_sdp, mock_eip, publish, source)) != srs_success) {
+    if ((err = do_create_session(session, req, remote_sdp, local_sdp, mock_eip, publish, dtls, srtp, source)) != srs_success) {
         srs_freep(session);
         return srs_error_wrap(err, "create session");
     }
@@ -435,8 +436,8 @@ srs_error_t SrsRtcServer::create_session(
 }
 
 srs_error_t SrsRtcServer::do_create_session(
-    SrsRtcConnection* session, SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp, const std::string& mock_eip, bool publish,
-    SrsRtcStream* source
+    SrsRtcConnection* session, SrsRequest* req, const SrsSdp& remote_sdp, SrsSdp& local_sdp, const std::string& mock_eip,
+    bool publish, bool dtls, bool srtp, SrsRtcStream* source
 )
 {
     srs_error_t err = srs_success;
@@ -504,7 +505,7 @@ srs_error_t SrsRtcServer::do_create_session(
     session->set_state(WAITING_STUN);
 
     // Before session initialize, we must setup the local SDP.
-    if ((err = session->initialize(source, req, publish, username)) != srs_success) {
+    if ((err = session->initialize(source, req, publish, dtls, srtp, username)) != srs_success) {
         return srs_error_wrap(err, "init");
     }
 
@@ -585,7 +586,7 @@ srs_error_t SrsRtcServer::setup_session2(SrsRtcConnection* session, SrsRequest* 
     string username = local_sdp.get_ice_ufrag() + ":" + remote_sdp.get_ice_ufrag();
 
     // Before session initialize, we must setup the local SDP.
-    if ((err = session->initialize(source, req, false, username)) != srs_success) {
+    if ((err = session->initialize(source, req, false, true, true, username)) != srs_success) {
         return srs_error_wrap(err, "init");
     }
 

@@ -244,7 +244,6 @@ SrsRtcNativeSession::SrsRtcNativeSession(SrsRtcNativeSessionRole role, bool encr
     conn_ = new SrsRtcConnection(SrsRtcNativeSession::rtc_, cid_);
 
     // TODO: FIXME: support encrypt signaling
-    conn_->set_encrypt(encrypt_);
     conn_->set_native_session(this);
     conn_->set_state(encrypt_ ? DOING_DTLS_HANDSHAKE : ESTABLISHED);
 }
@@ -311,7 +310,8 @@ srs_error_t SrsRtcNativeSession::start() {
         return srs_error_wrap(err, "native session");
     }
 
-    if ((err = conn_->initialize(NULL, NULL, true, "")) != srs_success) {
+    // TODO: FIXME: Should not be NULL source or request.
+    if ((err = conn_->initialize(NULL, NULL, true, encrypt_, encrypt_, "")) != srs_success) {
         return srs_error_wrap(err, "native session");
     }
 

@@ -83,6 +83,14 @@ void srs_session_request_keyframe(SrsRtcStream* source, uint32_t ssrc)
     publisher->request_keyframe(ssrc);
 }
 
+ISrsRtcTransport::ISrsRtcTransport()
+{
+}
+
+ISrsRtcTransport::~ISrsRtcTransport()
+{
+}
+
 SrsSecurityTransport::SrsSecurityTransport(SrsRtcConnection* s)
 {
     session_ = s;
@@ -205,6 +213,29 @@ srs_error_t SrsSecurityTransport::unprotect_rtcp(const char* cipher, char* plain
     return srtp_->unprotect_rtcp(cipher, plaintext, nb_plaintext);
 }
 
+SrsSemiSecurityTransport::SrsSemiSecurityTransport(SrsRtcConnection* s) : SrsSecurityTransport(s)
+{
+}
+
+SrsSemiSecurityTransport::~SrsSemiSecurityTransport()
+{
+}
+
+srs_error_t SrsSemiSecurityTransport::protect_rtp(const char* plaintext, char* cipher, int& nb_cipher)
+{
+    return srs_success;
+}
+
+srs_error_t SrsSemiSecurityTransport::protect_rtcp(const char* plaintext, char* cipher, int& nb_cipher)
+{
+    return srs_success;
+}
+
+srs_error_t SrsSemiSecurityTransport::protect_rtp2(void* rtp_hdr, int* len_ptr)
+{
+    return srs_success;
+}
+
 SrsRtcPlayStreamStatistic::SrsRtcPlayStreamStatistic()
 {
     nn_rtp_pkts = 0;
@@ -226,6 +257,7 @@ SrsRtcPlayStream::SrsRtcPlayStream(SrsRtcConnection* s, SrsContextId parent_cid)
     req_ = NULL;
     source_ = NULL;
 
+    is_started = false;
     session_ = s;
 
     mw_msgs = 0;
@@ -403,8 +435,8 @@ srs_error_t SrsRtcPlayStream::cycle()
         _srs_context->bind(cid, "RTC play");
     }
     // TODO: FIXME: Add cost in ms.
-    srs_trace("RTC: start play url=%s, source_id=[%d][%s], encrypt=%d, realtime=%d, mw_msgs=%d", req_->get_stream_url().c_str(),
-        ::getpid(), cid.c_str(), session_->encrypt, realtime, mw_msgs);
+    srs_trace("RTC: start play url=%s, source_id=[%d][%s], realtime=%d, mw_msgs=%d", req_->get_stream_url().c_str(),
+        ::getpid(), cid.c_str(), realtime, mw_msgs);
 
     SrsPithyPrint* pprint = SrsPithyPrint::create_rtc_play();
     SrsAutoFree(SrsPithyPrint, pprint);
@@ -1009,6 +1041,7 @@ SrsRtcPublishStream::SrsRtcPublishStream(SrsRtcConnection* session)
 {
     timer_ = new SrsHourGlass(this, 200 * SRS_UTIME_MILLISECONDS);
 
+    is_started = false;
     session_ = session;
     request_keyframe_ = false;
 
@@ -1912,7 +1945,6 @@ SrsRtcConnection::SrsRtcConnection(SrsRtcServer* s, SrsContextId context_id)
 {
     req = NULL;
     is_publisher_ = false;
-    encrypt = true;
     cid = context_id;
     timer_ = new SrsHourGlass(this, 1000 * SRS_UTIME_MILLISECONDS);
     stat_ = new SrsRtcConnectionStatistic();
@@ -2006,11 +2038,6 @@ vector<SrsUdpMuxSocket*> SrsRtcConnection::peer_addresses()
     }
 
     return addresses;
-}
-
-void SrsRtcConnection::set_encrypt(bool v)
-{
-    encrypt = v;
 }
 
 void SrsRtcConnection::switch_to_context()
@@ -2132,14 +2159,19 @@ srs_error_t SrsRtcConnection::add_player2(SrsRequest* req, SrsSdp& local_sdp)
     return err;
 }
 
-// TODO: FIXME: Remove unused source.
-srs_error_t SrsRtcConnection::initialize(SrsRtcStream* source, SrsRequest* r, bool is_publisher, string username)
+// TODO: FIXME: Remove unused param source.
+srs_error_t SrsRtcConnection::initialize(SrsRtcStream* source, SrsRequest* r, bool is_publisher, bool dtls, bool srtp, string username)
 {
     srs_error_t err = srs_success;
 
     username_ = username;
     is_publisher_ = is_publisher;
     req = r->copy();
+
+    if (!srtp) {
+        srs_freep(transport_);
+        transport_ = new SrsSemiSecurityTransport(this);
+    }
 
     SrsSessionConfig* cfg = &local_sdp.session_config_;
     if ((err = transport_->initialize(cfg)) != srs_success) {
@@ -2158,8 +2190,8 @@ srs_error_t SrsRtcConnection::initialize(SrsRtcStream* source, SrsRequest* r, bo
     session_timeout = _srs_config->get_rtc_stun_timeout(req->vhost);
     last_stun_time = srs_get_system_time();
 
-    srs_trace("RTC init session, user=%s, url=%s, DTLS(role=%s, version=%s), timeout=%dms", username.c_str(),
-        r->get_stream_url().c_str(), cfg->dtls_role.c_str(), cfg->dtls_version.c_str(), srsu2msi(session_timeout));
+    srs_trace("RTC init session, user=%s, url=%s, encrypt=%u/%u, DTLS(role=%s, version=%s), timeout=%dms", username.c_str(),
+        r->get_stream_url().c_str(), dtls, srtp, cfg->dtls_role.c_str(), cfg->dtls_version.c_str(), srsu2msi(session_timeout));
 
     return err;
 }
@@ -2605,8 +2637,8 @@ srs_error_t SrsRtcConnection::do_send_packets(const std::vector<SrsRtpPacket2*>&
 #endif
         }
 
-        // Whether encrypt the RTP bytes.
-        if (encrypt) {
+        // Cipher RTP to SRTP packet.
+        if (true) {
             int nn_encrypt = (int)iov->iov_len;
             if ((err = transport_->protect_rtp2(iov->iov_base, &nn_encrypt)) != srs_success) {
                 return srs_error_wrap(err, "srtp protect");
@@ -3618,6 +3650,11 @@ srs_error_t SrsRtcConnection::add_player(SrsRequest* request, SrsRtcNativeMiniSD
         return srs_error_wrap(err, "create player");
     }
     return err;
+}
+
+srs_error_t SrsRtcConnection::start_dtls_handshake()
+{
+    return transport_->start_active_handshake();
 }
 
 ISrsRtcHijacker::ISrsRtcHijacker()
