@@ -512,6 +512,8 @@ public:
         SrsRtcNativeCommonMediaParam& resp_common_media);
 public:
     srs_error_t start_dtls_handshake();
+private:
+    friend class SrsRtcNativeSessionManager;
 };
 
 class ISrsRtcHijacker
