@@ -160,6 +160,8 @@ public:
     int get_peer_port() const;
     std::string peer_id();
     SrsUdpMuxSocket* copy_sendonly();
+public:
+    srs_error_t set_peer_addr(const std::string &ip, int port);
 };
 
 class SrsUdpMuxListener : public ISrsCoroutineHandler
